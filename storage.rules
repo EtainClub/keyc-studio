@@ -1,0 +1,82 @@
+rules_version = '2';
+
+/*
+ * ── 명시적으로 인지하고 가는 트레이드오프 ──
+ *
+ * 읽기는 열고, 쓰기만 엄격히 잠근다.
+ *
+ * 읽기까지 firestore.get()으로 공개 여부를 확인하면 두 가지 문제가 생긴다:
+ *   ① 카카오톡 크롤러는 인증 없이 이미지를 가져가고, 리다이렉트·토큰 URL을
+ *      잘 따라가지 못한다 → og:image가 깨진다.
+ *      (그래서 썸네일은 Cloud Function이 바이트로 직접 서빙한다)
+ *   ② 작품 하나 열 때 자산 수만큼 Firestore read가 청구된다.
+ *      그림 4 + 소리 4 = 8 read × 조회 10만 건 = 80만 read.
+ *
+ * 공유가 끝난 작품은 공개 피드에도 노출되므로 workId를 비밀 접근 자격으로 보지 않는다.
+ * 업로드 중 visibility:'local'인 짧은 구간만 추측 불가능한 경로가 우발 접근을 막는다.
+ * 이 선택의 대가는 **공유 중단 시 파일을 실제로 지워야 한다**는 것이다.
+ * unshareWork Function이 그 삭제를 담당한다. 그게 이 규칙의 전제다.
+ */
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // 공개용 128px JPEG. 직접 읽기는 막고, avatar Function이 공개 작품·동의를 확인해 서빙한다.
+    match /publicProfiles/{uid}/avatar.jpg {
+      allow read: if false;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 50 * 1024
+        && request.resource.contentType == 'image/jpeg';
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Google 계정 백업 자산은 소유자만 읽고 쓴다. 공개 works 경로와 섞지 않는다.
+    match /users/{uid}/works/{workId}/art/{fileName} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 200 * 1024
+        && request.resource.contentType == 'image/png';
+    }
+
+    match /users/{uid}/works/{workId}/sound/{fileName} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 150 * 1024
+        && request.resource.contentType == 'audio/wav';
+    }
+
+    match /works/{workId}/art/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && firestore.get(/databases/(default)/documents/works/$(workId)).data.authorUid
+             == request.auth.uid
+        && request.resource.size < 200 * 1024
+        && request.resource.contentType == 'image/png';
+    }
+
+    match /works/{workId}/sound/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && firestore.get(/databases/(default)/documents/works/$(workId)).data.authorUid
+             == request.auth.uid
+        && request.resource.size < 150 * 1024
+        && request.resource.contentType == 'audio/wav';
+    }
+
+    match /works/{workId}/thumb.jpg {
+      allow read: if true;
+      allow write: if request.auth != null
+        && firestore.get(/databases/(default)/documents/works/$(workId)).data.authorUid
+             == request.auth.uid
+        && request.resource.size < 200 * 1024
+        && request.resource.contentType == 'image/jpeg';
+    }
+
+    // 삭제는 Function(Admin SDK)이 한다. 클라이언트에는 열지 않는다.
+    match /{allOther=**} {
+      allow read, write: if false;
+    }
+  }
+}

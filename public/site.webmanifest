@@ -1,0 +1,24 @@
+{
+  "name": "키크",
+  "short_name": "키크",
+  "description": "나만의 키캡에 그림과 소리를 담아 15초 공연을 만드는 키크 창작 놀이터",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#150f2b",
+  "theme_color": "#1b1436",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

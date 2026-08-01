@@ -1,0 +1,101 @@
+rules_version = '2';
+
+// 클라이언트 목록 쿼리를 열지 않는 것이 이 규칙의 핵심이다.
+// visibility == 'link' 문서는 링크로 감상할 수 있다. 그중 discoverable == true만
+// 공개 피드에 표시하며, Admin SDK를 쓰는 listPublicFeed가 최소 필드만 골라 중계한다.
+//
+// get과 list를 반드시 분리한다. `allow read`로 묶으면 list까지 열려서
+// 컬렉션 전체를 훑을 수 있게 된다.
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    // 프로필과 계정 백업은 공개 작품과 분리한다. 경로의 uid와 인증 uid가 같을 때만 접근한다.
+    match /users/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list: if false;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([
+          'name', 'avatarUrl', 'avatarSource', 'stageAvatarEnabled', 'customized', 'updatedAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 20
+        && (request.resource.data.avatarUrl == null
+          || (request.resource.data.avatarUrl is string
+            && request.resource.data.avatarUrl.size() <= 220000))
+        && (request.resource.data.avatarSource == null
+          || request.resource.data.avatarSource in ['custom', 'google'])
+        && request.resource.data.stageAvatarEnabled is bool
+        && (!request.resource.data.stageAvatarEnabled
+          || request.resource.data.avatarSource == 'custom');
+      allow delete: if request.auth != null && request.auth.uid == uid;
+
+      match /works/{workId} {
+        allow get, list, delete: if request.auth != null && request.auth.uid == uid;
+        allow create, update: if request.auth != null
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['work', 'updatedAt', 'published'])
+          && request.resource.data.work.id == workId
+          && request.resource.data.work.authorUid == uid
+          && request.resource.data.work.schemaVersion == 2
+          && request.resource.data.work.keys.size() == 4
+          && request.resource.data.work.replay.events.size() <= 600;
+      }
+    }
+
+    // 공개 여부만 담는다. 이름과 비공개/Google 사진 URL은 절대 이 문서에 넣지 않는다.
+    match /publicProfiles/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list: if false;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['enabled', 'updatedAt'])
+        && request.resource.data.enabled == true
+        && request.resource.data.updatedAt is number;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    match /works/{workId} {
+      allow get: if
+        ( request.auth != null && resource.data.authorUid == request.auth.uid )
+        || resource.data.visibility == 'link';
+
+      // 공개 피드가 있어도 문서 전체 list는 클라이언트에 열지 않는다.
+      allow list: if false;
+
+      allow create: if request.auth != null
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.id == workId
+        && request.resource.data.schemaVersion == 2
+        && request.resource.data.keys.size() == 4
+        && request.resource.data.replay.events.size() <= 600
+        && request.resource.data.authorNick.size() <= 20
+        && request.resource.data.title.size() <= 20
+        && request.resource.data.hint.size() <= 40
+        // 집계는 별도 컬렉션에만 있다. 작품 문서에 심으려는 시도를 막는다.
+        && !('stats' in request.resource.data);
+
+      allow update: if request.auth != null
+        && resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.keys.size() == 4
+        && request.resource.data.replay.events.size() <= 600
+        && request.resource.data.authorNick.size() <= 20
+        && request.resource.data.title.size() <= 20
+        && request.resource.data.hint.size() <= 40
+        && !('stats' in request.resource.data);
+
+      allow delete: if request.auth != null
+        && resource.data.authorUid == request.auth.uid;
+    }
+
+    // 집계는 Functions만 쓴다(Admin SDK는 규칙을 우회한다).
+    // 작품 문서와 분리해서, 남이 쓰는 값이 작품에 섞이지 않게 한다.
+    match /workStats/{workId} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if false;
+    }
+  }
+}
