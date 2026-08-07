@@ -13,6 +13,7 @@ import { deleteWorkRecord, listWorkRecords, type WorkRecord } from '../../storag
 import { missionOfDay } from '../../work-model/missions';
 import { WorkThumbnail } from '../components/WorkThumbnail';
 import { ProfileAvatar } from '../components/ProfileAvatar';
+import { isShareCurrent } from '../draft-state';
 import { useAppState } from '../state';
 
 export function HomeScreen() {
@@ -58,7 +59,7 @@ export function HomeScreen() {
    */
   const open = async (record: WorkRecord) => {
     void engine.unlock();
-    if (record.published) {
+    if (isShareCurrent(record.work, record.published)) {
       nav(`/w/${record.work.id}`);
       return;
     }
@@ -149,7 +150,11 @@ export function HomeScreen() {
                   <WorkThumbnail blob={r.thumb} />
                   <span className="work-title">{r.work.title || '이름 없는 작품'}</span>
                   <span className="work-state">
-                    {r.published ? '공유됨 · 눌러서 듣기' : '만드는 중 · 눌러서 이어서'}
+                    {isShareCurrent(r.work, r.published)
+                      ? '공유됨 · 눌러서 듣기'
+                      : r.published
+                        ? '변경됨 · 눌러서 다시 공유'
+                        : '만드는 중 · 눌러서 이어서'}
                   </span>
                 </button>
                 <button

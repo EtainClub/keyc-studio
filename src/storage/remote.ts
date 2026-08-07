@@ -27,6 +27,7 @@ import { firestore, functions, isFirebaseConfigured, storage } from './firebase'
 import { acquireUid } from './identity';
 import { assetPath, thumbPath } from './paths';
 import { parsePublicFeedItems, type PublicFeedItem } from './public-feed';
+import { toPortableWork } from './portable-work';
 import { renderShareThumb } from './thumbnail';
 
 const MAX_ART_BYTES = 200 * 1024;
@@ -162,7 +163,7 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
   // 2. 소유권 먼저. 이 문서가 있어야 Storage 쓰기 규칙이 통과한다.
   onProgress?.('작품 자리를 만드는 중…');
   await withTimeout(
-    setDoc(doc(firestore(), 'works', work.id), work),
+    setDoc(doc(firestore(), 'works', work.id), toPortableWork(work)),
     WRITE_TIMEOUT_MS,
     '작품 자리 만들기',
   );
@@ -207,10 +208,11 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
     ? Date.now() + options.expireDays * 86_400_000
     : null;
   const published: Work = { ...work, visibility: 'link' };
+  const portablePublished = toPortableWork(published);
   await withTimeout(
     updateDoc(doc(firestore(), 'works', work.id), {
-      assets: published.assets,
-      keys: published.keys,
+      assets: portablePublished.assets,
+      keys: portablePublished.keys,
       visibility: 'link',
       // 공개 피드 안내가 포함된 현재 ShareGate에서 보호자 확인을 받은 작품만 true다.
       discoverable: true,
@@ -246,19 +248,28 @@ function applyDroppedAssets(work: Work, dropped: Set<string>): Work {
   return { ...work, keys };
 }
 
-/** 감상 화면. 로컬에 있으면 로컬을 먼저 쓴다(내 작품을 내가 열 때). */
+/**
+ * 감상 화면은 서버 공개본을 먼저 쓴다.
+ * 제작 기기만 로컬 초안을 재생하면 원격 자산 누락을 숨겨 다른 기기와 결과가 달라진다.
+ */
 export async function fetchWork(id: string): Promise<Work | null> {
   const local = await getWorkRecord(id);
-  if (local) return local.work;
-  if (!isFirebaseConfigured) return null;
-  // 감상 화면도 마찬가지 — 무한 대기 대신 "불러오지 못했어요"가 낫다.
-  const snap = await withTimeout(
-    getDoc(doc(firestore(), 'works', id)),
-    WRITE_TIMEOUT_MS,
-    '작품 불러오기',
-  );
-  if (!snap.exists()) return null;
-  return parseWork(snap.data());
+  if (!isFirebaseConfigured) return local?.work ?? null;
+  try {
+    // 감상 화면도 마찬가지 — 무한 대기 대신 로컬 폴백을 택한다.
+    const snap = await withTimeout(
+      getDoc(doc(firestore(), 'works', id)),
+      WRITE_TIMEOUT_MS,
+      '작품 불러오기',
+    );
+    if (snap.exists()) {
+      const remote = parseWork(snap.data());
+      if (remote) return remote;
+    }
+  } catch (error) {
+    if (!local) throw error;
+  }
+  return local?.work ?? null;
 }
 
 /**

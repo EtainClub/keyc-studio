@@ -44,6 +44,7 @@ import { renderListThumb } from '../storage/thumbnail';
 import { createWork } from '../work-model/defaults';
 import { durationForTempo } from '../work-model/timing';
 import { tempoOf, type KeyDef, type KeyIndex, type TempoPreset, type Work } from '../work-model/types';
+import { applyDraftChange } from './draft-state';
 
 type AppState = {
   engine: KeycapEngine;
@@ -170,14 +171,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const patchDraft = useCallback((patch: Partial<Work>) => {
-    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+    setDraft((prev) => (prev ? applyDraftChange(prev, patch) : prev));
   }, []);
 
   const patchKey = useCallback((idx: KeyIndex, patch: Partial<KeyDef>) => {
     setDraft((prev) => {
       if (!prev) return prev;
       const keys = prev.keys.map((k) => (k.idx === idx ? { ...k, ...patch } : k)) as Work['keys'];
-      return { ...prev, keys };
+      return applyDraftChange(prev, { keys });
     });
   }, []);
 
@@ -186,11 +187,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setDraft((prev) => {
       if (!prev) return prev;
       const tempo = tempoOf(preset);
-      return {
-        ...prev,
+      return applyDraftChange(prev, {
         tempo,
         replay: { ...prev.replay, durationMs: durationForTempo(tempo) },
-      };
+      });
     });
   }, []);
 
