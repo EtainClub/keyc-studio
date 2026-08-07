@@ -10,6 +10,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { workBytes } from '../../storage/db';
 import { explainFirebaseError, shareUrl, unshareWork } from '../../storage/remote';
 import { HINT_MAX, TITLE_MAX } from '../../work-model/types';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { KeycapGrid, type GridHandle } from '../components/KeycapGrid';
 import { useAppState } from '../state';
 import { ShareGate } from './ShareGateScreen';
@@ -23,6 +24,16 @@ export function WorkCardScreen() {
   const [url, setUrl] = useState<string | null>(null);
   const [bytes, setBytes] = useState<number | null>(null);
   const [replaying, setReplaying] = useState(false);
+  const [confirmStop, setConfirmStop] = useState(false);
+  /** 성공 안내. 스스로 사라진다 — 아이가 닫을 것을 하나 더 만들지 않는다. */
+  const [notice, setNotice] = useState('');
+  const [shareError, setShareError] = useState('');
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(''), 3000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   useEffect(() => {
     if (!draft) {
@@ -57,20 +68,23 @@ export function WorkCardScreen() {
     const link = url ?? shareUrl(draft.id);
     try {
       await navigator.clipboard.writeText(link);
-      alert('링크를 복사했어요');
+      setNotice('링크를 복사했어요');
     } catch {
-      prompt('이 링크를 복사하세요', link);
+      // prompt()를 띄우지 않는다. 링크는 이미 화면에 그대로 보이므로
+      // 무엇을 하면 되는지만 알려주면 된다.
+      setNotice('복사하지 못했어요. 위 링크를 길게 눌러 복사해 주세요.');
     }
   };
 
   const stopSharing = async () => {
-    if (!confirm('공유를 멈출까요? 올린 그림과 소리도 지워져요.')) return;
+    setConfirmStop(false);
     try {
       await unshareWork(draft.id);
       patchDraft({ visibility: 'local' });
       setUrl(null);
+      setNotice('공유를 멈췄어요.');
     } catch (e) {
-      alert(`공유를 멈추지 못했어요.\n${explainFirebaseError(e)}`);
+      setShareError(`공유를 멈추지 못했어요. ${explainFirebaseError(e)}`);
     }
   };
 
@@ -146,15 +160,31 @@ export function WorkCardScreen() {
               보러 가기
             </button>
           </div>
-          <button type="button" className="chip wide" onClick={stopSharing}>
+          <button type="button" className="chip wide" onClick={() => setConfirmStop(true)}>
             공유 멈추기
           </button>
         </section>
       )}
 
+      {/* 결과는 화면 안에서 알린다. 스크린리더도 읽도록 live 영역으로 둔다. */}
+      <p className="note" role="status" aria-live="polite">
+        {notice}
+      </p>
+      {shareError && <p className="warn">{shareError}</p>}
+
       <button type="button" className="chip wide" onClick={() => nav('/')}>
         홈으로
       </button>
+
+      {confirmStop && (
+        <ConfirmDialog
+          title="공유를 멈출까요?"
+          detail="인터넷에 올린 그림과 소리가 지워지고, 링크를 받은 사람도 더는 볼 수 없어요."
+          confirmLabel="공유 멈추기"
+          onConfirm={() => void stopSharing()}
+          onCancel={() => setConfirmStop(false)}
+        />
+      )}
 
       {gateOpen && (
         <ShareGate

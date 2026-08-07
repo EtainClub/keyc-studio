@@ -5,10 +5,13 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-    />
+    <!--
+      확대를 막지 않는다.
+      아이가 연타할 때 화면이 확대되는 건 body의 `touch-action: manipulation`이
+      이미 막고 있다(더블탭 줌 차단). user-scalable=no까지 걸면 그 부작용은 없고
+      저시력 사용자와 보호자가 손가락으로 키워 볼 수단만 사라진다.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#1b1436" />
     <meta name="application-name" content="키크" />
     <meta name="apple-mobile-web-app-title" content="키크" />

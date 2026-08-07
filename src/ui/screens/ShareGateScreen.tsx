@@ -12,12 +12,13 @@
  * 일반 공개 시점에는 법률 검토를 받아야 한다 — 그건 코드로 정할 문제가 아니다.
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { VOICE_MODES, type VoiceMode } from '../../audio-engine/voice';
 import { explainFirebaseError, publishWork } from '../../storage/remote';
 import { isAdminEmail, isFirebaseConfigured } from '../../storage/firebase';
 import { photoArtKeyNumbers, type Work } from '../../work-model/types';
 import { useAppState } from '../state';
+import { useModalShell } from '../hooks';
 
 type Props = {
   work: Work;
@@ -41,6 +42,9 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState('');
   const [error, setError] = useState('');
+  const sheetRef = useRef<HTMLElement>(null);
+  // 올리는 중에는 Esc로 못 닫는다. 중간에 끊기면 반쯤 올라간 작품이 남는다.
+  useModalShell(sheetRef, onCancel, busy);
 
   const artCount = work.assets.filter((a) => a.kind === 'art').length;
   const soundCount = work.assets.filter((a) => a.kind === 'sound').length;
@@ -70,7 +74,14 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
 
   return (
     <div className="sheet-backdrop" onClick={busy ? undefined : onCancel}>
-      <section className="sheet gate" onClick={(e) => e.stopPropagation()} role="dialog">
+      <section
+        ref={sheetRef}
+        className="sheet gate"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="인터넷에 올리기 전에"
+      >
         <header className="sheet-head">
           <span className="sheet-title">인터넷에 올리기 전에</span>
         </header>

@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BEATS_PER_BAR, barMs, beatMs, durationForTempo } from '../../work-model/timing';
 import type { KeyIndex } from '../../work-model/types';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { KeycapGrid, type GridHandle, type LoopState } from '../components/KeycapGrid';
 import { useResumeOnVisible } from '../hooks';
 import { useAppState } from '../state';
@@ -31,6 +32,7 @@ export function PerformScreen() {
   const [presses, setPresses] = useState(0);
   const [loopStates, setLoopStates] = useState<LoopState[]>(['off', 'off', 'off', 'off']);
   const [check, setCheck] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   useResumeOnVisible(() => void engine.resume());
 
@@ -122,7 +124,7 @@ export function PerformScreen() {
   };
 
   const cancelPerformance = () => {
-    if (!confirm('공연을 중단할까요? 지금까지 연주는 저장되지 않아요.')) return;
+    setConfirmCancel(false);
     engine.stop();
     setPhase('ready');
     setElapsed(0);
@@ -203,7 +205,11 @@ export function PerformScreen() {
           <button type="button" className="chip performance-pause" onClick={togglePause}>
             {phase === 'paused' ? '▶ 계속하기' : 'Ⅱ 일시정지'}
           </button>
-          <button type="button" className="chip performance-stop" onClick={cancelPerformance}>
+          <button
+            type="button"
+            className="chip performance-stop"
+            onClick={() => setConfirmCancel(true)}
+          >
             ■ 공연 중단
           </button>
         </div>
@@ -224,6 +230,17 @@ export function PerformScreen() {
             ✓ 이 공연으로 완성
           </button>
         </div>
+      )}
+
+      {confirmCancel && (
+        <ConfirmDialog
+          title="공연을 중단할까요?"
+          detail="지금까지 누른 건 저장되지 않아요. 처음부터 다시 시작하게 돼요."
+          confirmLabel="중단하기"
+          cancelLabel="계속 공연하기"
+          onConfirm={cancelPerformance}
+          onCancel={() => setConfirmCancel(false)}
+        />
       )}
     </main>
   );

@@ -60,6 +60,38 @@ button {
   cursor: pointer;
 }
 
+/*
+ * 키보드 포커스 표시.
+ *
+ * 브라우저 기본 링(1px)은 이 어두운 보라 배경에서 거의 보이지 않는다.
+ * :focus가 아니라 :focus-visible을 쓴다 — 마우스나 손가락으로 눌렀을 때는
+ * 링이 뜨지 않고, 키보드로 옮겨 다닐 때만 뜬다.
+ * outline은 border와 달리 자리를 차지하지 않아 레이아웃이 흔들리지 않는다.
+ */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+/* 알약·키캡처럼 이미 둥근 것들은 제 모양대로 감싼다. */
+.chip:focus-visible,
+.swatch:focus-visible,
+.seg-btn:focus-visible,
+.size-btn:focus-visible,
+.loop-toggle:focus-visible,
+.sheet-close:focus-visible {
+  border-radius: 999px;
+}
+.big-cta:focus-visible,
+.sheet-done:focus-visible,
+.cap-swatch:focus-visible,
+.keycap-slot:focus-visible,
+.work-card:focus-visible,
+.sheet-tab:focus-visible,
+.bottom-nav-item:focus-visible {
+  border-radius: 16px;
+}
+
 .screen {
   max-width: 520px;
   margin: 0 auto;
@@ -157,6 +189,12 @@ button {
 }
 .chip:disabled {
   opacity: 0.4;
+}
+/* 되돌릴 수 없는 쪽. 색만으로 구분하지 않도록 글자에도 무슨 일이 나는지 적는다. */
+.chip.danger-solid {
+  background: var(--danger);
+  color: #3d0511;
+  font-weight: 800;
 }
 
 .chip-grid {
@@ -1536,6 +1574,8 @@ button {
 }
 .sheet-body {
   overflow-y: auto;
+  /* 시트를 끝까지 스크롤했을 때 뒤 화면이 따라 움직이지 않게 막는다. */
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
@@ -1634,6 +1674,29 @@ button {
   border-color: var(--accent);
   transform: translateY(-3px) scale(1.06);
   box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.35), 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* 확인 창 — 시트를 재사용하되 화면 가운데 뜨는 작은 상자다. */
+.sheet-backdrop:has(.confirm) {
+  align-items: center;
+  padding: 20px;
+}
+.sheet.confirm {
+  border-radius: 24px;
+  padding: 20px;
+  gap: 14px;
+}
+.confirm-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+}
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+}
+.confirm-actions .chip {
+  flex: 1;
 }
 
 /* ── 그리기 ────────────────────────────────────── */

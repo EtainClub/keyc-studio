@@ -31,7 +31,7 @@ import { invalidateAsset } from '../../storage/assets';
 import { hashBlob, putAssetBlob } from '../../storage/db';
 import { isAdminEmail } from '../../storage/firebase';
 import { FEELS, HAPTIC_ORDER, LEDS, MOTIONS } from '../feel';
-import { useAssetUrl } from '../hooks';
+import { useAssetUrl, useModalShell } from '../hooks';
 import { useAppState } from '../state';
 import { CuteFace } from './Keycap';
 import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas';
@@ -83,6 +83,7 @@ export function EditSheet({
   onClose,
 }: Props) {
   const [tab, setTab] = useState<TabId>('art');
+  const sheetRef = useRef<HTMLElement>(null);
 
   /**
    * 그림은 "저장" 버튼 없이 자동으로 붙는다.
@@ -105,12 +106,16 @@ export function EditSheet({
     setTab(next);
   };
 
+  useModalShell(sheetRef, () => void close());
+
   return (
     <div className="sheet-backdrop" onClick={close}>
       <section
+        ref={sheetRef}
         className="sheet"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label={`키캡 ${keyDef.idx + 1} 꾸미기`}
       >
         <header className="sheet-head">

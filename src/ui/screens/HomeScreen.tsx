@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { deleteAccountBackup } from '../../storage/account';
 import { deleteWorkRecord, listWorkRecords, type WorkRecord } from '../../storage/db';
 import { missionOfDay } from '../../work-model/missions';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { WorkThumbnail } from '../components/WorkThumbnail';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { isShareCurrent } from '../draft-state';
@@ -21,6 +22,8 @@ export function HomeScreen() {
   const { engine, startNewDraft, openDraft, profile, account, syncRevision } = useAppState();
   const [records, setRecords] = useState<WorkRecord[]>([]);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  /** 지우기를 누른 작품. 확인 창이 뜨는 동안 무엇을 지우는지 들고 있는다. */
+  const [pendingDelete, setPendingDelete] = useState<WorkRecord | null>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const mission = missionOfDay();
 
@@ -68,7 +71,7 @@ export function HomeScreen() {
   };
 
   const remove = async (record: WorkRecord) => {
-    if (!confirm('이 작품을 지울까요?')) return;
+    setPendingDelete(null);
     await deleteAccountBackup(record);
     await deleteWorkRecord(record.work.id);
     refresh();
@@ -160,8 +163,8 @@ export function HomeScreen() {
                 <button
                   type="button"
                   className="work-delete"
-                  aria-label="작품 지우기"
-                  onClick={() => void remove(r)}
+                  aria-label={`${r.work.title || '이름 없는 작품'} 지우기`}
+                  onClick={() => setPendingDelete(r)}
                 >
                   ✕
                 </button>
@@ -170,6 +173,16 @@ export function HomeScreen() {
           </ul>
         )}
       </section>
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title={`'${pendingDelete.work.title || '이름 없는 작품'}'을 지울까요?`}
+          detail="그린 그림과 녹음한 소리도 함께 사라져요. 되돌릴 수 없어요."
+          confirmLabel="지우기"
+          onConfirm={() => void remove(pendingDelete)}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </main>
   );
 }
