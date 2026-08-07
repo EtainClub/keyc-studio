@@ -15,15 +15,15 @@
  * 미완성 상태가 공유되는 사고가 구조적으로 없다.
  */
 
-import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes } from 'firebase/storage';
 import { applyVoiceMode, type VoiceMode } from '../audio-engine/voice';
 import { normalizeWork, validateWork } from '../work-model/validate';
 import { parseWork } from '../work-model/serialize';
-import type { AssetRef, Work } from '../work-model/types';
+import { photoArtKeyNumbers, type AssetRef, type Work } from '../work-model/types';
 import { getAssetBlob, getWorkRecord, localKeyOf, putWorkRecord } from './db';
-import { firestore, functions, isFirebaseConfigured, storage } from './firebase';
+import { firestore, functions, isAdminUser, isFirebaseConfigured, storage } from './firebase';
 import { acquireUid } from './identity';
 import { assetPath, thumbPath } from './paths';
 import { parsePublicFeedItems, type PublicFeedItem } from './public-feed';
@@ -150,11 +150,30 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
   if (!isFirebaseConfigured) {
     throw new Error('공유 설정이 아직 안 됐어요 (Firebase 설정 필요)');
   }
+
   const { onProgress } = options;
 
   // 1. 여기서 처음으로 계정이 생긴다.
   onProgress?.('연결하는 중…');
   const uid = await acquireUid();
+
+  /*
+   * 사진에서 딴 그림은 관리자 계정에서만 인터넷으로 내보낼 수 있다.
+   *
+   * 사진을 넣을 수 있는 계정도 관리자뿐이라 보통은 여기 걸릴 일이 없지만,
+   * 표식이 붙은 자산은 백업 복원 같은 경로로도 들어올 수 있다. 그래서 계정을 확인한다.
+   * UI에서도 미리 막지만 이 검사가 진짜 방어선이다 — 어떤 화면을 거쳐 들어와도 여기서 걸린다.
+   *
+   * 로그인이 끝난 **직후**, 첫 Firestore 쓰기 **전에** 던진다.
+   * 그래야 반쯤 올라간 작품이 남지 않는다.
+   */
+  const photoKeys = photoArtKeyNumbers(input);
+  if (photoKeys.length && !isAdminUser()) {
+    throw new Error(
+      `사진으로 만든 그림이 있어서 공유할 수 없어요 (키캡 ${photoKeys.join(', ')}번). ` +
+        '직접 그린 그림으로 바꾸면 공유할 수 있어요.',
+    );
+  }
 
   let work = normalizeWork({ ...input, authorUid: uid, visibility: 'local' });
   const errors = validateWork(work);
@@ -279,14 +298,10 @@ export async function fetchWork(id: string): Promise<Work | null> {
 export async function unshareWork(workId: string): Promise<void> {
   if (!isFirebaseConfigured) return;
   await acquireUid();
-  try {
-    const fn = httpsCallable(functions(), 'unshareWork');
-    await fn({ workId });
-  } catch (e) {
-    // Function이 없으면 최소한 문서라도 지운다.
-    console.warn('[remote] unshareWork 함수 호출 실패, 문서만 삭제합니다', e);
-    await deleteDoc(doc(firestore(), 'works', workId));
-  }
+  // 문서와 Storage 자산은 반드시 서버에서 함께 지운다. Function 호출이 실패했을 때
+  // 문서만 지우면 공유 링크는 깨지고 목소리·그림 파일은 고아로 남는다.
+  const fn = httpsCallable(functions(), 'unshareWork');
+  await withTimeout(fn({ workId }), WRITE_TIMEOUT_MS, '공유 멈추기');
   const record = await getWorkRecord(workId);
   if (record) {
     await putWorkRecord({

@@ -65,6 +65,7 @@ export function ProfileScreen() {
       await connectGoogle();
       setMessage('Google 계정에 연결하고 작품을 안전하게 보관했어요.');
     } catch (cause) {
+      console.warn('[account] Google 계정 연결 또는 작품 동기화에 실패했어요', cause);
       setError(accountError(cause));
     } finally {
       setBusy(false);
@@ -194,6 +195,9 @@ export function ProfileScreen() {
             <p className="account-connected">✓ Google 계정에 보관 중</p>
             {account.email ? <p className="note">{account.email}</p> : null}
             <p className="note">이 기기에서 만든 작품은 자동으로 비공개 백업돼요.</p>
+            <button type="button" className="chip wide" onClick={connect} disabled={busy}>
+              {busy ? '동기화하고 있어요…' : '지금 다시 동기화'}
+            </button>
           </>
         ) : (
           <>
@@ -230,7 +234,11 @@ function accountError(cause: unknown): string {
   if (code.includes('unauthorized-domain')) {
     return '현재 주소에서는 Google 로그인을 사용할 수 없어요 (승인된 도메인 설정 필요).';
   }
-  return cause instanceof Error ? cause.message : 'Google 계정을 연결하지 못했어요.';
+  if (code.includes('invalid-argument')
+    || (cause instanceof Error && cause.message.includes('Unsupported field value'))) {
+    return '작품 백업 데이터를 정리하지 못했어요. 앱을 새로고침한 뒤 다시 동기화해 주세요.';
+  }
+  return 'Google 계정 연결 또는 작품 보관을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.';
 }
 
 async function resizeAvatar(file: File): Promise<string> {

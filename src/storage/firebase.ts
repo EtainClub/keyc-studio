@@ -134,6 +134,31 @@ export function isPermanentUser(user: User | null): user is User & { isAnonymous
   return Boolean(user && !user.isAnonymous);
 }
 
+/**
+ * 사진 → 선따기를 쓸 수 있는 계정.
+ *
+ * 저작권과 초상권 판단이 사람 손을 거쳐야 하는 기능이라 관리자 계정에서만 연다.
+ * 이건 **보안 경계가 아니라 노출 범위 제한**이다 — 클라이언트 검사는 마음먹으면 우회된다.
+ * 실제 방어선은 사진 유래 자산의 공유 차단(remote.ts publishWork)이고, 그건 계정과 무관하게 걸린다.
+ */
+export const ADMIN_EMAIL = 'etainclub@gmail.com';
+
+export function isAdminEmail(email: string | null | undefined): boolean {
+  return typeof email === 'string' && email.trim().toLowerCase() === ADMIN_EMAIL;
+}
+
+/**
+ * 지금 로그인한 사람이 관리자인가.
+ *
+ * 사진에서 딴 그림을 만들 수 있는 계정이자, 그걸 공유할 수 있는 유일한 계정이다.
+ * 익명 계정은 해당 없다 — 이메일이 없으므로 언제나 false다.
+ */
+export function isAdminUser(): boolean {
+  if (!isFirebaseConfigured) return false;
+  const user = auth().currentUser;
+  return isPermanentUser(user) && isAdminEmail(user.email);
+}
+
 export type GoogleLinkResult = { user: User; mergedExistingAccount: boolean };
 
 export async function connectGoogleAccount(options: { beforeAccountSwitch?: () => Promise<void> } = {}): Promise<GoogleLinkResult> {

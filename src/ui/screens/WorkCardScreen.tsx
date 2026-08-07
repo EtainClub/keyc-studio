@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { workBytes } from '../../storage/db';
-import { shareUrl, unshareWork } from '../../storage/remote';
+import { explainFirebaseError, shareUrl, unshareWork } from '../../storage/remote';
 import { HINT_MAX, TITLE_MAX } from '../../work-model/types';
 import { KeycapGrid, type GridHandle } from '../components/KeycapGrid';
 import { useAppState } from '../state';
@@ -65,9 +65,13 @@ export function WorkCardScreen() {
 
   const stopSharing = async () => {
     if (!confirm('공유를 멈출까요? 올린 그림과 소리도 지워져요.')) return;
-    await unshareWork(draft.id);
-    patchDraft({ visibility: 'local' });
-    setUrl(null);
+    try {
+      await unshareWork(draft.id);
+      patchDraft({ visibility: 'local' });
+      setUrl(null);
+    } catch (e) {
+      alert(`공유를 멈추지 못했어요.\n${explainFirebaseError(e)}`);
+    }
   };
 
   return (

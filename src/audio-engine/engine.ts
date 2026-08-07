@@ -30,7 +30,7 @@ import { play } from './player';
 import { NoteScheduler } from './scheduler';
 import { assetSoundKey, SoundBank, type AssetResolver } from './sound-bank';
 
-export type EngineMode = 'idle' | 'prep' | 'live' | 'replay' | 'free';
+export type EngineMode = 'idle' | 'live' | 'replay' | 'free';
 
 export type SessionHandlers = {
   /** 0~1 진행률과 경과 ms. */
@@ -135,10 +135,6 @@ export class KeycapEngine {
   async prepare(keys: readonly KeyDef[]): Promise<void> {
     this.keys = [...keys];
     await this.bank.preload(keys.map(soundKeyOf));
-  }
-
-  setKeys(keys: readonly KeyDef[]): void {
-    this.keys = [...keys];
   }
 
   /* ── 즉시 발음 ─────────────────────────────────── */
@@ -267,11 +263,6 @@ export class KeycapEngine {
   }
 
   /* ── 세션 ──────────────────────────────────────── */
-
-  /** ③ 무대 준비: 루프를 마음껏 켜고 끄며 들어본다. 기록되지 않는다. */
-  startPrep(keys: readonly KeyDef[], tempo: Tempo): void {
-    this.beginSession('prep', keys, tempo, newSeed(), [], Infinity);
-  }
 
   /** ④ 공연: 아이가 누른 것과 루프 토글이 기록된다. */
   startLive(

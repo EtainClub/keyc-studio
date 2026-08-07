@@ -72,6 +72,10 @@ export function loopNotes(
   bpm: number,
   durationMs: number,
 ): Note[] {
+  // 반복음은 전체 목록을 미리 만드는 구조라 끝이 없는 세션을 전개할 수 없다.
+  // Infinity를 허용하면 아래 beat 루프가 영원히 돌며 탭 메모리를 모두 소진한다.
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return [];
+
   const notes: Note[] = [];
   const bMs = beatMs(bpm);
 

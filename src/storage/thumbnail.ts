@@ -119,7 +119,17 @@ function drawKeycaps(
     ctx.fill();
     ctx.clip();
     const art = arts[i];
-    if (art) ctx.drawImage(art, fx, fy, fw, fh);
+    if (art) {
+      /*
+       * 상단면은 정사각이 아니다(fh가 fw보다 짧다). 그림을 이 상자에 그대로 그리면
+       * 세로로 눌려 찌그러진다 — 아이가 그린 동그라미가 타원으로 나온다.
+       * 비율을 지켜 안에 들어갈 만큼만 키우고 가운데에 놓는다. 자르지도, 늘리지도 않는다.
+       */
+      const scale = Math.min(fw / art.width, fh / art.height);
+      const aw = art.width * scale;
+      const ah = art.height * scale;
+      ctx.drawImage(art, fx + (fw - aw) / 2, fy + (fh - ah) / 2, aw, ah);
+    }
     ctx.restore();
 
     ctx.save();

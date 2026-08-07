@@ -29,8 +29,10 @@ import type {
 } from '../../work-model/types';
 import { invalidateAsset } from '../../storage/assets';
 import { hashBlob, putAssetBlob } from '../../storage/db';
+import { isAdminEmail } from '../../storage/firebase';
 import { FEELS, HAPTIC_ORDER, LEDS, MOTIONS } from '../feel';
 import { useAssetUrl } from '../hooks';
+import { useAppState } from '../state';
 import { CuteFace } from './Keycap';
 import { DrawCanvas, type DrawCanvasHandle } from './DrawCanvas';
 import { RecordPanel } from './RecordPanel';
@@ -45,6 +47,16 @@ const TABS: { id: TabId; label: string; emoji: string }[] = [
   { id: 'loop', label: '반복', emoji: '🔁' },
 ];
 
+/** 키캡 본체 색. 그림 색과 헷갈리지 않게 이 탭에서만 쓰는 별도 목록이다. */
+const CAP_COLORS: { c: string; label: string }[] = [
+  { c: DEFAULT_COLORS[0], label: '분홍' },
+  { c: DEFAULT_COLORS[1], label: '노랑' },
+  { c: DEFAULT_COLORS[2], label: '초록' },
+  { c: DEFAULT_COLORS[3], label: '파랑' },
+  { c: '#FFFFFF', label: '하양' },
+  { c: '#B98CFF', label: '보라' },
+];
+
 type Props = {
   workId: string;
   keyDef: KeyDef;
@@ -52,6 +64,8 @@ type Props = {
   onPatch: (patch: Partial<KeyDef>) => void;
   /** 새 자산을 작품에 등록한다. */
   onAddAsset: (asset: AssetRef) => void;
+  /** 지금 붙어 있는 그림이 사진에서 딴 것인가. 이어 그려도 그 표식을 유지한다. */
+  artFromPhoto?: boolean;
   onClose: () => void;
 };
 
@@ -59,7 +73,15 @@ function demoStyle(keyDef: KeyDef): CSSProperties {
   return { ['--cap-color' as string]: keyDef.appearance.baseColor };
 }
 
-export function EditSheet({ workId, keyDef, engine, onPatch, onAddAsset, onClose }: Props) {
+export function EditSheet({
+  workId,
+  keyDef,
+  engine,
+  onPatch,
+  onAddAsset,
+  artFromPhoto = false,
+  onClose,
+}: Props) {
   const [tab, setTab] = useState<TabId>('art');
 
   /**
@@ -119,6 +141,7 @@ export function EditSheet({ workId, keyDef, engine, onPatch, onAddAsset, onClose
               keyDef={keyDef}
               onPatch={onPatch}
               onAddAsset={onAddAsset}
+              artFromPhoto={artFromPhoto}
               saveRef={saveArt}
             />
           )}
@@ -151,21 +174,26 @@ function ArtTab({
   keyDef,
   onPatch,
   onAddAsset,
+  artFromPhoto,
   saveRef,
 }: {
   workId: string;
   keyDef: KeyDef;
   onPatch: (p: Partial<KeyDef>) => void;
   onAddAsset: (a: AssetRef) => void;
+  artFromPhoto: boolean;
   saveRef: RefObject<(() => Promise<void>) | null>;
 }) {
   const canvasRef = useRef<DrawCanvasHandle>(null);
   const existing = useAssetUrl(keyDef.appearance.artAssetId);
+  const { account } = useAppState();
+  // 사진에서 선 따기는 관리자 계정에서만 보인다. 저작권·초상권 판단이 사람 손을 타야 한다.
+  const canTracePhoto = account.kind === 'google' && isAdminEmail(account.email);
 
   // 탭을 옮기거나 시트를 닫을 때 부모가 호출한다. 매 렌더마다 최신 클로저로 갱신.
   saveRef.current = async () => {
-    const blob = await canvasRef.current?.export();
-    if (!blob) {
+    const result = await canvasRef.current?.export();
+    if (!result) {
       // 전부 지웠으면 그림도 떼어낸다.
       if (keyDef.appearance.artAssetId) {
         invalidateAsset(keyDef.appearance.artAssetId);
@@ -173,6 +201,7 @@ function ArtTab({
       }
       return;
     }
+    const { blob, fromPhoto } = result;
     // 같은 자리에 다시 그려도 새 id를 쓴다 — 캐시 무효화 실수를 원천 차단한다.
     const id = newAssetId();
     const localKey = await putAssetBlob(workId, id, blob);
@@ -182,6 +211,8 @@ function ArtTab({
       mimeType: 'image/png',
       size: blob.size,
       hash: await hashBlob(blob),
+      // 공유 차단의 근거가 되는 태그다. 여기서 안 붙이면 뒤의 어떤 검사도 소용없다.
+      source: fromPhoto ? 'photo' : 'draw',
       localKey,
     });
     onPatch({ appearance: { ...keyDef.appearance, artAssetId: id } });
@@ -189,21 +220,38 @@ function ArtTab({
 
   return (
     <div className="tab-art">
-      <DrawCanvas ref={canvasRef} initialUrl={existing} />
-      <div className="color-row">
-        <span className="row-label">키캡 색</span>
-        {[...DEFAULT_COLORS, '#FFFFFF', '#B98CFF'].map((c) => (
-          <button
-            key={c}
-            type="button"
-            className={`swatch ${keyDef.appearance.baseColor === c ? 'on' : ''}`}
-            style={{ background: c }}
-            aria-label={`키캡 색 ${c}`}
-            onClick={() => onPatch({ appearance: { ...keyDef.appearance, baseColor: c } })}
-          />
-        ))}
-      </div>
-      <p className="note">그린 그림은 저절로 키캡에 붙어요.</p>
+      <section className="field">
+        <h3 className="field-head">
+          <span className="field-step" aria-hidden>1</span> 키캡 색을 골라요
+        </h3>
+        <div className="cap-colors" role="group" aria-label="키캡 색">
+          {CAP_COLORS.map(({ c, label }) => (
+            <button
+              key={c}
+              type="button"
+              className={`cap-swatch ${keyDef.appearance.baseColor === c ? 'on' : ''}`}
+              style={{ background: c }}
+              aria-label={`키캡 색 ${label}`}
+              aria-pressed={keyDef.appearance.baseColor === c}
+              onClick={() => onPatch({ appearance: { ...keyDef.appearance, baseColor: c } })}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="field">
+        <h3 className="field-head">
+          <span className="field-step" aria-hidden>2</span> 키캡 위에 그림을 그려요
+        </h3>
+        <DrawCanvas
+          ref={canvasRef}
+          initialUrl={existing}
+          capColor={keyDef.appearance.baseColor}
+          photoTraceEnabled={canTracePhoto}
+          initialFromPhoto={artFromPhoto}
+        />
+        <p className="note">그린 그림은 저절로 키캡에 붙어요.</p>
+      </section>
     </div>
   );
 }
@@ -285,43 +333,64 @@ function SoundTab({
 
   return (
     <div className="tab-sound">
-      <RecordPanel onAccept={acceptRecording} onPreview={previewBlob} />
-      {keyDef.sound.assetId && <p className="note">지금은 내가 녹음한 소리를 쓰고 있어요 🎙️</p>}
+      <section className="field">
+        <h3 className="field-head">
+          <span aria-hidden>🎙️</span> 내 목소리로 만들기
+        </h3>
+        <RecordPanel onAccept={acceptRecording} onPreview={previewBlob} />
+        {keyDef.sound.assetId && <p className="note">지금은 내가 녹음한 소리를 쓰고 있어요 🎙️</p>}
+      </section>
 
-      <h3 className="row-label">실제 녹음 타건음</h3>
-      <p className="note">진짜 기계식 키보드를 한 번씩 눌러 녹음한 소리예요.</p>
-      {presetButtons(KEYCAP_PRESETS)}
+      <section className="field">
+        <h3 className="field-head">
+          <span aria-hidden>⌨️</span> 실제 녹음 타건음
+        </h3>
+        <p className="note">진짜 기계식 키보드를 한 번씩 눌러 녹음한 소리예요.</p>
+        {presetButtons(KEYCAP_PRESETS)}
+      </section>
 
-      <h3 className="row-label">재미있는 효과음</h3>
-      {presetButtons(EFFECT_PRESETS)}
+      <section className="field">
+        <h3 className="field-head">
+          <span aria-hidden>✨</span> 재미있는 효과음
+        </h3>
+        {presetButtons(EFFECT_PRESETS)}
+      </section>
 
-      <h3 className="row-label">높낮이</h3>
-      <div className="chip-grid">
-        {PITCH_STEPS.map((s) => (
-          <button
-            key={s.v}
-            type="button"
-            className={`chip ${Math.abs(keyDef.sound.pitch - s.v) < 0.01 ? 'on' : ''}`}
-            onClick={() => patchSound({ pitch: s.v })}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+      <section className="field">
+        <h3 className="field-head">
+          <span aria-hidden>🎵</span> 높낮이
+        </h3>
+        <div className="chip-grid">
+          {PITCH_STEPS.map((s) => (
+            <button
+              key={s.v}
+              type="button"
+              className={`chip ${Math.abs(keyDef.sound.pitch - s.v) < 0.01 ? 'on' : ''}`}
+              onClick={() => patchSound({ pitch: s.v })}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      <h3 className="row-label">소리 크기</h3>
-      <div className="chip-grid">
-        {GAIN_STEPS.map((s) => (
-          <button
-            key={s.v}
-            type="button"
-            className={`chip ${Math.abs(keyDef.sound.gain - s.v) < 0.01 ? 'on' : ''}`}
-            onClick={() => patchSound({ gain: s.v })}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+      <section className="field">
+        <h3 className="field-head">
+          <span aria-hidden>🔉</span> 소리 크기
+        </h3>
+        <div className="chip-grid">
+          {GAIN_STEPS.map((s) => (
+            <button
+              key={s.v}
+              type="button"
+              className={`chip ${Math.abs(keyDef.sound.gain - s.v) < 0.01 ? 'on' : ''}`}
+              onClick={() => patchSound({ gain: s.v })}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -360,39 +429,47 @@ function MotionTab({
         </span>
       </div>
 
-      <h3 className="row-label">어떻게 움직일까요</h3>
-      <div className="chip-grid">
-        {MOTIONS.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            className={`chip ${keyDef.motion === m.id ? 'on' : ''}`}
-            onClick={() => {
-              onPatch({ motion: m.id as Motion });
-              setDemo((d) => d + 1);
-            }}
-          >
-            <span aria-hidden>{m.emoji}</span> {m.label}
-          </button>
-        ))}
-      </div>
+      <section className="field">
+        <h3 className="field-head">
+          <span aria-hidden>🤸</span> 어떻게 움직일까요
+        </h3>
+        <div className="chip-grid">
+          {MOTIONS.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className={`chip ${keyDef.motion === m.id ? 'on' : ''}`}
+              onClick={() => {
+                onPatch({ motion: m.id as Motion });
+                setDemo((d) => d + 1);
+              }}
+            >
+              <span aria-hidden>{m.emoji}</span> {m.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      <h3 className="row-label">빛</h3>
-      <div className="chip-grid">
-        {LEDS.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            className={`chip ${keyDef.led === l.id ? 'on' : ''}`}
-            onClick={() => {
-              onPatch({ led: l.id as Led });
-              setDemo((d) => d + 1);
-            }}
-          >
-            <span aria-hidden>{l.emoji}</span> {l.label}
-          </button>
-        ))}
-      </div>
+      <section className="field">
+        <h3 className="field-head">
+          <span aria-hidden>💡</span> 빛
+        </h3>
+        <div className="chip-grid">
+          {LEDS.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              className={`chip ${keyDef.led === l.id ? 'on' : ''}`}
+              onClick={() => {
+                onPatch({ led: l.id as Led });
+                setDemo((d) => d + 1);
+              }}
+            >
+              <span aria-hidden>{l.emoji}</span> {l.label}
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -445,18 +522,23 @@ function FeelTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
         </button>
       </div>
 
-      <div className="chip-grid">
-        {HAPTIC_ORDER.map((h) => (
-          <button
-            key={h}
-            type="button"
-            className={`chip ${keyDef.haptic === h ? 'on' : ''}`}
-            onClick={() => onPatch({ haptic: h })}
-          >
-            <span aria-hidden>{FEELS[h].emoji}</span> {FEELS[h].label}
-          </button>
-        ))}
-      </div>
+      <section className="field">
+        <h3 className="field-head">
+          <span aria-hidden>✋</span> 어떤 느낌으로 눌릴까요
+        </h3>
+        <div className="chip-grid">
+          {HAPTIC_ORDER.map((h) => (
+            <button
+              key={h}
+              type="button"
+              className={`chip ${keyDef.haptic === h ? 'on' : ''}`}
+              onClick={() => onPatch({ haptic: h })}
+            >
+              <span aria-hidden>{FEELS[h].emoji}</span> {FEELS[h].label}
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -486,33 +568,41 @@ function LoopTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
         켜고 끄는 건 무대와 공연 중에 해요. 여기서는 얼마나 자주 울릴지만 정합니다.
       </p>
 
-      <h3 className="row-label">얼마나 자주</h3>
-      <div className="chip-grid">
-        {EVERY.map((e) => (
-          <button
-            key={e.v}
-            type="button"
-            className={`chip ${keyDef.loop.everyBeats === e.v ? 'on' : ''}`}
-            onClick={() => patchLoop({ everyBeats: e.v })}
-          >
-            {e.label}
-          </button>
-        ))}
-      </div>
+      <section className="field">
+        <h3 className="field-head">
+          <span aria-hidden>⏱️</span> 얼마나 자주
+        </h3>
+        <div className="chip-grid">
+          {EVERY.map((e) => (
+            <button
+              key={e.v}
+              type="button"
+              className={`chip ${keyDef.loop.everyBeats === e.v ? 'on' : ''}`}
+              onClick={() => patchLoop({ everyBeats: e.v })}
+            >
+              {e.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
-      <h3 className="row-label">언제 시작</h3>
-      <div className="chip-grid">
-        {OFFSET.map((o) => (
-          <button
-            key={o.v}
-            type="button"
-            className={`chip ${keyDef.loop.offsetBeats === o.v ? 'on' : ''}`}
-            onClick={() => patchLoop({ offsetBeats: o.v })}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
+      <section className="field">
+        <h3 className="field-head">
+          <span aria-hidden>🚦</span> 언제 시작
+        </h3>
+        <div className="chip-grid">
+          {OFFSET.map((o) => (
+            <button
+              key={o.v}
+              type="button"
+              className={`chip ${keyDef.loop.offsetBeats === o.v ? 'on' : ''}`}
+              onClick={() => patchLoop({ offsetBeats: o.v })}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

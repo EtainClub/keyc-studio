@@ -101,6 +101,9 @@ function coerceAssets(raw: unknown): AssetRef[] {
       size: typeof a.size === 'number' ? a.size : 0,
       hash: typeof a.hash === 'string' ? a.hash : '',
       durationMs: typeof a.durationMs === 'number' ? a.durationMs : undefined,
+      // 사진 유래 태그는 반드시 살아남아야 한다. 여기서 흘리면 저장/불러오기 한 번에
+      // 공유 차단이 풀린다 — 이 파서는 "모르는 필드는 버린다"가 기본이라 더 위험하다.
+      source: a.source === 'photo' ? 'photo' : undefined,
       localKey: typeof a.localKey === 'string' ? a.localKey : undefined,
       remotePath: typeof a.remotePath === 'string' ? a.remotePath : undefined,
     });

@@ -22,4 +22,18 @@ describe('공개 작품 자산', () => {
     expect(portable.assets[0].remotePath).toBe(`works/${work.id}/sound/sound01.wav`);
     expect(work.assets[0]).toHaveProperty('localKey');
   });
+
+  it('중첩된 선택 필드의 undefined도 Firestore 문서에서 제거한다', () => {
+    const work = createWork({ authorNick: '테스터' });
+    work.secrets = [{
+      id: 'secret01',
+      trigger: { kind: 'pressCount', key: 0, count: 3 },
+      reveal: { kind: 'sound', assetId: undefined },
+    }];
+
+    const portable = toPortableWork(work);
+
+    expect(portable.secrets[0].reveal).not.toHaveProperty('assetId');
+    expect(work.secrets[0].reveal).toHaveProperty('assetId');
+  });
 });

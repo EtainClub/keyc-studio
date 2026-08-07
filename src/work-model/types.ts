@@ -68,6 +68,18 @@ export type OffsetBeats = 0 | 1 | 2 | 3;
 
 export type AssetKind = 'art' | 'sound';
 
+/**
+ * 자산이 어디서 왔는가.
+ *
+ * 'photo'는 사용자가 올린 사진에서 윤곽선을 따 만든 그림이다.
+ * 만드는 것도 공유하는 것도 **관리자 계정에서만** 허용된다 — 저작권·초상권 판단이
+ * 사람 손을 타야 하는 입력이기 때문이다(remote.ts publishWork).
+ *
+ * 이 태그가 사라지면 그 구분도 사라진다 —
+ * serialize.ts의 coerceAssets와 portable-work.ts가 반드시 이 필드를 보존해야 한다.
+ */
+export type AssetSource = 'draw' | 'photo';
+
 export type AssetRef = {
   id: string; // nanoid 8
   kind: AssetKind;
@@ -76,6 +88,8 @@ export type AssetRef = {
   /** SHA-256 앞 16자 — 같은 바이트를 두 번 올리지 않기 위한 것 */
   hash: string;
   durationMs?: number;
+  /** 없으면 'draw'로 본다 — 이 필드가 생기기 전 작품은 전부 직접 그린 것이다. */
+  source?: AssetSource;
   /** IndexedDB Blob 키. 로컬에만 있는 자산은 이것만 있다. */
   localKey?: string;
   /** 'works/{workId}/sound/{assetId}.wav'. 업로드 후에만 채워진다. */
@@ -217,4 +231,17 @@ export type Work = {
 export function findAsset(work: Work, assetId: string | null): AssetRef | null {
   if (!assetId) return null;
   return work.assets.find((a) => a.id === assetId) ?? null;
+}
+
+/**
+ * 사진에서 딴 그림이 붙어 있는 키캡 번호(1부터).
+ *
+ * 공유 게이트가 "몇 번 키캡을 고쳐야 하는지" 말해주기 위한 것이고,
+ * publishWork가 업로드를 거절하는 근거이기도 하다. 둘이 같은 판정을 써야
+ * "막혔는데 왜 막혔는지 모르는" 상태가 생기지 않는다.
+ */
+export function photoArtKeyNumbers(work: Work): number[] {
+  return work.keys
+    .filter((key) => findAsset(work, key.appearance.artAssetId)?.source === 'photo')
+    .map((key) => key.idx + 1);
 }

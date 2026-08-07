@@ -1,7 +1,7 @@
 /**
  * ③ 무대 — 준비 단계.
  *
- * 공연을 시작하기 전에 **루프를 소리로 확인**할 수 있어야 한다.
+ * 공연을 시작하기 전에 처음부터 반복할 키와 빠르기를 고른다.
  * 여기서 켜고 끈 것은 기록되지 않고, 대신 `KeyDef.loop.enabled`가 되어
  * **공연 시작 시점의 초기 상태**가 된다.
  *
@@ -11,10 +11,10 @@
  * BPM 숫자는 노출하지 않는다. 느리게(80)/보통(100)/빠르게(130) 세 개면 충분하다.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { durationForTempo } from '../../work-model/timing';
-import { TEMPO_LABEL, tempoOf, type KeyIndex, type TempoPreset } from '../../work-model/types';
+import { TEMPO_LABEL, type KeyIndex, type TempoPreset } from '../../work-model/types';
 import { KeycapGrid, type GridHandle, type LoopState } from '../components/KeycapGrid';
 import { useResumeOnVisible } from '../hooks';
 import { useAppState } from '../state';
@@ -25,7 +25,6 @@ export function StageScreen() {
   const nav = useNavigate();
   const { engine, draft, patchKey, setTempo, saveDraft } = useAppState();
   const gridRef = useRef<GridHandle>(null);
-  const [listening, setListening] = useState(false);
 
   useResumeOnVisible(() => void engine.resume());
 
@@ -43,37 +42,13 @@ export function StageScreen() {
 
   const loopStates: LoopState[] = draft.keys.map((k) => (k.loop.enabled ? 'on' : 'off'));
 
-  const restart = (keys = draft.keys) => {
-    if (!listening) return;
-    engine.startPrep(keys, draft.tempo);
-  };
-
-  const toggleListen = () => {
-    void engine.unlock();
-    if (listening) {
-      engine.stop();
-      setListening(false);
-    } else {
-      engine.startPrep(draft.keys, draft.tempo);
-      setListening(true);
-    }
-  };
-
   const toggleLoop = (idx: KeyIndex, next: boolean) => {
-    void engine.unlock();
     const key = draft.keys[idx];
     patchKey(idx, { loop: { ...key.loop, enabled: next } });
-    const keys = draft.keys.map((k) =>
-      k.idx === idx ? { ...k, loop: { ...k.loop, enabled: next } } : k,
-    );
-    engine.setKeys(keys);
-    restart(keys as typeof draft.keys);
   };
 
   const pickTempo = (preset: TempoPreset) => {
     setTempo(preset);
-    // 속도를 바꾸면 새 박자로 다시 시작한다.
-    if (listening) engine.startPrep(draft.keys, tempoOf(preset));
   };
 
   const seconds = (durationForTempo(draft.tempo) / 1000).toFixed(1);
@@ -88,7 +63,7 @@ export function StageScreen() {
       </header>
 
       <p className="guide">
-        반복을 켜고 들어보세요. 여기서 켜둔 건 공연이 시작할 때 그대로 울려요.
+        공연이 시작할 때 자동으로 반복할 키를 골라요. 키를 누르면 소리를 확인할 수 있어요.
       </p>
 
       <KeycapGrid
@@ -102,14 +77,6 @@ export function StageScreen() {
         }}
         onRelease={(idx) => engine.release(idx)}
       />
-
-      <button
-        type="button"
-        className={`chip wide ${listening ? 'on' : ''}`}
-        onClick={toggleListen}
-      >
-        {listening ? '■ 멈추기' : '▶ 들어보기'}
-      </button>
 
       <section className="tempo">
         <h2 className="row-label">빠르기</h2>

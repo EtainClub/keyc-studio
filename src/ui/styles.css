@@ -1144,6 +1144,15 @@ button {
   bottom: 24%;
   border-radius: 16% / 24%;
   display: grid;
+  /*
+   * 행·열을 명시적으로 못 박는다.
+   *
+   * 그냥 `display: grid`면 행 크기가 auto라, 안에 든 그림의 `height: 100%`가
+   * 순환 참조가 돼 auto로 떨어진다. 그러면 정사각 그림이 가로 폭에 맞춰 세로로
+   * 늘어나 행을 밀어내고, 이 상자를 넘쳐 위아래가 잘린다.
+   * object-fit: contain을 걸어놔도 소용없다 — 요소 상자 자체가 이미 넘친 상태다.
+   */
+  grid-template: 100% / 100%;
   place-items: center;
   overflow: hidden;
   background:
@@ -1436,12 +1445,13 @@ button {
   max-width: 520px;
   margin: 0 auto;
   background: var(--bg-2);
-  border-radius: 24px 24px 0 0;
-  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
-  max-height: 88vh;
+  border-radius: 26px 26px 0 0;
+  padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+  max-height: 92vh;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
 }
 .sheet-head {
   display: flex;
@@ -1449,34 +1459,50 @@ button {
   justify-content: space-between;
 }
 .sheet-title {
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 800;
 }
 .sheet-close {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.1);
+  font-size: 18px;
 }
+
+/* 탭은 하나의 트랙 위에 얹힌 알약이다 — 지금 어디 있는지가 한눈에 보여야 한다. */
 .sheet-tabs {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.22);
 }
 .sheet-tab {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 10px 2px;
-  border-radius: 14px;
+  justify-content: center;
+  gap: 3px;
+  min-height: 62px;
+  padding: 8px 2px;
+  border-radius: 15px;
   font-size: 13px;
-  background: rgba(255, 255, 255, 0.06);
+  font-weight: 700;
+  color: var(--fg-dim);
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+.sheet-tab span {
+  font-size: 22px;
+  line-height: 1;
 }
 .sheet-tab.on {
   background: var(--accent);
   color: #241a44;
   font-weight: 800;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 212, 0, 0.28);
 }
 .sheet-body {
   overflow-y: auto;
@@ -1487,12 +1513,91 @@ button {
   padding-bottom: 4px;
 }
 .sheet-done {
-  min-height: 60px;
+  min-height: 64px;
   border-radius: var(--radius);
-  background: #3dd6a0;
-  color: #10352a;
-  font-size: 18px;
+  background: linear-gradient(180deg, #4fe7b2, #2fc48f);
+  color: #06301f;
+  font-size: 19px;
   font-weight: 800;
+  box-shadow: 0 5px 0 #1c8b63;
+  transition: transform 90ms ease, box-shadow 90ms ease;
+}
+.sheet-done:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #1c8b63;
+}
+
+/* 탭 내용은 "묶음(field)"으로만 쌓인다 — 제목 하나에 선택지 한 줄. */
+.tab-art,
+.tab-sound,
+.tab-motion,
+.tab-feel,
+.tab-loop {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.field + .field {
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+.field-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--fg);
+}
+.field-head span {
+  font-size: 18px;
+  line-height: 1;
+}
+/* 순서가 있는 탭(그림)에서는 번호를 붙인다. 1번 다음에 2번을 하면 된다. */
+.field-head .field-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #241a44;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* 키캡 색 — 캡 모양(둥근 네모)이라 아래의 동그란 색연필 색과 헷갈리지 않는다. */
+.cap-colors {
+  display: grid;
+  /* minmax(0, …)이 아니면 칸이 min-content 아래로 못 줄어 마지막 색이 화면 밖으로 나간다. */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  justify-items: center;
+}
+.cap-swatch {
+  width: 100%;
+  max-width: 54px;
+  aspect-ratio: 1;
+  border-radius: 14px;
+  border: 3px solid rgba(0, 0, 0, 0.28);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.2),
+    0 3px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.cap-swatch.on {
+  border-color: var(--accent);
+  transform: translateY(-3px) scale(1.06);
+  box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.35), 0 6px 12px rgba(0, 0, 0, 0.4);
 }
 
 /* ── 그리기 ────────────────────────────────────── */
@@ -1500,47 +1605,180 @@ button {
 .draw {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
-.draw-canvas {
+/* 캔버스는 종이가 아니라 키캡 윗면이다 — 바탕이 지금 고른 키캡 색 그대로다. */
+.draw-pad {
+  position: relative;
   width: 100%;
-  /* 캔버스가 시트를 다 먹으면 "그림 붙이기" 버튼이 화면 밖으로 밀린다. */
-  max-width: min(100%, 40vh);
+  /* 그리는 동안 색·붓·지우개가 함께 보여야 한다 — 캔버스가 화면을 다 먹으면 도구가 아래로 밀린다. */
+  max-width: min(100%, 30vh);
   align-self: center;
   aspect-ratio: 1;
-  border-radius: 18px;
-  background:
-    linear-gradient(45deg, rgba(255, 255, 255, 0.07) 25%, transparent 25%) 0 0 / 20px 20px,
-    linear-gradient(-45deg, rgba(255, 255, 255, 0.07) 25%, transparent 25%) 0 10px / 20px 20px,
-    #ffffff14;
+  border-radius: 22px;
+  background: var(--cap-color, #ffffff);
+  box-shadow:
+    inset 0 3px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -6px 14px rgba(0, 0, 0, 0.18),
+    0 8px 18px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.draw-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
   touch-action: none; /* 그리는 동안 스크롤 금지 */
+}
+.draw-pad-gloss {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 42%);
 }
 .draw-tools {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 .draw-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-}
-.palette,
-.color-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
+  gap: 10px;
+}
+.undo-row {
+  justify-content: flex-end;
+}
+
+/* 색연필 색 — 10개가 5×2로 딱 떨어져 줄이 어긋나지 않는다. */
+.palette {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  justify-items: center;
+  transition: opacity 140ms ease;
+}
+.palette.muted {
+  opacity: 0.42; /* 지우개일 때는 색이 소용없다 */
 }
 .swatch {
-  width: 40px;
-  height: 40px;
+  width: 46px;
+  height: 46px;
   border-radius: 999px;
-  border: 3px solid transparent;
+  border: 3px solid rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
 .swatch.on {
   border-color: var(--accent);
-  transform: scale(1.1);
+  transform: scale(1.12);
+  box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* 그리기/지우개는 둘 중 하나다 — 서로 붙은 알약이라 배타 선택이 보인다. */
+.seg {
+  display: flex;
+  flex: 1 1 200px;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.seg-btn {
+  flex: 1;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg-dim);
+  white-space: nowrap;
+  transition: background 130ms ease, color 130ms ease;
+}
+.seg-btn.on {
+  background: var(--accent);
+  color: #241a44;
+  font-weight: 800;
+}
+
+/* 굵기는 글자가 아니라 점 크기로 보여준다 — 읽지 않아도 안다. */
+.size-group {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.size-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  transition: background 130ms ease;
+}
+.size-btn.on {
+  background: rgba(255, 255, 255, 0.16);
+}
+.size-dot {
+  display: block;
+  border-radius: 999px;
+  background: var(--fg);
+}
+.size-btn.on .size-dot {
+  background: var(--accent);
+}
+
+/* 사진에서 선 따기 — 관리자 전용이라 눈에 덜 띄는 곳에 한 단 낮춰 둔다. */
+.photo-trace {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.14);
+}
+.draw-pad-busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* 공유가 막힌 이유는 경고가 아니라 안내다 — 빨갛게 겁주지 않되 눈에는 띄게. */
+.gate-blocked {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 2px solid var(--danger);
+  background: rgba(255, 77, 109, 0.12);
+}
+.gate-blocked p {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* 되돌리기·전부 지우기는 만드는 버튼이 아니다 — 한 단 낮춰 보이게 둔다. */
+.chip.ghost {
+  min-height: 46px;
+  padding: 8px 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg-dim);
+  background: rgba(255, 255, 255, 0.07);
+}
+.chip.ghost.danger {
+  color: #ffb3c0;
+  background: rgba(255, 77, 109, 0.14);
 }
 
 /* ── 녹음 ──────────────────────────────────────── */

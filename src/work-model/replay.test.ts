@@ -128,6 +128,16 @@ describe('루프 양자화', () => {
 });
 
 describe('노트 전개', () => {
+  it('끝이 없는 세션에서는 반복 노트를 미리 전개하지 않는다', () => {
+    const key = keyWith(0, { enabled: true, everyBeats: 1, offsetBeats: 0 });
+
+    expect(expandReplay(
+      [key],
+      { seed: 1, durationMs: Infinity, events: [] },
+      100,
+    )).toEqual([]);
+  });
+
   it('루프 노트는 저장하지 않아도 재계산된다', () => {
     const work = sampleWork();
     const notes = expandReplay(work.keys, work.replay, work.tempo.bpm);

@@ -61,7 +61,12 @@ CLI로는 안 된다. 리전 선택과 약관 동의가 필요해서 콘솔 1회
 
 ```bash
 npx firebase deploy --only firestore:rules,storage
+npm run deploy:cors
 ```
+
+두 번째 명령은 [`firebase-storage-cors.json`](firebase-storage-cors.json)을 Storage 버킷에
+적용한다. Firebase 배포는 Storage Rules와 버킷 CORS를 별개로 취급하므로, 이 단계를 빼면
+공개 WAV 파일이 200으로 존재해도 다른 출처의 브라우저에서는 CORS 오류로 재생되지 않는다.
 
 이 배포에는 공개 `/works` 규칙뿐 아니라 소유자만 접근하는 `/users/{uid}` 프로필·작품,
 `/users/{uid}/works/...` 자산 백업, `/publicProfiles/{uid}` 공개 동의와 공개용 128px JPEG
@@ -76,7 +81,12 @@ Admin SDK로 읽는다. 재배포하기 전에는 계정 동기화와 공개 아
 ```bash
 cd functions && npm install && cd ..
 npx firebase deploy --only functions
+npm run deploy:functions:iam
 ```
+
+callable Function은 Firebase Auth·App Check를 함수 안에서 검증하지만, 브라우저의 프리플라이트가
+Cloud Run까지 도달하도록 서비스 IAM의 `roles/run.invoker`를 `allUsers`에 열어야 한다. 위 npm
+명령이 공개 피드·재생 집계·공유 중단 함수에 그 전송 권한을 적용한다.
 
 Functions 배포에는 **Blaze 등록(결제 계정 연결)이 필수**다. 초기 사용량은 무료
 할당량 안에서 운영될 가능성이 높지만, 등록 자체는 피할 수 없다.

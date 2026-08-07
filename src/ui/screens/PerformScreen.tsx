@@ -82,7 +82,7 @@ export function PerformScreen() {
         const result = engine.selfCheck();
         if (!result.ok) {
           console.warn('[selfcheck] 리플레이 불일치', result);
-          setCheck('리플레이가 원본과 다를 수 있어요 (개발용 경고)');
+          setCheck('리플레이가 원본과 다를 수 있어요');
         } else {
           setCheck(null);
         }

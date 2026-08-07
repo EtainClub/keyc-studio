@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { AssetRef, KeyIndex } from '../../work-model/types';
+import { findAsset, type AssetRef, type KeyIndex } from '../../work-model/types';
 import { EditSheet } from '../components/EditSheet';
 import { KeycapGrid, type GridHandle } from '../components/KeycapGrid';
 import { useAppState } from '../state';
@@ -82,6 +82,9 @@ export function CreateScreen() {
           engine={engine}
           onPatch={(patch) => patchKey(editing, patch)}
           onAddAsset={addAsset}
+          artFromPhoto={
+            findAsset(draft, draft.keys[editing].appearance.artAssetId)?.source === 'photo'
+          }
           onClose={() => {
             setEditing(null);
             void saveDraft({ thumb: true });

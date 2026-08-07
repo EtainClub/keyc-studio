@@ -9,6 +9,173 @@
 
 ---
 
+## 로컬 실행과 프로덕션 빌드
+
+### 요구 사항
+
+- **Node.js 22.12 이상 권장** — Vite 8은 Node.js 20을 쓸 경우 20.19 이상이 필요하다.
+- npm
+- Firebase에 배포할 때만 [Firebase CLI](https://firebase.google.com/docs/cli),
+  [Google Cloud CLI](https://cloud.google.com/sdk/docs/install), 프로젝트 권한
+
+Cloud Functions의 배포 런타임은 [`functions/package.json`](functions/package.json)의
+`engines.node: 20`으로 고정되어 있다. 로컬에서 Node.js 22를 써도 배포된 함수는 Node.js 20에서
+실행된다.
+
+### 처음 설치
+
+```bash
+npm ci
+cp .env.example .env
+npm run dev
+```
+
+Firebase 설정 없이도 만들기·공연·IndexedDB 저장은 동작한다. Google 계정 백업과 공개 공유를
+사용하려면 Firebase Console의 **프로젝트 설정 → 내 앱 → 웹 앱**에서 받은 값을 `.env`에 넣는다.
+
+```dotenv
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+
+`.env`는 Git에서 제외되어 있으므로 커밋하지 않는다. 배포용 값의 이름과 설명은
+[`.env.example`](.env.example)을 기준으로 한다.
+
+### 빌드 확인
+
+```bash
+npm test
+npm run build
+npm run preview
+```
+
+`npm run build`는 `tsc --noEmit`과 Vite 프로덕션 빌드를 차례로 실행하고 결과를 `dist/`에 만든다.
+`npm run preview`는 만들어진 `dist/`를 로컬에서 확인할 때만 사용하며 Firebase에 배포하지 않는다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `npm run dev` | Vite 개발 서버 실행 |
+| `npm test` | 전체 Vitest 테스트 실행 |
+| `npm run typecheck` | TypeScript 타입 검사 |
+| `npm run build` | 타입 검사 후 `dist/` 프로덕션 번들 생성 |
+| `npm run preview` | 마지막 빌드 결과 로컬 확인 |
+| `npm run emulators` | Firebase Emulator Suite 실행 |
+| `npm run deploy:cors` | Storage 버킷에 허용 웹 출처 적용 |
+| `npm run deploy:functions:iam` | callable Function의 Cloud Run 호출 IAM 적용 |
+| `npm run deploy` | 빌드·Firebase 배포 후 CORS와 callable IAM 적용 |
+
+## Firebase 배포
+
+이 저장소의 기본 Firebase 프로젝트는 [`.firebaserc`](.firebaserc)의 `keyc-studio`, Functions
+리전은 `asia-northeast3`이다. 다른 프로젝트에 배포할 때는 `.env`와 Firebase CLI의 활성
+프로젝트를 모두 바꿔야 한다.
+
+### 1. 최초 준비
+
+Firebase Console에서 다음 항목을 먼저 준비한다.
+
+1. 웹 앱을 등록하고 `.env`의 여섯 값을 입력한다.
+2. Authentication에서 **익명 로그인**을 활성화한다. Google 계정 백업도 사용할 경우
+   **Google 로그인**과 배포 도메인을 함께 설정한다.
+3. `(default)` Firestore 데이터베이스와 Storage 버킷을 만든다. Storage 리전은
+   `asia-northeast3`으로 맞춘다.
+4. Functions를 배포할 프로젝트를 Blaze 요금제에 연결한다.
+
+CLI와 두 개의 npm 프로젝트 의존성을 설치한 뒤 로그인한다. 루트의 `npm ci`는
+`functions/` 의존성을 설치하지 않으므로 둘 다 실행해야 한다.
+
+```bash
+npm ci
+npm --prefix functions ci
+npm install --global firebase-tools
+firebase login
+firebase use keyc-studio
+firebase use
+```
+
+마지막 `firebase use` 출력이 의도한 프로젝트인지 반드시 확인한다. 운영 프로젝트에 대한
+권한이 없는 환경이나 CI에서는 `firebase login:ci` 토큰보다 Google Application Default
+Credentials 또는 CI 전용 서비스 계정 사용을 우선 검토한다.
+
+### 2. 배포 전 검증
+
+```bash
+npm test
+npm run build
+node functions/smoke-load.mjs
+```
+
+스모크 테스트는 `shareMeta`, `thumb`, `avatar`, `listPublicFeed`, `recordPlay`, `unshareWork`
+여섯 함수가 실제로 로드되는지 확인한다. `npm run build`는 프런트엔드만 검사하므로 이 단계를
+대체하지 않는다.
+
+### 3. 최초 배포
+
+첫 배포는 규칙과 인덱스, Functions, Hosting 순서로 나누어 실행한다.
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes,storage
+npm run deploy:cors
+firebase deploy --only functions
+npm run deploy:functions:iam
+firebase deploy --only hosting
+```
+
+- `firebase deploy`는 Storage Rules만 배포하고 버킷 CORS는 바꾸지 않는다. 새 웹 출처를 추가하면
+  [`firebase-storage-cors.json`](firebase-storage-cors.json)을 수정한 뒤 `npm run deploy:cors`를
+  다시 실행한다. 이 명령에는 Google Cloud CLI와 버킷 수정 권한이 필요하다.
+- 2세대 callable Function은 브라우저가 Cloud Run까지 도달할 수 있도록 `roles/run.invoker`의
+  `allUsers` 바인딩이 필요하다. `npm run deploy:functions:iam`은 공개 피드·재생 집계·공유 중단
+  서비스에 이 전송 권한을 적용한다. 실제 데이터 권한은 Firebase Auth·App Check와 함수 내부
+  소유권 검사가 계속 제한한다.
+- 공개 피드는 Firestore 복합 인덱스가 필요하다. 콘솔에서 인덱스 상태가 **사용 설정됨**이 될
+  때까지 `listPublicFeed`가 실패할 수 있다.
+- Hosting의 `/w/**`, `/thumb/**`, `/avatar/**` rewrite는 Functions를 가리키므로 Functions를
+  먼저 배포한다.
+- `unshareWork`가 없으면 공유 중단 때 공개 Storage 파일을 완전히 지울 수 없으므로 공개 공유를
+  열기 전에 Functions 배포를 확인한다.
+
+최초 구성이 끝난 뒤의 일반적인 전체 배포는 다음 한 줄로 충분하다.
+
+```bash
+npm run deploy
+```
+
+이 명령은 프런트엔드를 다시 빌드한 뒤 Hosting, Functions, Firestore 규칙·인덱스, Storage
+규칙을 배포하고, 버킷 CORS와 callable Function IAM까지 적용한다.
+일부만 바꿨다면 위의 `firebase deploy --only ...` 명령으로 해당 리소스만 배포할 수 있다.
+
+### 4. 배포 후 확인
+
+1. Hosting 기본 주소에서 홈과 새 작품 만들기가 열리는지 확인한다.
+2. Firebase Console에서 여섯 Functions가 `asia-northeast3`에 배포됐는지 확인한다.
+3. 실제 작품을 하나 공유하고 시크릿 창이나 다른 기기에서 `/w/{workId}` 링크의 그림과 녹음
+   소리가 모두 재생되는지 확인한다.
+4. 공유 중단 후 문서와 `works/{workId}/...` Storage 파일이 삭제됐는지 확인한다.
+
+App Check를 등록한 뒤 callable Functions 검증을 강제하려면 `functions/.env`에
+`ENFORCE_APP_CHECK=true`를 넣고 Functions를 다시 배포한다. 등록 전에 이 값을 켜면 공개 피드와
+집계·공유 중단 호출이 모두 거부된다. 콘솔 설정과 운영 체크리스트는
+[FIREBASE.md](FIREBASE.md)에 더 자세히 정리되어 있다.
+
+### Emulator Suite 주의
+
+```bash
+npm run build
+npm run emulators
+```
+
+이 명령은 Auth, Functions, Firestore, Storage, Hosting 에뮬레이터와 Emulator UI를 시작한다.
+다만 현재 프런트엔드에는 `connectAuthEmulator`·`connectFirestoreEmulator` 등의 연결 코드가
+없으므로, 앱 SDK는 `.env`의 실제 Firebase 프로젝트를 계속 바라본다. 연결 코드를 추가하기
+전까지는 에뮬레이터 실행만으로 안전한 로컬 통합 테스트가 된다고 간주하면 안 된다.
+
+---
+
 ## 먼저, 정정 사항
 
 이전 판(v1)에서 **"익명 로그인만 쓰면 만 14세 미만 법정대리인 동의 문제를
@@ -24,31 +191,6 @@
 
 ---
 
-## 시작하기
-
-```bash
-npm install
-npm run dev
-```
-
-Firebase 설정 없이도 만들기·공연·로컬 저장과 프로필 편집은 돌아간다. Google 계정 백업과
-공개 공유만 사용할 수 없다.
-
-`.env`에 **keyc-studio** 프로젝트 설정이 들어가 있다. 연동 진행 상황과 남은 콘솔
-작업은 [FIREBASE.md](FIREBASE.md)를 볼 것 — 현재 Firestore 규칙까지 배포·검증됐고,
-Storage 설정과 Functions 배포가 남아 있다.
-
-| 명령 | 하는 일 |
-|---|---|
-| `npm run dev` | 개발 서버 |
-| `npm test` | 유닛 테스트 (결정론 / 드리프트 / WAV) |
-| `npm run typecheck` | 타입 검사 |
-| `npm run build` | 타입 검사 + 프로덕션 번들 |
-| `npm run emulators` | Firebase 에뮬레이터 |
-| `npm run deploy` | 빌드 후 Hosting/Functions/Rules 배포 |
-
----
-
 ## 구조
 
 ```
@@ -57,7 +199,7 @@ src/
   work-model/     스키마, 결정론(rnd/타이밍/리플레이 전개)          ← 순수 TS
   ui/             React 화면
   storage/        IndexedDB(로컬) / Firebase(계정 백업·공유)
-functions/        shareMeta, thumb, listPublicFeed, recordPlay, unshareWork
+functions/        shareMeta, thumb, avatar, listPublicFeed, recordPlay, unshareWork
 ```
 
 `audio-engine`과 `work-model`은 React를 import하지 않는다. 네이티브로 갈 때

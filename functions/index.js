@@ -39,6 +39,8 @@ setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 });
 
 const db = getFirestore();
 const WORK_ID = /^[A-Za-z0-9_-]{12}$/;
+const PUBLIC_ORIGIN = (process.env.PUBLIC_ORIGIN || 'https://keyc.studio').replace(/\/+$/, '');
+const UPSTREAM_TIMEOUT_MS = 3_000;
 
 /**
  * App Check 강제 여부.
@@ -53,6 +55,16 @@ const WORK_ID = /^[A-Za-z0-9_-]{12}$/;
  * 일반 공개 전에 반드시 켤 것.
  */
 const ENFORCE_APP_CHECK = process.env.ENFORCE_APP_CHECK === 'true';
+
+/**
+ * Callable은 브라우저가 OPTIONS 프리플라이트를 보낼 수 있도록 Cloud Run IAM 호출을 연다.
+ * 실제 권한은 각 핸들러의 Firebase Auth 검사와 선택적인 App Check가 계속 담당한다.
+ */
+const CALLABLE_OPTIONS = {
+  cors: true,
+  invoker: 'public',
+  enforceAppCheck: ENFORCE_APP_CHECK,
+};
 
 const escapeHtml = (s) =>
   String(s ?? '')
@@ -75,21 +87,42 @@ function isExpired(data) {
  */
 let shellCache = null;
 let shellFetchedAt = 0;
+let shellRequest = null;
 const SHELL_TTL_MS = 5 * 60 * 1000;
 
-async function loadShell(origin) {
-  const now = Date.now();
-  if (shellCache && now - shellFetchedAt < SHELL_TTL_MS) return shellCache;
+function withTimeout(promise, timeoutMs, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function fetchShell() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
   try {
-    const res = await fetch(`${origin}/index.html`, { redirect: 'follow' });
+    const res = await fetch(`${PUBLIC_ORIGIN}/index.html`, {
+      redirect: 'follow',
+      signal: controller.signal,
+    });
     if (res.ok) {
       shellCache = await res.text();
-      shellFetchedAt = now;
+      shellFetchedAt = Date.now();
     }
   } catch (e) {
     console.warn('index.html을 가져오지 못했습니다', e);
+  } finally {
+    clearTimeout(timer);
   }
   return shellCache;
+}
+
+async function loadShell() {
+  const now = Date.now();
+  if (shellCache && now - shellFetchedAt < SHELL_TTL_MS) return shellCache;
+  if (!shellRequest) shellRequest = fetchShell().finally(() => { shellRequest = null; });
+  return shellRequest;
 }
 
 function metaTags({ title, description, image, imageAlt, url }) {
@@ -133,8 +166,9 @@ function fallbackHtml(meta) {
 
 export const shareMeta = onRequest({ cors: false, invoker: 'public' }, async (req, res) => {
   const workId = (req.path || '').split('/').filter(Boolean).pop() || '';
-  const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
+  const origin = PUBLIC_ORIGIN;
   const url = `${origin}/w/${workId}`;
+  const shellPromise = loadShell();
 
   let title = '키크';
   let description = '나만의 키캡에 그림과 소리를 담아 만든 15초 공연. 눌러서 들어보세요.';
@@ -143,7 +177,11 @@ export const shareMeta = onRequest({ cors: false, invoker: 'public' }, async (re
 
   if (WORK_ID.test(workId)) {
     try {
-      const snap = await db.collection('works').doc(workId).get();
+      const snap = await withTimeout(
+        db.collection('works').doc(workId).get(),
+        UPSTREAM_TIMEOUT_MS,
+        `works/${workId}`,
+      );
       const data = snap.exists ? snap.data() : null;
       if (data && data.visibility === 'link' && !isExpired(data)) {
         title = data.title ? `${data.title} — 키크` : '키크';
@@ -158,7 +196,7 @@ export const shareMeta = onRequest({ cors: false, invoker: 'public' }, async (re
 
   // 공유 작품은 Storage 다운로드 URL 대신 썸네일 함수를, 나머지는 기본 이미지를 쓴다.
   const meta = metaTags({ title, description, image, imageAlt, url });
-  const shell = await loadShell(origin);
+  const shell = await shellPromise;
 
   // 카카오톡 미리보기 봇은 캐시가 강하다. 짧게 잡아 수정이 반영되게 한다.
   res.set('Cache-Control', 'public, max-age=300, s-maxage=300');
@@ -270,7 +308,7 @@ const PUBLIC_FEED_SCAN_LIMIT = 72;
  * uid, 자산 경로, 키 설정, 리플레이 이벤트는 카드 목록에 필요 없으므로 제거한다.
  */
 export const listPublicFeed = onCall(
-  { enforceAppCheck: ENFORCE_APP_CHECK },
+  CALLABLE_OPTIONS,
   async () => {
     try {
       const snap = await db
@@ -331,7 +369,7 @@ export const listPublicFeed = onCall(
 const recent = new Map();
 const WINDOW_MS = 60_000;
 
-export const recordPlay = onCall({ enforceAppCheck: ENFORCE_APP_CHECK }, async (request) => {
+export const recordPlay = onCall(CALLABLE_OPTIONS, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
 
@@ -367,7 +405,7 @@ export const recordPlay = onCall({ enforceAppCheck: ENFORCE_APP_CHECK }, async (
  * Storage 읽기를 열어 둔 대가가 이것이다. 이 삭제가 확실하지 않으면
  * "공유를 멈췄는데 파일은 남아 있는" 상태가 되고, 그건 약속 위반이다.
  */
-export const unshareWork = onCall({ enforceAppCheck: ENFORCE_APP_CHECK }, async (request) => {
+export const unshareWork = onCall(CALLABLE_OPTIONS, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
 

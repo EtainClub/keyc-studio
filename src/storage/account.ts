@@ -3,6 +3,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from '
 import { deleteObject, getBytes, ref, uploadBytes } from 'firebase/storage';
 import { parseWork } from '../work-model/serialize';
 import type { AssetRef } from '../work-model/types';
+import { toPortableWork } from './portable-work';
 import {
   getAssetBlob,
   listWorkRecords,
@@ -81,7 +82,8 @@ export async function backupWorkRecord(record: WorkRecord, uid?: string): Promis
     assets.push({ ...asset, localKey: undefined, remotePath });
   }
 
-  const work = { ...record.work, authorUid: ownerUid, assets };
+  // IndexedDB 전용 localKey와 선택 필드의 undefined를 Firestore에 보내지 않는다.
+  const work = toPortableWork({ ...record.work, authorUid: ownerUid, assets });
   await setDoc(workRef(ownerUid, work.id), {
     work,
     updatedAt: record.updatedAt,

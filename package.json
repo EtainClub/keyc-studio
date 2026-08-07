@@ -1,7 +1,7 @@
 {
   "name": "keycap-creator",
   "private": true,
-  "version": "0.2.3",
+  "version": "0.2.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "emulators": "firebase emulators:start",
-    "deploy": "npm run build && firebase deploy"
+    "deploy:cors": "gcloud storage buckets update gs://keyc-studio.firebasestorage.app --cors-file=firebase-storage-cors.json",
+    "deploy:functions:iam": "gcloud run services add-iam-policy-binding listpublicfeed --project=keyc-studio --region=asia-northeast3 --member=allUsers --role=roles/run.invoker --quiet && gcloud run services add-iam-policy-binding recordplay --project=keyc-studio --region=asia-northeast3 --member=allUsers --role=roles/run.invoker --quiet && gcloud run services add-iam-policy-binding unsharework --project=keyc-studio --region=asia-northeast3 --member=allUsers --role=roles/run.invoker --quiet",
+    "deploy": "npm run build && firebase deploy && npm run deploy:cors && npm run deploy:functions:iam"
   },
   "dependencies": {
     "firebase": "^12.17.0",

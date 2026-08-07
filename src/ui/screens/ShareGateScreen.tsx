@@ -15,8 +15,8 @@
 import { useState } from 'react';
 import { VOICE_MODES, type VoiceMode } from '../../audio-engine/voice';
 import { explainFirebaseError, publishWork } from '../../storage/remote';
-import { isFirebaseConfigured } from '../../storage/firebase';
-import type { Work } from '../../work-model/types';
+import { isAdminEmail, isFirebaseConfigured } from '../../storage/firebase';
+import { photoArtKeyNumbers, type Work } from '../../work-model/types';
 import { useAppState } from '../state';
 
 type Props = {
@@ -34,7 +34,7 @@ const EXPIRES: { value: ExpireChoice; label: string }[] = [
 ];
 
 export function ShareGate({ work, onDone, onCancel }: Props) {
-  const { profile } = useAppState();
+  const { profile, account } = useAppState();
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('asIs');
   const [expireDays, setExpireDays] = useState<ExpireChoice>(30);
   const [guardianOk, setGuardianOk] = useState(false);
@@ -44,6 +44,10 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
 
   const artCount = work.assets.filter((a) => a.kind === 'art').length;
   const soundCount = work.assets.filter((a) => a.kind === 'sound').length;
+  // 사진에서 딴 그림은 관리자만 올릴 수 있다. publishWork가 같은 판정을 한 번 더 한다.
+  const photoKeys = photoArtKeyNumbers(work);
+  const isAdmin = account.kind === 'google' && isAdminEmail(account.email);
+  const blockedByPhoto = photoKeys.length > 0 && !isAdmin;
 
   const share = async () => {
     setBusy(true);
@@ -72,11 +76,28 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
         </header>
 
         <div className="sheet-body">
+          {blockedByPhoto && (
+            <section className="gate-block gate-blocked">
+              <h3 className="row-label">이 작품은 아직 공유할 수 없어요</h3>
+              <p>
+                키캡 {photoKeys.join(', ')}번에 사진에서 딴 그림이 붙어 있어요. 사진에서 만든
+                그림은 인터넷에 올릴 수 없어요.
+              </p>
+              <p className="note">
+                그 키캡을 열어 &lsquo;전부 지우기&rsquo;를 누르고 직접 그리면 공유할 수 있어요.
+              </p>
+            </section>
+          )}
+
           {/* 1. 무엇이 올라가는지 쉬운 말로 */}
           <section className="gate-block">
             <h3 className="row-label">이런 게 올라가요</h3>
             <ul className="gate-list">
               <li>내가 그린 그림 {artCount}개</li>
+              {/* 사진에서 딴 그림이 섞여 있으면 그 사실을 숨기지 않는다. 이 화면의 존재 이유다. */}
+              {photoKeys.length > 0 && (
+                <li>그중 사진에서 선을 딴 그림 {photoKeys.length}개 (키캡 {photoKeys.join(', ')}번)</li>
+              )}
               <li>내가 녹음한 소리 {soundCount}개</li>
               <li>작품 제목과 한 줄 힌트</li>
               <li>내 별명 ({work.authorNick})</li>
@@ -155,7 +176,7 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
             type="button"
             className="sheet-done"
             onClick={share}
-            disabled={!guardianOk || busy || !isFirebaseConfigured}
+            disabled={!guardianOk || busy || !isFirebaseConfigured || blockedByPhoto}
           >
             {busy ? '올리는 중…' : '공개하고 링크 만들기'}
           </button>
