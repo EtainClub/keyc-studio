@@ -136,6 +136,8 @@ export function ViewScreen() {
         ref={gridRef}
         keys={work.keys}
         disabled={phase !== 'free'}
+        // 재생 전후에만 흐리게. 재생 중(replay/paused)에는 키캡이 곧 공연이다.
+        muted={phase === 'idle' || phase === 'ended'}
         onPress={(idx) => {
           engine.press(idx);
           setPresses((c) => c + 1);

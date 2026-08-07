@@ -20,6 +20,8 @@ export function FeedScreen() {
   const { engine, startNewDraft } = useAppState();
   const [items, setItems] = useState<PublicFeedItem[] | null>(null);
   const [error, setError] = useState('');
+  /** 썸네일을 못 받은 작품. 개발 서버처럼 /thumb 리라이트가 없는 환경에서는 전부 여기 들어온다. */
+  const [brokenThumbs, setBrokenThumbs] = useState<ReadonlySet<string>>(new Set());
 
   const refresh = useCallback(() => {
     setError('');
@@ -87,14 +89,26 @@ export function FeedScreen() {
             <article className={`feed-card${index === 0 ? ' featured' : ''}`} key={item.id}>
                 <div className="feed-cover">
                   <div className="feed-thumb">
-                    <img
-                      src={`/thumb/${item.id}`}
-                      alt=""
-                      loading="lazy"
-                      onError={(event) => {
-                        event.currentTarget.hidden = true;
-                      }}
-                    />
+                    {/*
+                     * hidden 속성으로 숨기려 하면 안 된다. `.feed-thumb img`의
+                     * `display: block`이 UA의 `[hidden] { display: none }`을 이겨서
+                     * 깨진 이미지 아이콘이 그대로 남는다 — 실제로 그 상태였다.
+                     * 상태로 갈아끼우고, 빈 자리 대신 대체 그림을 보여준다.
+                     */}
+                    {brokenThumbs.has(item.id) ? (
+                      <span className="feed-thumb-fallback" aria-hidden="true">♫</span>
+                    ) : (
+                      <img
+                        src={`/thumb/${item.id}`}
+                        alt=""
+                        loading="lazy"
+                        width={640}
+                        height={400}
+                        onError={() =>
+                          setBrokenThumbs((prev) => new Set(prev).add(item.id))
+                        }
+                      />
+                    )}
                   </div>
                   <span className="feed-badge">공개</span>
                   <span className="feed-duration">{Math.round(item.durationMs / 1000)}초</span>

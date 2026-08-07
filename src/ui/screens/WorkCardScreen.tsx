@@ -83,7 +83,8 @@ export function WorkCardScreen() {
         <h1>작품 카드</h1>
       </header>
 
-      <KeycapGrid ref={gridRef} keys={draft.keys} disabled />
+      {/* 이 화면의 키캡은 볼거리다. "작품 다시 보기"로 재생하는 동안에만 밝아진다. */}
+      <KeycapGrid ref={gridRef} keys={draft.keys} disabled muted={!replaying} />
 
       <button type="button" className="chip wide" onClick={replay} disabled={replaying}>
         {replaying ? '재생 중…' : '▶ 작품 다시 보기'}

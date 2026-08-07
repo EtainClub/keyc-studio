@@ -34,6 +34,14 @@ type Props = {
   onSelect?: (idx: KeyIndex) => void;
   badge?: string;
   disabled?: boolean;
+  /**
+   * "지금은 눌러도 소용없다"를 눈으로 알린다.
+   *
+   * disabled와 따로 두는 이유: 리플레이 중에도 키캡은 disabled지만 그때는
+   * 키캡이 공연 그 자체다. 흐리게 만들면 볼거리를 죽인다.
+   * 그래서 **기다리는 중**일 때만 켠다.
+   */
+  muted?: boolean;
 };
 
 /**
@@ -65,7 +73,7 @@ function SwitchGuts() {
 }
 
 export const Keycap = forwardRef<KeycapHandle, Props>(function Keycap(
-  { keyDef, artUrl: artUrlProp, onPress, onRelease, onSelect, badge, disabled },
+  { keyDef, artUrl: artUrlProp, onPress, onRelease, onSelect, badge, disabled, muted },
   ref,
 ) {
   const capRef = useRef<HTMLSpanElement>(null);
@@ -111,7 +119,7 @@ export const Keycap = forwardRef<KeycapHandle, Props>(function Keycap(
   return (
     <button
       type="button"
-      className="keycap-slot"
+      className={`keycap-slot ${muted ? 'is-muted' : ''}`}
       style={style}
       aria-label={`키캡 ${keyDef.idx + 1}`}
       disabled={disabled}

@@ -220,9 +220,9 @@ function ArtTab({
 
   return (
     <div className="tab-art">
-      <section className="field">
-        <h3 className="field-head">
-          <span className="field-step" aria-hidden>1</span> 키캡 색을 골라요
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
+          <span className="sheet-field-step" aria-hidden>1</span> 키캡 색을 골라요
         </h3>
         <div className="cap-colors" role="group" aria-label="키캡 색">
           {CAP_COLORS.map(({ c, label }) => (
@@ -239,9 +239,9 @@ function ArtTab({
         </div>
       </section>
 
-      <section className="field">
-        <h3 className="field-head">
-          <span className="field-step" aria-hidden>2</span> 키캡 위에 그림을 그려요
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
+          <span className="sheet-field-step" aria-hidden>2</span> 키캡 위에 그림을 그려요
         </h3>
         <DrawCanvas
           ref={canvasRef}
@@ -333,31 +333,31 @@ function SoundTab({
 
   return (
     <div className="tab-sound">
-      <section className="field">
-        <h3 className="field-head">
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
           <span aria-hidden>🎙️</span> 내 목소리로 만들기
         </h3>
         <RecordPanel onAccept={acceptRecording} onPreview={previewBlob} />
         {keyDef.sound.assetId && <p className="note">지금은 내가 녹음한 소리를 쓰고 있어요 🎙️</p>}
       </section>
 
-      <section className="field">
-        <h3 className="field-head">
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
           <span aria-hidden>⌨️</span> 실제 녹음 타건음
         </h3>
         <p className="note">진짜 기계식 키보드를 한 번씩 눌러 녹음한 소리예요.</p>
         {presetButtons(KEYCAP_PRESETS)}
       </section>
 
-      <section className="field">
-        <h3 className="field-head">
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
           <span aria-hidden>✨</span> 재미있는 효과음
         </h3>
         {presetButtons(EFFECT_PRESETS)}
       </section>
 
-      <section className="field">
-        <h3 className="field-head">
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
           <span aria-hidden>🎵</span> 높낮이
         </h3>
         <div className="chip-grid">
@@ -374,8 +374,8 @@ function SoundTab({
         </div>
       </section>
 
-      <section className="field">
-        <h3 className="field-head">
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
           <span aria-hidden>🔉</span> 소리 크기
         </h3>
         <div className="chip-grid">
@@ -429,8 +429,8 @@ function MotionTab({
         </span>
       </div>
 
-      <section className="field">
-        <h3 className="field-head">
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
           <span aria-hidden>🤸</span> 어떻게 움직일까요
         </h3>
         <div className="chip-grid">
@@ -450,8 +450,8 @@ function MotionTab({
         </div>
       </section>
 
-      <section className="field">
-        <h3 className="field-head">
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
           <span aria-hidden>💡</span> 빛
         </h3>
         <div className="chip-grid">
@@ -522,8 +522,8 @@ function FeelTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
         </button>
       </div>
 
-      <section className="field">
-        <h3 className="field-head">
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
           <span aria-hidden>✋</span> 어떤 느낌으로 눌릴까요
         </h3>
         <div className="chip-grid">
@@ -568,8 +568,8 @@ function LoopTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
         켜고 끄는 건 무대와 공연 중에 해요. 여기서는 얼마나 자주 울릴지만 정합니다.
       </p>
 
-      <section className="field">
-        <h3 className="field-head">
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
           <span aria-hidden>⏱️</span> 얼마나 자주
         </h3>
         <div className="chip-grid">
@@ -586,8 +586,8 @@ function LoopTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
         </div>
       </section>
 
-      <section className="field">
-        <h3 className="field-head">
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
           <span aria-hidden>🚦</span> 언제 시작
         </h3>
         <div className="chip-grid">

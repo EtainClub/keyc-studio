@@ -18,6 +18,8 @@ type Props = {
   onRelease?: (idx: KeyIndex) => void;
   onSelect?: (idx: KeyIndex) => void;
   disabled?: boolean;
+  /** 눌러도 소용없는 상태를 눈으로 알린다. 리플레이 중에는 켜지 않는다 — Keycap 참고. */
+  muted?: boolean;
   badges?: (string | undefined)[];
   /** 넘기면 키캡 아래에 루프 토글이 붙는다. */
   loopStates?: LoopState[];
@@ -31,6 +33,7 @@ export const KeycapGrid = forwardRef<GridHandle, Props>(function KeycapGrid(
     onRelease,
     onSelect,
     disabled,
+    muted,
     badges,
     loopStates,
     onToggleLoop,
@@ -57,6 +60,7 @@ export const KeycapGrid = forwardRef<GridHandle, Props>(function KeycapGrid(
               }}
               keyDef={key}
               disabled={disabled}
+              muted={muted}
               badge={badges?.[i]}
               onPress={onPress}
               onRelease={onRelease}

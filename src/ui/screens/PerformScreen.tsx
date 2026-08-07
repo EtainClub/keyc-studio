@@ -159,6 +159,9 @@ export function PerformScreen() {
         ref={gridRef}
         keys={draft.keys}
         disabled={phase !== 'live'}
+        // 시작 전·끝난 뒤에는 눌러도 소용없다는 걸 눈으로 알린다.
+        // 카운트다운 중에는 켜지 않는다 — 곧 밝아지는 게 시작 신호가 된다.
+        muted={phase === 'ready' || phase === 'done'}
         loopStates={phase === 'live' || phase === 'paused' ? loopStates : undefined}
         onToggleLoop={toggleLoop}
         onPress={(idx) => {
