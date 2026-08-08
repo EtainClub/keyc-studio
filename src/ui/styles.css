@@ -763,6 +763,72 @@ button {
   color: var(--fg-dim);
   font-size: 14px;
 }
+/* ── 피드 도구 — 검색과 필터 ─────────────────── */
+
+.feed-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.feed-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.feed-search-icon {
+  flex: none;
+  font-size: 16px;
+  opacity: 0.7;
+}
+.feed-search input {
+  flex: 1;
+  /* 최소 너비를 풀어야 긴 글자를 넣어도 알약이 늘어나지 않는다. */
+  min-width: 0;
+  min-height: 52px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px; /* 16px 미만이면 iOS가 입력할 때 화면을 확대한다 */
+}
+.feed-search input::placeholder {
+  color: var(--fg-dim);
+}
+/* 검색 타입의 브라우저 기본 ✕는 숨긴다 — 우리 버튼이 더 크고 라벨이 있다. */
+.feed-search input::-webkit-search-cancel-button {
+  display: none;
+}
+.feed-search-clear {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 14px;
+}
+.feed-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.feed-filter-chip {
+  min-height: 44px;
+  font-size: 15px;
+}
+.feed-status {
+  margin: 0;
+  min-height: 20px;
+  color: var(--fg-dim);
+  font-size: 14px;
+}
+.feed-more {
+  padding: 4px 0 8px;
+}
+
 .feed-count {
   min-width: 40px;
   height: 40px;
@@ -849,10 +915,20 @@ button {
   min-width: 0;
   flex: 1;
 }
+/* 별명은 이제 누를 수 있다 — 그 사람 공연만 보는 필터가 된다. */
 .feed-author {
   margin: 0;
+  padding: 2px 0;
   color: var(--fg-dim);
   font-size: 12px;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.22);
+  text-underline-offset: 3px;
+  transition: color 120ms ease;
+}
+.feed-author:hover {
+  color: var(--fg);
 }
 .feed-author-row {
   min-width: 0;

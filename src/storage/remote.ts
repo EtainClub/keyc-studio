@@ -26,7 +26,7 @@ import { getAssetBlob, getWorkRecord, localKeyOf, putWorkRecord } from './db';
 import { firestore, functions, isAdminUser, isFirebaseConfigured, storage } from './firebase';
 import { acquireUid } from './identity';
 import { assetPath, thumbPath } from './paths';
-import { parsePublicFeedItems, type PublicFeedItem } from './public-feed';
+import { parsePublicFeedPage, type FeedCursor, type PublicFeedPage } from './public-feed';
 import { toPortableWork } from './portable-work';
 import { renderShareThumb } from './thumbnail';
 
@@ -67,17 +67,33 @@ export function shareUrl(workId: string): string {
  * 공개 피드. 클라이언트는 works 컬렉션을 list하지 않고, 서버가 공개 작품을 골라
  * 최소 필드만 반환한다. 현재 공개 안내에 동의한 discoverable:true 작품만 포함된다.
  */
-export async function fetchPublicFeed(): Promise<PublicFeedItem[]> {
+export type FeedQuery = {
+  /** 제목·힌트·별명에 대한 부분 일치. 서버가 훑으며 거른다. */
+  search?: string;
+  /** 정확히 일치하는 별명만. 색인으로 걸러지므로 검색과 달리 비용이 늘지 않는다. */
+  authorNick?: string;
+  /** 이어보기 위치. 없으면 처음부터. */
+  cursor?: FeedCursor | null;
+};
+
+export async function fetchPublicFeed(query: FeedQuery = {}): Promise<PublicFeedPage> {
   if (!isFirebaseConfigured) {
     throw new Error('키크 스테이지 설정이 아직 안 됐어요 (Firebase 설정 필요)');
   }
   const callable = httpsCallable(functions(), 'listPublicFeed');
-  const response = await withTimeout(callable(), WRITE_TIMEOUT_MS, '키크 스테이지 불러오기');
-  const items = (response.data as { items?: unknown } | null)?.items;
-  return parsePublicFeedItems(items);
+  const response = await withTimeout(
+    callable({
+      search: query.search || '',
+      authorNick: query.authorNick || '',
+      cursor: query.cursor ?? null,
+    }),
+    WRITE_TIMEOUT_MS,
+    '키크 스테이지 불러오기',
+  );
+  return parsePublicFeedPage(response.data);
 }
 
-export type { PublicFeedItem } from './public-feed';
+export type { PublicFeedItem, PublicFeedPage, FeedCursor } from './public-feed';
 
 export type ShareOptions = {
   /** 녹음한 목소리를 어떻게 올릴지. 게이트 화면에서 아이·보호자가 고른다. */

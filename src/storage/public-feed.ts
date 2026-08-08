@@ -51,3 +51,34 @@ export function parsePublicFeedItems(value: unknown): PublicFeedItem[] {
     return parsed ? [parsed] : [];
   });
 }
+
+/**
+ * 다음 쪽을 가리키는 커서. 서버가 준 그대로 되돌려주기만 하므로 클라이언트는 내용을 해석하지 않는다.
+ * 다만 모양은 검사한다 — 엉뚱한 값을 그대로 돌려보내면 서버에서 조용히 무시되고
+ * 페이지가 처음으로 돌아가 버린다.
+ */
+export type FeedCursor = { createdAt: number; id: string };
+
+export type PublicFeedPage = {
+  items: PublicFeedItem[];
+  /** null이면 더 볼 것이 없다. */
+  nextCursor: FeedCursor | null;
+};
+
+function parseCursor(value: unknown): FeedCursor | null {
+  if (!value || typeof value !== 'object') return null;
+  const c = value as Record<string, unknown>;
+  if (typeof c.createdAt !== 'number' || !Number.isFinite(c.createdAt) || c.createdAt <= 0) {
+    return null;
+  }
+  if (typeof c.id !== 'string' || !WORK_ID.test(c.id)) return null;
+  return { createdAt: c.createdAt, id: c.id };
+}
+
+export function parsePublicFeedPage(value: unknown): PublicFeedPage {
+  const data = (value ?? {}) as Record<string, unknown>;
+  return {
+    items: parsePublicFeedItems(data.items),
+    nextCursor: parseCursor(data.nextCursor),
+  };
+}

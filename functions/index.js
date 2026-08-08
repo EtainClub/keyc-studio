@@ -299,8 +299,27 @@ export const avatar = onRequest({ cors: false, invoker: 'public' }, async (req, 
 
 /* ── public feed ───────────────────────────────────── */
 
-const PUBLIC_FEED_LIMIT = 24;
-const PUBLIC_FEED_SCAN_LIMIT = 72;
+/** 한 번의 호출이 돌려주는 카드 수. 클라이언트가 더 줄일 수는 있어도 늘릴 수는 없다. */
+const PUBLIC_FEED_PAGE = 12;
+/** Firestore에서 한 번에 읽어오는 문서 수. */
+const PUBLIC_FEED_BATCH = 60;
+/**
+ * 한 호출이 훑을 수 있는 배치 수의 상한(= 최대 300문서).
+ *
+ * 검색어는 Firestore 색인으로 못 거르고 읽은 뒤 걸러야 한다. 상한이 없으면
+ * "아무것도 안 맞는 검색어" 하나가 컬렉션 전체를 읽어버린다.
+ * 상한에 걸리면 커서를 돌려주므로, 더 보기를 누르면 이어서 훑는다 — 결과가 누락되지는 않는다.
+ */
+const PUBLIC_FEED_MAX_BATCHES = 5;
+
+/** 커서는 마지막으로 **훑은** 문서를 가리킨다. 마지막으로 맞은 문서가 아니다. */
+function parseFeedCursor(value) {
+  if (!value || typeof value !== 'object') return null;
+  const createdAt = Number(value.createdAt);
+  const id = String(value.id || '');
+  if (!Number.isFinite(createdAt) || createdAt <= 0 || !WORK_ID.test(id)) return null;
+  return { createdAt, id };
+}
 
 /**
  * 공개 피드. 현재 공개 안내에 동의해 discoverable:true가 된 작품만 조회한다.
@@ -309,33 +328,95 @@ const PUBLIC_FEED_SCAN_LIMIT = 72;
  */
 export const listPublicFeed = onCall(
   CALLABLE_OPTIONS,
-  async () => {
+  async (request) => {
+    const input = request.data || {};
+    const limit = Math.max(1, Math.min(PUBLIC_FEED_PAGE, Number(input.limit) || PUBLIC_FEED_PAGE));
+    const search = String(input.search || '').trim().toLowerCase().slice(0, 40);
+    const authorNick = String(input.authorNick || '').trim().slice(0, 30);
+    let cursor = parseFeedCursor(input.cursor);
+
     try {
-      const snap = await db
+      /*
+       * 작성자는 Firestore가 거르고, 검색어는 읽은 뒤 거른다.
+       *
+       * 작성자는 등호 조건이라 색인으로 정확히 좁혀진다. 반면 제목·힌트의 부분 일치는
+       * Firestore가 못 한다(전문 검색 엔진의 일이다). 그래서 훑으면서 거르되,
+       * 위 MAX_BATCHES로 한 호출의 읽기량을 묶어 둔다.
+       */
+      let base = db
         .collection('works')
         .where('visibility', '==', 'link')
-        .where('discoverable', '==', true)
-        .orderBy('createdAt', 'desc')
-        // 만료된 작품을 거른 뒤에도 카드 24개를 채울 여유를 둔다.
-        .limit(PUBLIC_FEED_SCAN_LIMIT)
-        .get();
+        .where('discoverable', '==', true);
+      if (authorNick) base = base.where('authorNick', '==', authorNick);
+      base = base.orderBy('createdAt', 'desc').orderBy('__name__', 'desc');
 
-      const rows = snap.docs.flatMap((doc) => {
-        const data = doc.data();
-        if (isExpired(data)) return [];
-        const durationMs = Number(data.replay?.durationMs);
-        const createdAt = Number(data.createdAt);
-        if (!Number.isFinite(durationMs) || !Number.isFinite(createdAt)) return [];
-        return [{
-          id: doc.id,
-          title: String(data.title || '').slice(0, 20),
-          hint: String(data.hint || '').slice(0, 40),
-          authorNick: String(data.authorNick || '친구').slice(0, 30),
-          authorUid: typeof data.authorUid === 'string' ? data.authorUid : null,
-          durationMs,
-          createdAt,
-        }];
-      });
+      const rows = [];
+      let scanned = 0;
+      let exhausted = false;
+      /** 이번 쪽을 다 채워서 배치 중간에 멈췄는가. */
+      let stoppedMidBatch = false;
+
+      for (let batch = 0; batch < PUBLIC_FEED_MAX_BATCHES && rows.length < limit; batch++) {
+        let q = base.limit(PUBLIC_FEED_BATCH);
+        if (cursor) {
+          q = q.startAfter(cursor.createdAt, db.collection('works').doc(cursor.id));
+        }
+        const snap = await q.get();
+        if (snap.empty) {
+          exhausted = true;
+          break;
+        }
+
+        for (const doc of snap.docs) {
+          const data = doc.data();
+          // 커서는 맞았는지와 무관하게 훑은 마지막 문서를 따라간다.
+          // 그래야 다음 호출이 걸러진 구간을 다시 읽지 않는다.
+          const createdAt = Number(data.createdAt);
+          if (Number.isFinite(createdAt)) cursor = { createdAt, id: doc.id };
+          scanned++;
+
+          if (isExpired(data)) continue;
+          const durationMs = Number(data.replay?.durationMs);
+          if (!Number.isFinite(durationMs) || !Number.isFinite(createdAt)) continue;
+
+          const title = String(data.title || '').slice(0, 20);
+          const hint = String(data.hint || '').slice(0, 40);
+          const nick = String(data.authorNick || '친구').slice(0, 30);
+          if (
+            search &&
+            !`${title} ${hint} ${nick}`.toLowerCase().includes(search)
+          ) {
+            continue;
+          }
+
+          rows.push({
+            id: doc.id,
+            title,
+            hint,
+            authorNick: nick,
+            authorUid: typeof data.authorUid === 'string' ? data.authorUid : null,
+            durationMs,
+            createdAt,
+          });
+          if (rows.length >= limit) {
+            stoppedMidBatch = true;
+            break;
+          }
+        }
+
+        /*
+         * 배치를 끝까지 훑었을 때만 "다 봤다"고 말할 수 있다.
+         *
+         * 쪽이 다 차서 중간에 멈췄다면 이 배치의 나머지는 아직 안 본 것이다.
+         * 그때 exhausted로 판정하면 커서가 null이 되어 남은 작품이 통째로 사라진다.
+         * (마지막 배치가 60개 미만일 때 정확히 그 일이 난다.)
+         */
+        if (stoppedMidBatch) break;
+        if (snap.size < PUBLIC_FEED_BATCH) {
+          exhausted = true;
+          break;
+        }
+      }
 
       const authorUids = [...new Set(rows.map((item) => item.authorUid).filter(Boolean))];
       const profileSnaps = authorUids.length > 0
@@ -351,7 +432,12 @@ export const listPublicFeed = onCall(
         avatarUrl: authorUid && avatarOwners.has(authorUid) ? `/avatar/${item.id}` : null,
       }));
 
-      return { items: items.slice(0, PUBLIC_FEED_LIMIT) };
+      return {
+        items,
+        // 다 훑었으면 커서를 지운다. 그래야 클라이언트가 "더 보기"를 감춘다.
+        nextCursor: exhausted ? null : cursor,
+        scanned,
+      };
     } catch (error) {
       console.error('공개 피드를 읽지 못했습니다', error);
       throw new HttpsError('failed-precondition', '공개 피드를 준비하지 못했어요');
