@@ -1,5 +1,5 @@
 /** Google 계정 전용 프로필과 비공개 작품 백업. 공개 공유 경로와 완전히 분리한다. */
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { deleteObject, getBytes, ref, uploadBytes } from 'firebase/storage';
 import { parseWork } from '../work-model/serialize';
 import type { AssetRef } from '../work-model/types';

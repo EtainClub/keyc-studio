@@ -1,11 +1,14 @@
 {
   "name": "keycap-creator",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "dev:ait": "granite dev",
+    "build:ait": "ait build",
+    "deploy:ait": "ait deploy",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -16,6 +19,7 @@
     "deploy": "npm run build && firebase deploy && npm run deploy:cors && npm run deploy:functions:iam"
   },
   "dependencies": {
+    "@apps-in-toss/web-framework": "^2.10.8",
     "firebase": "^12.17.0",
     "idb": "^8.0.3",
     "nanoid": "^6.0.0",

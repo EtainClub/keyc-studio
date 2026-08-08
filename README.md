@@ -68,6 +68,24 @@ npm run preview
 | `npm run deploy:functions:iam` | callable Function의 Cloud Run 호출 IAM 적용 |
 | `npm run deploy` | 빌드·Firebase 배포 후 CORS와 callable IAM 적용 |
 
+## Apps in Toss `.ait` 빌드
+
+Apps in Toss Web Framework 설정은 [`granite.config.ts`](granite.config.ts)에 있다.
+기존 Vite/Firebase 빌드는 그대로 유지하며 Toss 전용 명령만 별도로 실행한다.
+
+```bash
+npm run dev:ait
+npm run build:ait
+```
+
+`npm run build:ait`는 먼저 Vite 정적 번들을 `dist/`에 만든 뒤 프로젝트 루트에
+업로드 가능한 `keyc-studio.ait`를 생성한다. `.ait`와 `.granite/`는 생성 산출물이므로 Git에서
+제외한다. 앱인토스 콘솔의 appName이 `keyc-studio`와 다르면 빌드 전에
+[`granite.config.ts`](granite.config.ts)의 `appName`을 콘솔 값과 똑같이 바꿔야 한다.
+
+`npm run deploy:ait`는 Apps in Toss CLI 인증과 콘솔 권한이 준비된 경우에만 사용한다.
+WebView에서 녹음을 사용하므로 심사용 권한 선언에는 `microphone/access`를 포함한다.
+
 ## Firebase 배포
 
 이 저장소의 기본 Firebase 프로젝트는 [`.firebaserc`](.firebaserc)의 `keyc-studio`, Functions

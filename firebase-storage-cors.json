@@ -9,7 +9,9 @@
       "http://localhost:4173",
       "http://127.0.0.1:4173",
       "http://localhost:5000",
-      "http://127.0.0.1:5000"
+      "http://127.0.0.1:5000",
+      "https://keyc-studio.private-apps.tossmini.com",
+      "https://keyc-studio.apps.tossmini.com"
     ],
     "method": ["GET", "HEAD", "POST", "PUT", "DELETE"],
     "responseHeader": [

@@ -15,7 +15,7 @@
  * 미완성 상태가 공유되는 사고가 구조적으로 없다.
  */
 
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes } from 'firebase/storage';
 import { applyVoiceMode, type VoiceMode } from '../audio-engine/voice';

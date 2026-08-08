@@ -33,3 +33,7 @@ ui-debug.log
 *.njsproj
 *.sln
 *.sw?
+
+# Apps in Toss build output
+.granite/
+*.ait

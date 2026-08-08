@@ -4,7 +4,7 @@
  * 비공개 프로필 사진을 그대로 공개하지 않는다. 사용자가 직접 올린 사진을 128px JPEG로
  * 다시 줄여 별도 경로에 저장하고, publicProfiles 문서가 있을 때만 Function이 서빙한다.
  */
-import { deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, setDoc } from 'firebase/firestore/lite';
 import { deleteObject, ref, uploadBytes } from 'firebase/storage';
 import { auth, firestore, isFirebaseConfigured, isPermanentUser, storage } from './firebase';
 import type { CreatorProfile } from './identity';
