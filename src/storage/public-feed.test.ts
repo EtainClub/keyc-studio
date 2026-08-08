@@ -8,6 +8,7 @@ const valid = {
   authorNick: '반짝고래12',
   avatarUrl: '/avatar/Abcdef123_-x',
   durationMs: 14_400,
+  replayCount: 27,
   createdAt: 1_754_000_000_000,
 };
 
@@ -16,6 +17,12 @@ describe('공개 피드 응답', () => {
     expect(parsePublicFeedItems([{ ...valid, authorUid: 'secret', assets: ['hidden'] }])).toEqual([
       valid,
     ]);
+  });
+
+  it('리플레이 수가 없거나 잘못되면 0으로 안전하게 표시한다', () => {
+    expect(parsePublicFeedItems([{ ...valid, replayCount: undefined }])[0]?.replayCount).toBe(0);
+    expect(parsePublicFeedItems([{ ...valid, replayCount: -1 }])[0]?.replayCount).toBe(0);
+    expect(parsePublicFeedItems([{ ...valid, replayCount: 3.9 }])[0]?.replayCount).toBe(3);
   });
 
   it('잘못된 id와 공연 길이를 버린다', () => {
@@ -48,11 +55,17 @@ describe('공개 피드 쪽 나누기', () => {
   it('항목과 커서를 함께 읽는다', () => {
     const page = parsePublicFeedPage({
       items: [valid],
-      nextCursor: { createdAt: 1_754_000_000_000, id: 'Bbcdef123_-y' },
+      nextCursor: { value: 1_754_000_000_000, id: 'Bbcdef123_-y' },
     });
 
     expect(page.items).toEqual([valid]);
-    expect(page.nextCursor).toEqual({ createdAt: 1_754_000_000_000, id: 'Bbcdef123_-y' });
+    expect(page.nextCursor).toEqual({ value: 1_754_000_000_000, id: 'Bbcdef123_-y' });
+  });
+
+  it('커서 값 0도 받는다 — 인기순에서 재생 수 0인 작품이 경계가 된다', () => {
+    expect(
+      parsePublicFeedPage({ items: [], nextCursor: { value: 0, id: 'Abcdef123_-x' } }).nextCursor,
+    ).toEqual({ value: 0, id: 'Abcdef123_-x' });
   });
 
   it('커서가 없으면 null — 더 볼 것이 없다는 뜻이다', () => {
@@ -62,13 +75,14 @@ describe('공개 피드 쪽 나누기', () => {
 
   it('모양이 어긋난 커서는 버린다', () => {
     const bad: unknown[] = [
-      { createdAt: 1, id: 'short' },
-      { createdAt: 1, id: '../../etc/passwd' },
-      { createdAt: 0, id: 'Abcdef123_-x' },
-      { createdAt: -1, id: 'Abcdef123_-x' },
-      { createdAt: Number.NaN, id: 'Abcdef123_-x' },
-      { createdAt: '1754000000000', id: 'Abcdef123_-x' },
+      { value: 1, id: 'short' },
+      { value: 1, id: '../../etc/passwd' },
+      { value: -1, id: 'Abcdef123_-x' },
+      { value: Number.NaN, id: 'Abcdef123_-x' },
+      { value: '1754000000000', id: 'Abcdef123_-x' },
       { id: 'Abcdef123_-x' },
+      // 옛 모양(createdAt)은 더 이상 통하지 않는다 — 그대로 보내면 서버가 무시한다.
+      { createdAt: 1_754_000_000_000, id: 'Abcdef123_-x' },
       'nope',
       42,
     ];

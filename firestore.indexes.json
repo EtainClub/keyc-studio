@@ -16,8 +16,29 @@
       "fields": [
         { "fieldPath": "visibility", "order": "ASCENDING" },
         { "fieldPath": "discoverable", "order": "ASCENDING" },
+        { "fieldPath": "replayCount", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "works",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "discoverable", "order": "ASCENDING" },
         { "fieldPath": "authorNick", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "works",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "discoverable", "order": "ASCENDING" },
+        { "fieldPath": "authorNick", "order": "ASCENDING" },
+        { "fieldPath": "replayCount", "order": "DESCENDING" },
         { "fieldPath": "__name__", "order": "DESCENDING" }
       ]
     }

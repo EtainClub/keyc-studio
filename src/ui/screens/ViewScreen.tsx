@@ -39,6 +39,7 @@ export function ViewScreen() {
   const playReplay = useCallback(
     async (w: Work) => {
       await engine.unlock();
+      void recordPlay(w.id, 0);
       setProgress(0);
       setPhase('replay');
       engine.playReplay(w, {
@@ -90,7 +91,6 @@ export function ViewScreen() {
       // 오디오가 이미 열려 있으면(같은 세션에서 넘어온 경우) 바로 재생한다.
       if (engine.audioContext.state === 'running') void playReplay(w);
       else setPhase('idle');
-      void recordPlay(w.id, 0);
     })();
 
     return () => {

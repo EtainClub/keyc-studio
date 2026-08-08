@@ -16,6 +16,7 @@ import {
   explainFirebaseError,
   fetchPublicFeed,
   type FeedCursor,
+  type FeedSort,
   type PublicFeedItem,
 } from '../../storage/remote';
 import { useAppState } from '../state';
@@ -23,6 +24,11 @@ import { ProfileAvatar } from '../components/ProfileAvatar';
 
 /** 타자를 멈춘 뒤 이만큼 기다렸다 검색한다. 한 글자마다 서버를 부르지 않기 위한 것. */
 const SEARCH_DEBOUNCE_MS = 400;
+
+const SORTS: { id: FeedSort; label: string }[] = [
+  { id: 'latest', label: '최신순' },
+  { id: 'popular', label: '많이 들은 순' },
+];
 
 export function FeedScreen() {
   const nav = useNavigate();
@@ -38,6 +44,7 @@ export function FeedScreen() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [authorNick, setAuthorNick] = useState('');
+  const [sort, setSort] = useState<FeedSort>('latest');
 
   /**
    * 이어보기 요청이 겹치지 않게 잠근다.
@@ -57,6 +64,7 @@ export function FeedScreen() {
 
       try {
         const page = await fetchPublicFeed({
+          sort,
           search,
           authorNick,
           cursor: opts.cursor,
@@ -79,10 +87,10 @@ export function FeedScreen() {
         setLoadingMore(false);
       }
     },
-    [search, authorNick],
+    [sort, search, authorNick],
   );
 
-  // 검색어·작성자가 바뀌면 처음부터 다시 받는다.
+  // 정렬·검색어·작성자가 바뀌면 처음부터 다시 받는다.
   useEffect(() => {
     setItems(null);
     setCursor(null);
@@ -167,6 +175,21 @@ export function FeedScreen() {
             </button>
           )}
         </label>
+
+        {/* 정렬은 둘 중 하나다 — 세그먼트로 두어 지금 어느 쪽인지 한눈에 보이게 한다. */}
+        <div className="seg feed-sort" role="group" aria-label="정렬 기준">
+          {SORTS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className={`seg-btn ${sort === s.id ? 'on' : ''}`}
+              aria-pressed={sort === s.id}
+              onClick={() => setSort(s.id)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
 
         {authorNick && (
           <div className="feed-chips">
@@ -275,6 +298,10 @@ export function FeedScreen() {
                   </div>
                   <h2>{item.title || '이름 없는 작품'}</h2>
                   {item.hint ? <p className="feed-hint">{item.hint}</p> : null}
+                  <p className="feed-replay-count">
+                    <span aria-hidden="true">▶</span>
+                    리플레이 {item.replayCount.toLocaleString('ko-KR')}회
+                  </p>
                 </div>
                 <button
                   type="button"

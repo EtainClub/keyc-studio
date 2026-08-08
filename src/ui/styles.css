@@ -810,6 +810,24 @@ button {
   background: rgba(255, 255, 255, 0.1);
   font-size: 14px;
 }
+/*
+ * 정렬 세그먼트는 그리기 도구의 그것과 같은 부품을 쓴다.
+ *
+ * 다만 .seg는 가로줄(.draw-row) 안에 놓일 것을 전제로 `flex: 1 1 200px`을 갖고 있다.
+ * 여기 .feed-tools는 세로 컨테이너라 그 flex가 **높이**로 자라 알약이 원이 됐다.
+ * 그래서 늘어나지 않게 못 박고, 안쪽 두 칸만 가로로 반씩 나눈다.
+ */
+/*
+ * 선택자를 둘 붙인 이유: .seg 규칙이 이 파일 **뒤쪽**에 있어서, 같은 특이도면
+ * 그쪽이 이긴다. flex-basis 200px이 세로 컨테이너에서 높이 200px로 잡혀
+ * 알약이 원이 됐다.
+ */
+.seg.feed-sort {
+  flex: none;
+}
+.feed-sort .seg-btn {
+  flex: 1 1 0;
+}
 .feed-chips {
   display: flex;
   flex-wrap: wrap;
@@ -958,6 +976,19 @@ button {
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.feed-replay-count {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 8px 0 0;
+  color: var(--fg-dim);
+  font-size: 12px;
+  font-weight: 800;
+}
+.feed-replay-count span {
+  color: var(--accent);
+  font-size: 10px;
 }
 .feed-replay {
   min-width: 102px;
@@ -1578,7 +1609,14 @@ button {
 
 .sheet-backdrop {
   position: fixed;
-  inset: 0;
+  /*
+   * 모바일 주소창이 펼쳐졌을 때도 현재 보이는 영역 안에 시트를 둔다.
+   * inset: 0 + vh 조합은 layout viewport를 따라가 헤더가 주소창 뒤로 밀릴 수 있다.
+   */
+  inset: auto 0 0;
+  height: 100vh;
+  height: 100dvh;
+  padding-top: max(8px, env(safe-area-inset-top));
   background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: flex-end;
@@ -1592,10 +1630,16 @@ button {
   border-radius: 26px 26px 0 0;
   padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
   max-height: 92vh;
+  max-height: 92dvh;
   display: flex;
   flex-direction: column;
   gap: 12px;
   box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+}
+.sheet-head,
+.sheet-tabs,
+.sheet-done {
+  flex-shrink: 0;
 }
 .sheet-head {
   display: flex;
@@ -1649,6 +1693,7 @@ button {
   box-shadow: 0 4px 12px rgba(255, 212, 0, 0.28);
 }
 .sheet-body {
+  min-height: 0;
   overflow-y: auto;
   /* 시트를 끝까지 스크롤했을 때 뒤 화면이 따라 움직이지 않게 막는다. */
   overscroll-behavior: contain;

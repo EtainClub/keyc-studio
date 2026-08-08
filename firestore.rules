@@ -74,7 +74,9 @@ service cloud.firestore {
         && request.resource.data.title.size() <= 20
         && request.resource.data.hint.size() <= 40
         // 집계는 별도 컬렉션에만 있다. 작품 문서에 심으려는 시도를 막는다.
-        && !('stats' in request.resource.data);
+        && !('stats' in request.resource.data)
+        // 정렬용 재생 수는 Functions(Admin SDK)만 올린다. 새 작품은 0에서 시작한다.
+        && request.resource.data.get('replayCount', 0) == 0;
 
       allow update: if request.auth != null
         && resource.data.authorUid == request.auth.uid
@@ -84,7 +86,15 @@ service cloud.firestore {
         && request.resource.data.authorNick.size() <= 20
         && request.resource.data.title.size() <= 20
         && request.resource.data.hint.size() <= 40
-        && !('stats' in request.resource.data);
+        && !('stats' in request.resource.data)
+        /*
+         * 재생 수는 작성자도 못 건드린다. 건드릴 수 있으면 인기순은 자기 신고가 된다.
+         *
+         * merge 쓰기에서 request.resource.data는 **합쳐진 결과 문서**라 서버가 올려둔
+         * 값이 그대로 들어 있다. 그래서 "없어야 한다"가 아니라 "그대로여야 한다"로 본다.
+         * get(기본값)을 쓰면 필드가 아직 없는 옛 문서도 통과한다.
+         */
+        && request.resource.data.get('replayCount', -1) == resource.data.get('replayCount', -1);
 
       allow delete: if request.auth != null
         && resource.data.authorUid == request.auth.uid;

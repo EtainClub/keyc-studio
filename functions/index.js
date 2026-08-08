@@ -312,13 +312,26 @@ const PUBLIC_FEED_BATCH = 60;
  */
 const PUBLIC_FEED_MAX_BATCHES = 5;
 
-/** 커서는 마지막으로 **훑은** 문서를 가리킨다. 마지막으로 맞은 문서가 아니다. */
+/**
+ * 정렬 기준. 값은 works 문서의 필드 이름이다.
+ *
+ * 인기순이 replayCount를 쓰는 이유는 recordPlay 주석 참고 — 원본 집계는 workStats에
+ * 있지만 Firestore는 다른 컬렉션 필드로 정렬하지 못한다.
+ */
+const FEED_SORTS = { latest: 'createdAt', popular: 'replayCount' };
+
+/**
+ * 커서는 마지막으로 **훑은** 문서를 가리킨다. 마지막으로 맞은 문서가 아니다.
+ *
+ * value가 무엇인지는 정렬 기준에 달렸다(만든 시각이거나 재생 수). 클라이언트는
+ * 서버가 준 값을 그대로 되돌려줄 뿐이라, 여기서는 모양만 본다.
+ */
 function parseFeedCursor(value) {
   if (!value || typeof value !== 'object') return null;
-  const createdAt = Number(value.createdAt);
+  const at = Number(value.value);
   const id = String(value.id || '');
-  if (!Number.isFinite(createdAt) || createdAt <= 0 || !WORK_ID.test(id)) return null;
-  return { createdAt, id };
+  if (!Number.isFinite(at) || at < 0 || !WORK_ID.test(id)) return null;
+  return { value: at, id };
 }
 
 /**
@@ -333,6 +346,7 @@ export const listPublicFeed = onCall(
     const limit = Math.max(1, Math.min(PUBLIC_FEED_PAGE, Number(input.limit) || PUBLIC_FEED_PAGE));
     const search = String(input.search || '').trim().toLowerCase().slice(0, 40);
     const authorNick = String(input.authorNick || '').trim().slice(0, 30);
+    const sortKey = FEED_SORTS[String(input.sort || '')] || FEED_SORTS.latest;
     let cursor = parseFeedCursor(input.cursor);
 
     try {
@@ -348,7 +362,7 @@ export const listPublicFeed = onCall(
         .where('visibility', '==', 'link')
         .where('discoverable', '==', true);
       if (authorNick) base = base.where('authorNick', '==', authorNick);
-      base = base.orderBy('createdAt', 'desc').orderBy('__name__', 'desc');
+      base = base.orderBy(sortKey, 'desc').orderBy('__name__', 'desc');
 
       const rows = [];
       let scanned = 0;
@@ -359,7 +373,7 @@ export const listPublicFeed = onCall(
       for (let batch = 0; batch < PUBLIC_FEED_MAX_BATCHES && rows.length < limit; batch++) {
         let q = base.limit(PUBLIC_FEED_BATCH);
         if (cursor) {
-          q = q.startAfter(cursor.createdAt, db.collection('works').doc(cursor.id));
+          q = q.startAfter(cursor.value, db.collection('works').doc(cursor.id));
         }
         const snap = await q.get();
         if (snap.empty) {
@@ -372,7 +386,8 @@ export const listPublicFeed = onCall(
           // 커서는 맞았는지와 무관하게 훑은 마지막 문서를 따라간다.
           // 그래야 다음 호출이 걸러진 구간을 다시 읽지 않는다.
           const createdAt = Number(data.createdAt);
-          if (Number.isFinite(createdAt)) cursor = { createdAt, id: doc.id };
+          const sortValue = Number(data[sortKey]);
+          if (Number.isFinite(sortValue)) cursor = { value: sortValue, id: doc.id };
           scanned++;
 
           if (isExpired(data)) continue;
@@ -419,17 +434,34 @@ export const listPublicFeed = onCall(
       }
 
       const authorUids = [...new Set(rows.map((item) => item.authorUid).filter(Boolean))];
-      const profileSnaps = authorUids.length > 0
-        ? await db.getAll(...authorUids.map((uid) => db.collection('publicProfiles').doc(uid)))
-        : [];
+      const [profileSnaps, statsSnaps] = await Promise.all([
+        authorUids.length > 0
+          ? db.getAll(...authorUids.map((uid) => db.collection('publicProfiles').doc(uid)))
+          : Promise.resolve([]),
+        rows.length > 0
+          ? db.getAll(...rows.map((item) => db.collection('workStats').doc(item.id)))
+          : Promise.resolve([]),
+      ]);
       const avatarOwners = new Set(
         profileSnaps
           .filter((profile) => profile.exists && profile.data()?.enabled === true)
           .map((profile) => profile.id),
       );
+      const replayCounts = new Map(
+        statsSnaps.map((stats) => {
+          const plays = Number(stats.data()?.plays);
+          return [
+            stats.id,
+            Number.isFinite(plays) && plays > 0
+              ? Math.min(Number.MAX_SAFE_INTEGER, Math.floor(plays))
+              : 0,
+          ];
+        }),
+      );
       const items = rows.map(({ authorUid, ...item }) => ({
         ...item,
         avatarUrl: authorUid && avatarOwners.has(authorUid) ? `/avatar/${item.id}` : null,
+        replayCount: replayCounts.get(item.id) ?? 0,
       }));
 
       return {
@@ -479,6 +511,23 @@ export const recordPlay = onCall(CALLABLE_OPTIONS, async (request) => {
     },
     { merge: true },
   );
+
+  /*
+   * 작품 문서에도 같은 수를 올린다 — 인기순 정렬 때문이다.
+   *
+   * Firestore는 다른 컬렉션(workStats)의 필드로 orderBy를 할 수 없다. 정렬하려면
+   * 정렬 키가 정렬 대상 문서에 있어야 한다. 그래서 집계의 원본은 workStats에 두되
+   * 정렬용 사본을 works에 함께 둔다.
+   *
+   * update를 쓴다. set(merge)를 쓰면 이미 지워진 작품에 replayCount만 있는
+   * 유령 문서가 되살아난다. 문서가 없으면 실패하는 게 맞다.
+   * 원본 집계는 위에서 이미 성공했으므로 여기 실패가 호출을 실패시키지는 않는다.
+   */
+  try {
+    await db.doc(`works/${workId}`).update({ replayCount: FieldValue.increment(1) });
+  } catch (error) {
+    console.warn('정렬용 재생 수를 올리지 못했습니다', workId, error?.code || error);
+  }
 
   return { ok: true };
 });

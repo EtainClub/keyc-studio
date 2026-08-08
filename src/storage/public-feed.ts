@@ -5,6 +5,7 @@ export type PublicFeedItem = {
   authorNick: string;
   avatarUrl: string | null;
   durationMs: number;
+  replayCount: number;
   createdAt: number;
 };
 
@@ -39,6 +40,12 @@ function parseItem(value: unknown): PublicFeedItem | null {
       ? item.avatarUrl
       : null,
     durationMs: Math.round(item.durationMs),
+    replayCount:
+      typeof item.replayCount === 'number' &&
+      Number.isFinite(item.replayCount) &&
+      item.replayCount > 0
+        ? Math.min(Number.MAX_SAFE_INTEGER, Math.floor(item.replayCount))
+        : 0,
     createdAt: Math.round(item.createdAt),
   };
 }
@@ -57,7 +64,7 @@ export function parsePublicFeedItems(value: unknown): PublicFeedItem[] {
  * 다만 모양은 검사한다 — 엉뚱한 값을 그대로 돌려보내면 서버에서 조용히 무시되고
  * 페이지가 처음으로 돌아가 버린다.
  */
-export type FeedCursor = { createdAt: number; id: string };
+export type FeedCursor = { value: number; id: string };
 
 export type PublicFeedPage = {
   items: PublicFeedItem[];
@@ -68,11 +75,10 @@ export type PublicFeedPage = {
 function parseCursor(value: unknown): FeedCursor | null {
   if (!value || typeof value !== 'object') return null;
   const c = value as Record<string, unknown>;
-  if (typeof c.createdAt !== 'number' || !Number.isFinite(c.createdAt) || c.createdAt <= 0) {
-    return null;
-  }
+  // 0도 정상이다 — 인기순에서 재생 수 0인 작품이 커서가 될 수 있다.
+  if (typeof c.value !== 'number' || !Number.isFinite(c.value) || c.value < 0) return null;
   if (typeof c.id !== 'string' || !WORK_ID.test(c.id)) return null;
-  return { createdAt: c.createdAt, id: c.id };
+  return { value: c.value, id: c.id };
 }
 
 export function parsePublicFeedPage(value: unknown): PublicFeedPage {

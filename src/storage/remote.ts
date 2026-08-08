@@ -23,7 +23,7 @@ import { normalizeWork, validateWork } from '../work-model/validate';
 import { parseWork } from '../work-model/serialize';
 import { photoArtKeyNumbers, type AssetRef, type Work } from '../work-model/types';
 import { getAssetBlob, getWorkRecord, localKeyOf, putWorkRecord } from './db';
-import { firestore, functions, isAdminUser, isFirebaseConfigured, storage } from './firebase';
+import { ensureSignedIn, firestore, functions, isAdminUser, isFirebaseConfigured, storage } from './firebase';
 import { acquireUid } from './identity';
 import { assetPath, thumbPath } from './paths';
 import { parsePublicFeedPage, type FeedCursor, type PublicFeedPage } from './public-feed';
@@ -67,7 +67,11 @@ export function shareUrl(workId: string): string {
  * 공개 피드. 클라이언트는 works 컬렉션을 list하지 않고, 서버가 공개 작품을 골라
  * 최소 필드만 반환한다. 현재 공개 안내에 동의한 discoverable:true 작품만 포함된다.
  */
+/** 'popular'는 재생 수가 많은 순. 서버가 works.replayCount로 정렬한다. */
+export type FeedSort = 'latest' | 'popular';
+
 export type FeedQuery = {
+  sort?: FeedSort;
   /** 제목·힌트·별명에 대한 부분 일치. 서버가 훑으며 거른다. */
   search?: string;
   /** 정확히 일치하는 별명만. 색인으로 걸러지므로 검색과 달리 비용이 늘지 않는다. */
@@ -83,6 +87,7 @@ export async function fetchPublicFeed(query: FeedQuery = {}): Promise<PublicFeed
   const callable = httpsCallable(functions(), 'listPublicFeed');
   const response = await withTimeout(
     callable({
+      sort: query.sort || 'latest',
       search: query.search || '',
       authorNick: query.authorNick || '',
       cursor: query.cursor ?? null,
@@ -94,6 +99,7 @@ export async function fetchPublicFeed(query: FeedQuery = {}): Promise<PublicFeed
 }
 
 export type { PublicFeedItem, PublicFeedPage, FeedCursor } from './public-feed';
+export type { FeedSort as PublicFeedSort };
 
 export type ShareOptions = {
   /** 녹음한 목소리를 어떻게 올릴지. 게이트 화면에서 아이·보호자가 고른다. */
@@ -198,7 +204,13 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
   // 2. 소유권 먼저. 이 문서가 있어야 Storage 쓰기 규칙이 통과한다.
   onProgress?.('작품 자리를 만드는 중…');
   await withTimeout(
-    setDoc(doc(firestore(), 'works', work.id), toPortableWork(work)),
+    /*
+     * merge를 쓰는 이유: 이 문서에는 클라이언트가 모르는 서버 전용 필드가 있다.
+     * replayCount(정렬용 재생 수)는 Cloud Function만 올린다. 통째로 덮어쓰면
+     * **다시 공유할 때마다 재생 수가 0으로 되돌아간다.**
+     * 보내는 payload는 완전한 Work라 merge라도 우리가 아는 필드는 전부 갱신된다.
+     */
+    setDoc(doc(firestore(), 'works', work.id), toPortableWork(work), { merge: true }),
     WRITE_TIMEOUT_MS,
     '작품 자리 만들기',
   );
@@ -330,18 +342,25 @@ export async function unshareWork(workId: string): Promise<void> {
 }
 
 const reported = new Set<string>();
+const reporting = new Set<string>();
 
 /** 재생/누름 카운트. 한 세션에서 같은 작품은 분당 한 번만 보고한다. */
 export async function recordPlay(workId: string, presses: number): Promise<void> {
   if (!isFirebaseConfigured) return;
   const key = `${workId}:${Math.floor(Date.now() / 60_000)}`;
-  if (reported.has(key)) return;
-  reported.add(key);
+  if (reported.has(key) || reporting.has(key)) return;
+  reporting.add(key);
   try {
+    const { user, error } = await ensureSignedIn();
+    if (!user) throw error ?? new Error('재생 집계를 위한 로그인에 실패했어요');
     const fn = httpsCallable(functions(), 'recordPlay');
     await fn({ workId, presses });
+    // 서버가 반영한 뒤에만 완료 처리한다. 실패한 호출은 같은 분 안에도 다시 시도할 수 있다.
+    reported.add(key);
   } catch (e) {
     // 통계는 실패해도 감상 경험을 막지 않는다.
     console.warn('[remote] 재생 집계 실패', e);
+  } finally {
+    reporting.delete(key);
   }
 }
