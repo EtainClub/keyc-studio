@@ -2385,6 +2385,9 @@ button {
   flex-direction: column;
   gap: 14px;
 }
+.group-picker-more {
+  margin-top: 18px;
+}
 
 .group-created {
   display: flex;
@@ -2406,4 +2409,38 @@ button {
   /* 숫자 폭을 고정해 코드가 흔들리지 않게, 글자 사이도 넉넉히 벌려 옮겨 적기 쉽게. */
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.08em;
+}
+
+/* 그룹 스테이지 헤더 오른쪽 — 다른 그룹으로 옮기기 + (주최자면) 초대 코드. */
+.group-stage-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex: none;
+}
+.group-invite {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex: none;
+}
+.group-invite-code {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 2px dashed rgba(255, 212, 0, 0.4);
+  background: rgba(255, 212, 0, 0.08);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.group-invite .warn {
+  margin: 0;
+  text-align: right;
+  font-size: 12px;
 }

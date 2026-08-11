@@ -10,7 +10,10 @@ export type PublicFeedItem = {
 };
 
 const WORK_ID = /^[A-Za-z0-9_-]{12}$/;
-const AVATAR_URL = /^\/avatar\/[A-Za-z0-9_-]{12}$/;
+// SPA 셸이 keyc.studio 밖(로컬 개발 서버, 토스 미니앱 웹뷰 등)에서 서빙될 수 있어
+// 상대 경로가 아니라 절대 URL만 받는다 — 이 값은 항상 firebase.ts의 PUBLIC_ORIGIN과
+// 맞아야 한다.
+const AVATAR_URL = /^https:\/\/keyc\.studio\/avatar\/[A-Za-z0-9_-]{12}$/;
 
 function parseItem(value: unknown): PublicFeedItem | null {
   if (!value || typeof value !== 'object') return null;

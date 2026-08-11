@@ -518,7 +518,7 @@ export const listPublicFeed = onCall(
       );
       const items = rows.map(({ authorUid, ...item }) => ({
         ...item,
-        avatarUrl: authorUid && avatarOwners.has(authorUid) ? `/avatar/${item.id}` : null,
+        avatarUrl: authorUid && avatarOwners.has(authorUid) ? `${PUBLIC_ORIGIN}/avatar/${item.id}` : null,
         replayCount: replayCounts.get(item.id) ?? 0,
       }));
 
@@ -918,6 +918,36 @@ export const createGroup = onCall(CALLABLE_OPTIONS, async (request) => {
 });
 
 /**
+ * 초대 코드 다시 보기.
+ * 주최자만 볼 수 있다 — 코드는 곧 입장 열쇠라, 만든 사람 말고는 다시 꺼내 줄 이유가
+ * 없다. group 문서의 join.codeHint에 평문으로 있으니 새로 뽑을 필요는 없다.
+ */
+export const getGroupCode = onCall(CALLABLE_OPTIONS, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+
+  const groupId = String(request.data?.groupId || '');
+  if (!GROUP_ID.test(groupId)) {
+    throw new HttpsError('invalid-argument', '그룹 번호가 이상해요');
+  }
+
+  const groupSnap = await groupRef(groupId).get();
+  if (!groupSnap.exists) {
+    throw new HttpsError('not-found', '그런 그룹이 없어요');
+  }
+  const group = groupSnap.data();
+  if (group.ownerUid !== uid) {
+    throw new HttpsError('permission-denied', '그룹을 만든 사람만 초대 코드를 볼 수 있어요');
+  }
+
+  const code = group.join?.codeHint;
+  if (typeof code !== 'string' || !code) {
+    throw new HttpsError('internal', '초대 코드를 찾지 못했어요');
+  }
+  return { code };
+});
+
+/**
  * 그룹 참가.
  * 링크를 두 번 눌러도 에러가 아니다 — 이미 멤버면 조용히 성공으로 처리한다.
  */
@@ -1111,7 +1141,7 @@ export const listGroupStage = onCall(CALLABLE_OPTIONS, async (request) => {
 
   const items = rows.map(({ authorUid, ...item }) => ({
     ...item,
-    avatarUrl: authorUid && avatarOwners.has(authorUid) ? `/avatar/${item.id}` : null,
+    avatarUrl: authorUid && avatarOwners.has(authorUid) ? `${PUBLIC_ORIGIN}/avatar/${item.id}` : null,
     listened: listenedIds.has(`${item.id}__${uid}`),
     mine: authorUid === uid,
   }));

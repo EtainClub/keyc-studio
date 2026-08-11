@@ -10,7 +10,9 @@ export type GroupRole = 'owner' | 'admin' | 'member';
 
 const GROUP_ID = /^[A-Za-z0-9_-]{12}$/;
 const WORK_ID = /^[A-Za-z0-9_-]{12}$/;
-const AVATAR_URL = /^\/avatar\/[A-Za-z0-9_-]{12}$/;
+// public-feed.ts와 같은 이유로 상대 경로가 아니라 절대 URL만 받는다 — 이 값은
+// 항상 firebase.ts의 PUBLIC_ORIGIN과 맞아야 한다.
+const AVATAR_URL = /^https:\/\/keyc\.studio\/avatar\/[A-Za-z0-9_-]{12}$/;
 
 const GROUP_ROLES: readonly GroupRole[] = ['owner', 'admin', 'member'];
 const SUBMIT_POLICIES = ['members', 'admins'] as const;

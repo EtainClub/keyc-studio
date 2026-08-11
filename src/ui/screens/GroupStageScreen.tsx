@@ -13,8 +13,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchGroupStage, type GroupStageSort } from '../../storage/groups';
+import { fetchGroupInviteCode, fetchGroupStage, formatGroupCode, type GroupStageSort } from '../../storage/groups';
 import type { GroupStageCursor, GroupStageItem, GroupSummary } from '../../storage/group-feed';
+import { PUBLIC_ORIGIN } from '../../storage/firebase';
 import { useAppState } from '../state';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 
@@ -41,7 +42,15 @@ const SORTS: { id: GroupStageSort; label: string }[] = [
  * 이전 그룹 것을 그대로 물고 넘어간다 — key를 다르게 주면 그룹을 바꿀 때마다
  * 깨끗한 인스턴스로 다시 시작해서 이 파일 안에서 따로 초기화 코드를 짤 필요가 없다.
  */
-export function GroupStageScreen({ groupId }: { groupId: string }) {
+export function GroupStageScreen({
+  groupId,
+  onSwitchGroup,
+}: {
+  groupId: string;
+  /** "다른 그룹" — 이 그룹 밖으로 나가 그룹 고르기(+ 코드로 새 그룹 입장)로 돌아간다.
+   *  이 화면은 URL을 소유하지 않으니(위 주석 참고) 실제 전환은 FeedScreen이 한다. */
+  onSwitchGroup: () => void;
+}) {
   const nav = useNavigate();
   const { engine } = useAppState();
 
@@ -52,6 +61,12 @@ export function GroupStageScreen({ groupId }: { groupId: string }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [brokenThumbs, setBrokenThumbs] = useState<ReadonlySet<string>>(new Set());
+  // 초대 코드는 주최자만 다시 볼 수 있다 — 서버가 role을 다시 확인하므로 여기 role
+  // 체크는 버튼을 아예 안 보이게 하는 용도일 뿐, 보안 경계가 아니다.
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [loadingCode, setLoadingCode] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [codeCopied, setCodeCopied] = useState(false);
 
   /** 입력창에 보이는 값과 실제로 서버에 보낸 값을 나눈다. 사이의 지연이 디바운스다. */
   const [searchInput, setSearchInput] = useState('');
@@ -147,6 +162,31 @@ export function GroupStageScreen({ groupId }: { groupId: string }) {
     setSearch('');
   };
 
+  const loadInviteCode = async () => {
+    if (loadingCode) return;
+    setLoadingCode(true);
+    setInviteError('');
+    try {
+      setInviteCode(await fetchGroupInviteCode(groupId));
+    } catch (cause) {
+      setInviteError(cause instanceof Error ? cause.message : '초대 코드를 불러오지 못했어요.');
+    } finally {
+      setLoadingCode(false);
+    }
+  };
+
+  const copyInviteCode = async () => {
+    if (!inviteCode) return;
+    try {
+      await navigator.clipboard.writeText(inviteCode);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 1500);
+    } catch {
+      // 클립보드 권한이 없는 브라우저·컨텍스트도 있다 — 코드는 화면에 그대로 남아
+      // 있으니 손으로 옮겨 적을 수 있다.
+    }
+  };
+
   const filtered = Boolean(search);
   const empty = items?.length === 0;
 
@@ -161,6 +201,41 @@ export function GroupStageScreen({ groupId }: { groupId: string }) {
             {/* 전체가 앞, 들은 수가 뒤다 — "12개 중 7개 들었어요". 순서가 바뀌면 뜻이 뒤집힌다. */}
             {group ? `${group.entryCount.toLocaleString('ko-KR')}개 중 ${listenedCount.toLocaleString('ko-KR')}개 들었어요` : ''}
           </p>
+        </div>
+        <div className="group-stage-actions">
+          {/* 이미 이 그룹에 들어와 있어도 다른 그룹(코드로 새로 입장할 그룹 포함)으로
+              옮겨갈 방법이 있어야 한다 — 이 화면 안에는 그럴 길이 없었다. */}
+          <button type="button" className="chip" onClick={onSwitchGroup}>
+            다른 그룹
+          </button>
+          {group?.role === 'owner' && (
+            <div className="group-invite">
+              {inviteCode ? (
+                <>
+                  <p className="group-invite-code" aria-label={`입장 코드 ${inviteCode}`}>
+                    {formatGroupCode(inviteCode)}
+                  </p>
+                  <button type="button" className="chip" onClick={() => void copyInviteCode()}>
+                    {codeCopied ? '복사했어요 ✓' : '코드 복사하기'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => void loadInviteCode()}
+                  disabled={loadingCode}
+                >
+                  {loadingCode ? '불러오는 중…' : '초대 코드 보기'}
+                </button>
+              )}
+              {inviteError && (
+                <p className="warn" role="alert">
+                  {inviteError}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
@@ -263,7 +338,7 @@ export function GroupStageScreen({ groupId }: { groupId: string }) {
                       <span className="feed-thumb-fallback" aria-hidden="true">♫</span>
                     ) : (
                       <img
-                        src={`/thumb/${item.id}`}
+                        src={`${PUBLIC_ORIGIN}/thumb/${item.id}`}
                         alt=""
                         loading="lazy"
                         width={640}

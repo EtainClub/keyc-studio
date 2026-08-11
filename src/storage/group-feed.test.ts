@@ -9,7 +9,7 @@ const validItem = {
   title: '고양이 공연',
   hint: '네 번째 키를 들어보세요',
   authorNick: '반짝고래12',
-  avatarUrl: '/avatar/Abcdef123_-x',
+  avatarUrl: 'https://keyc.studio/avatar/Abcdef123_-x',
   durationMs: 14_400,
   replayCount: 27,
   uniqueListeners: 9,

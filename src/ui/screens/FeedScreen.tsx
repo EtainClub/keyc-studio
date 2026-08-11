@@ -29,6 +29,7 @@ import {
   type PublicFeedItem,
 } from '../../storage/remote';
 import { listMyGroups, type MyGroup } from '../../storage/groups';
+import { PUBLIC_ORIGIN } from '../../storage/firebase';
 import { useAppState } from '../state';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { GroupStageScreen } from './GroupStageScreen';
@@ -43,8 +44,11 @@ const SORTS: { id: FeedSort; label: string }[] = [
 
 export function FeedScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const groupId = searchParams.get('g');
-  const activeTab: 'all' | 'group' = groupId ? 'group' : 'all';
+  // 그룹 탭에 있는지는 'g' 키가 있는지로 본다 — 값이 빈 문자열이어도(아직 그룹을
+  // 고르기 전) 그룹 탭에 있는 것이다. 값의 진위로만 판단하면 "그룹 탭 진입, 미선택"
+  // 상태를 표현할 방법이 없어 [그룹] 버튼을 눌러도 탭이 전환되지 않는다.
+  const activeTab: 'all' | 'group' = searchParams.has('g') ? 'group' : 'all';
+  const groupId = searchParams.get('g') || null;
 
   const [myGroups, setMyGroups] = useState<MyGroup[] | null>(null);
   // [그룹] 탭에 처음 들어갈 때만 내 그룹 목록을 읽는다 — 이 화면이 떠 있는 동안
@@ -60,9 +64,20 @@ export function FeedScreen() {
   }, [activeTab]);
 
   // 그룹이 정확히 하나뿐이면 칩 하나만 있는 고르기 화면을 한 번 더 거치게 하지
-  // 않는다 — 바로 그 그룹으로 들어간다.
+  // 않는다 — 바로 그 그룹으로 들어간다. 딱 한 번만이다: 이 ref가 없으면 "다른 그룹"
+  // 버튼으로 g를 비워도 그룹이 하나뿐인 한 이 effect가 곧바로 같은 그룹으로 되돌려
+  // 놓아서, 사용자 눈에는 그룹 고르기 화면이 뜬 적도 없이 스테이지만 깜빡이는
+  // 것처럼 보인다(실제로 그 버그였다).
+  const autoPickedRef = useRef(false);
   useEffect(() => {
-    if (activeTab === 'group' && !groupId && myGroups && myGroups.length === 1) {
+    if (
+      activeTab === 'group' &&
+      !groupId &&
+      myGroups &&
+      myGroups.length === 1 &&
+      !autoPickedRef.current
+    ) {
+      autoPickedRef.current = true;
       setSearchParams({ g: myGroups[0].id }, { replace: true });
     }
   }, [activeTab, groupId, myGroups, setSearchParams]);
@@ -74,8 +89,8 @@ export function FeedScreen() {
   };
   const selectGroupTab = () => {
     if (activeTab === 'group') return;
-    // g가 이미 있으면 그대로 두고(같은 그룹으로 복귀), 없으면 그룹 고르기를 보여준다.
-    if (!groupId) setSearchParams(new URLSearchParams());
+    // 'g' 키를 빈 값으로라도 넣어야 activeTab이 'group'으로 바뀐다 — 위 주석 참고.
+    setSearchParams({ g: '' });
   };
 
   return (
@@ -113,7 +128,7 @@ export function FeedScreen() {
       ) : groupId ? (
         // key=groupId: 그룹을 바꾸면 검색어·정렬 같은 내부 state를 새로 시작한다.
         // (자세한 이유는 GroupStageScreen 상단 주석 참고.)
-        <GroupStageScreen key={groupId} groupId={groupId} />
+        <GroupStageScreen key={groupId} groupId={groupId} onSwitchGroup={() => setSearchParams({ g: '' })} />
       ) : (
         <GroupPicker groups={myGroups} onSelect={(id) => setSearchParams({ g: id })} />
       )}
@@ -164,6 +179,16 @@ function GroupPicker({ groups, onSelect }: { groups: MyGroup[] | null; onSelect:
             {g.name}
           </button>
         ))}
+      </div>
+      {/* 이미 들어간 그룹이 있어도 다른 그룹에 코드로 더 들어갈 수 있어야 한다 —
+          목록만 있으면 이미 입장한 그룹 밖으로는 못 나가는 화면이 된다. */}
+      <div className="join-group-panel group-picker-more">
+        <button type="button" className="chip wide" onClick={() => nav('/g/join')}>
+          코드로 새 그룹 입장하기
+        </button>
+        <button type="button" className="chip wide" onClick={() => nav('/g/join?new=1')}>
+          그룹 만들기
+        </button>
       </div>
     </section>
   );
@@ -403,7 +428,7 @@ function PublicFeedSection() {
                     <span className="feed-thumb-fallback" aria-hidden="true">♫</span>
                   ) : (
                     <img
-                      src={`/thumb/${item.id}`}
+                      src={`${PUBLIC_ORIGIN}/thumb/${item.id}`}
                       alt=""
                       loading="lazy"
                       width={640}

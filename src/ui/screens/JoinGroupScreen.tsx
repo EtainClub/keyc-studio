@@ -8,24 +8,15 @@
 
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { createGroup, GROUP_NAME_MAX, joinGroup, normalizeJoinCode } from '../../storage/groups';
+import { createGroup, formatGroupCode, GROUP_NAME_MAX, joinGroup, normalizeJoinCode } from '../../storage/groups';
+import { useAppState } from '../state';
 
 type Mode = 'join' | 'create';
-
-/**
- * 서버가 주는 코드는 8자다. 4-4로 끊어 보여주면 한눈에 읽고 옮겨 적기 쉽다.
- * 혹시 길이가 다르게 와도(서버 스키마가 바뀌는 등) slice는 범위를 벗어나면 그냥
- * 짧아질 뿐이라 화면이 깨지지 않는다.
- */
-function formatCode(code: string): string {
-  const head = code.slice(0, 4);
-  const tail = code.slice(4, 8);
-  return tail ? `${head}-${tail}` : head;
-}
 
 export function JoinGroupScreen() {
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
+  const { account, authReady, connectGoogle } = useAppState();
 
   const [mode, setMode] = useState<Mode>(searchParams.get('new') === '1' ? 'create' : 'join');
 
@@ -41,6 +32,7 @@ export function JoinGroupScreen() {
   const [createError, setCreateError] = useState('');
   const [created, setCreated] = useState<{ groupId: string; code: string; name: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [connecting, setConnecting] = useState(false);
 
   const goToStage = (groupId: string) => nav(`/feed?g=${groupId}`, { replace: true });
 
@@ -82,6 +74,19 @@ export function JoinGroupScreen() {
     }
   };
 
+  const connectForGroup = async () => {
+    if (connecting) return;
+    setConnecting(true);
+    setCreateError('');
+    try {
+      await connectGoogle();
+    } catch (cause) {
+      setCreateError(cause instanceof Error ? cause.message : 'Google 계정을 연결하지 못했어요. 다시 시도해 주세요.');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   const copyCode = async () => {
     if (!created) return;
     try {
@@ -104,7 +109,7 @@ export function JoinGroupScreen() {
         <section className="group-created">
           <p className="note">이 코드를 그룹 사람들에게 알려주세요.</p>
           <p className="group-created-code" aria-label={`입장 코드 ${created.code}`}>
-            {formatCode(created.code)}
+            {formatGroupCode(created.code)}
           </p>
           <button type="button" className="chip wide" onClick={() => void copyCode()}>
             {copied ? '복사했어요 ✓' : '코드 복사하기'}
@@ -185,31 +190,63 @@ export function JoinGroupScreen() {
         </section>
       ) : (
         <section className="join-group-panel">
-          <label className="field">
-            <span>그룹 이름</span>
-            <input
-              type="text"
-              autoComplete="off"
-              placeholder="예: 3학년 2반"
-              maxLength={GROUP_NAME_MAX}
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value.slice(0, GROUP_NAME_MAX))}
-            />
-            <em>{Array.from(nameInput).length}/{GROUP_NAME_MAX}</em>
-          </label>
-          {createError && (
-            <p className="warn" role="alert">
-              {createError}
+          {!authReady ? (
+            // 저장된 인증 세션을 아직 확인하지 못했다 — 이미 Google로 연결된 사람일
+            // 수도 있으니, 확인이 끝나기 전에는 "로그인해 주세요"부터 보여주지 않는다.
+            <p className="feed-status" role="status" aria-live="polite">
+              계정을 확인하는 중…
             </p>
+          ) : account.kind !== 'google' ? (
+            // 서버도 비익명(Google) 계정만 그룹을 만들게 하지만, 여기서 먼저 막아야
+            // "그룹을 만들지 못했어요"라는 막연한 에러 대신 무엇을 해야 하는지 바로 알려준다.
+            <>
+              <p className="note">
+                그룹을 만들려면 Google 계정으로 로그인해야 해요. 초대 코드로 입장하는 건 로그인 없이도 할 수 있어요.
+              </p>
+              {createError && (
+                <p className="warn" role="alert">
+                  {createError}
+                </p>
+              )}
+              <button
+                type="button"
+                className="google-connect"
+                onClick={() => void connectForGroup()}
+                disabled={connecting || account.kind === 'syncing'}
+              >
+                <span aria-hidden="true">G</span>
+                {connecting || account.kind === 'syncing' ? '연결하는 중…' : 'Google 계정 연결'}
+              </button>
+            </>
+          ) : (
+            <>
+              <label className="field">
+                <span>그룹 이름</span>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  placeholder="예: 3학년 2반"
+                  maxLength={GROUP_NAME_MAX}
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value.slice(0, GROUP_NAME_MAX))}
+                />
+                <em>{Array.from(nameInput).length}/{GROUP_NAME_MAX}</em>
+              </label>
+              {createError && (
+                <p className="warn" role="alert">
+                  {createError}
+                </p>
+              )}
+              <button
+                type="button"
+                className="big-cta"
+                disabled={creating || !nameInput.trim()}
+                onClick={() => void submitCreate()}
+              >
+                {creating ? '만드는 중…' : '그룹 만들기'}
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            className="big-cta"
-            disabled={creating || !nameInput.trim()}
-            onClick={() => void submitCreate()}
-          >
-            {creating ? '만드는 중…' : '그룹 만들기'}
-          </button>
         </section>
       )}
     </main>

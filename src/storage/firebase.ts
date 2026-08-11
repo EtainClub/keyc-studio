@@ -31,6 +31,15 @@ import { getStorage, type FirebaseStorage } from 'firebase/storage';
 /** 사용자가 한국에 있다. 서울 리전이 왕복 지연을 가장 줄인다. */
 export const REGION = 'asia-northeast3';
 
+/**
+ * 썸네일·아바타 같은 정적 자산의 정식 출처.
+ * SPA 셸 자체는 이 도메인 밖(로컬 개발 서버, 토스 미니앱 웹뷰 등)에서도 서빙될 수
+ * 있는데, 그런 origin에는 Firebase Hosting의 `/thumb`, `/avatar` rewrite가 없다.
+ * 상대 경로로 두면 그 origin으로 요청이 나가 조용히 깨진다 — 항상 이 도메인으로
+ * 절대 경로를 가리켜야 한다. (functions/index.js의 PUBLIC_ORIGIN과 같은 값이어야 한다.)
+ */
+export const PUBLIC_ORIGIN = 'https://keyc.studio';
+
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,

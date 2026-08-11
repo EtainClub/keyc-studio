@@ -51,6 +51,11 @@ type AppState = {
   nick: string;
   profile: CreatorProfile;
   account: { kind: 'local' | 'anonymous' | 'syncing' | 'google'; email: string | null };
+  /** 저장된 인증 세션을 한 번이라도 확인했는가. 이게 false인 동안은 account.kind가
+   *  아직 'local'이어도 "로그인 안 했다"가 아니라 "아직 모른다"다 — Google로 이미
+   *  연결된 사람에게 새로고침 직후 잠깐 "로그인해 주세요"를 잘못 보여주지 않으려면
+   *  화면이 이 값도 함께 봐야 한다. */
+  authReady: boolean;
   syncRevision: number;
   draft: Work | null;
   startNewDraft: () => Promise<Work>;
@@ -77,6 +82,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   profileRef.current = profile;
   const nick = profile.name;
   const [account, setAccount] = useState<AppState['account']>({ kind: 'local', email: null });
+  // Firebase 설정이 없으면 watchUser가 아예 안 불리니 "확인할 것 없음"으로 바로 준비됨 처리한다.
+  const [authReady, setAuthReady] = useState(!isFirebaseConfigured);
   const [syncRevision, setSyncRevision] = useState(0);
   const accountSyncRef = useRef<Promise<void> | null>(null);
   const [draft, setDraft] = useState<Work | null>(null);
@@ -123,6 +130,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isFirebaseConfigured) return;
     return watchUser((user) => {
+      setAuthReady(true);
       if (!user) {
         setAccount({ kind: 'local', email: null });
       } else if (user.isAnonymous) {
@@ -296,6 +304,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       nick,
       profile,
       account,
+      authReady,
       syncRevision,
       draft,
       startNewDraft,
@@ -313,6 +322,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       nick,
       profile,
       account,
+      authReady,
       syncRevision,
       draft,
       startNewDraft,

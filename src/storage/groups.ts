@@ -111,6 +111,22 @@ export async function createGroup(name: string): Promise<{ groupId: string; code
   return { groupId: data.groupId, code: data.code, name: data.name.slice(0, GROUP_NAME_MAX) };
 }
 
+/** 그룹을 만든 사람이 초대 코드를 다시 확인한다. 다른 멤버는 서버가 permission-denied로 막는다. */
+export async function fetchGroupInviteCode(groupId: string): Promise<string> {
+  await requireUid();
+  const callable = httpsCallable(functions(), 'getGroupCode');
+  const response = await withTimeout(
+    callable({ groupId }),
+    CALL_TIMEOUT_MS,
+    '초대 코드 불러오기',
+  );
+  const data = asRecord(response.data);
+  if (typeof data.code !== 'string' || !data.code) {
+    throw new Error('초대 코드를 이해하지 못했어요');
+  }
+  return data.code;
+}
+
 /** 코드로 입장. 이미 멤버면 alreadyMember: true로 조용히 성공한다. */
 export async function joinGroup(code: string): Promise<{ groupId: string; name: string; alreadyMember: boolean }> {
   await requireUid();
@@ -235,4 +251,15 @@ export async function listMyGroups(): Promise<MyGroup[]> {
  */
 export function normalizeJoinCode(input: string): string {
   return input.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+}
+
+/**
+ * 서버가 주는 코드는 8자다. 4-4로 끊어 보여주면 한눈에 읽고 옮겨 적기 쉽다.
+ * 혹시 길이가 다르게 와도(서버 스키마가 바뀌는 등) slice는 범위를 벗어나면 그냥
+ * 짧아질 뿐이라 화면이 깨지지 않는다.
+ */
+export function formatGroupCode(code: string): string {
+  const head = code.slice(0, 4);
+  const tail = code.slice(4, 8);
+  return tail ? `${head}-${tail}` : head;
 }
