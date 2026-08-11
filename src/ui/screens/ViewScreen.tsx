@@ -225,7 +225,17 @@ export function ViewScreen() {
             type="button"
             className="chip"
             onClick={async () => {
-              const link = shareUrl(work.id);
+              /*
+               * 그룹에서 열어 본 작품은 링크에도 `?g=`를 그대로 실어 보낸다.
+               *
+               * 빼면 링크를 받은 사람의 리플레이는 어느 그룹에도 잡히지 않아, 열심히
+               * 퍼뜨려도 그룹 카드의 숫자가 그대로다 — "리플레이가 안 세진다"의 절반이
+               * 이 경로였다. 표(고유 청취자)는 여전히 참가자만 등록되므로, 링크가
+               * 퍼진다고 순위가 뒤집히지는 않는다.
+               */
+              const link = groupId
+                ? `${shareUrl(work.id)}?g=${encodeURIComponent(groupId)}`
+                : shareUrl(work.id);
               if (navigator.share) await navigator.share({ url: link }).catch(() => {});
               else await navigator.clipboard.writeText(link).catch(() => {});
             }}

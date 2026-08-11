@@ -546,6 +546,19 @@ const recent = new Map();
 const WINDOW_MS = 60_000;
 
 /**
+ * 이 키가 창 안에 이미 있었는가(= 이번 호출은 세지 않는가). 없었으면 지금을 찍어 둔다.
+ *
+ * 판정과 기록을 한 함수에 묶는 이유: 두 줄로 흩어져 있으면 호출자가 늘어날 때마다
+ * "찍는 걸 빠뜨려 무제한으로 세지는" 실수가 생긴다.
+ */
+function throttleHit(key, now) {
+  if (now - (recent.get(key) || 0) < WINDOW_MS) return true;
+  recent.set(key, now);
+  if (recent.size > 5000) recent.clear();
+  return false;
+}
+
+/**
  * 그룹 집계 — 여기가 순위의 근거다.
  *
  * ── 왜 별도의 문서로 세는가 ──
@@ -558,6 +571,20 @@ const WINDOW_MS = 60_000;
  * 세고 콜드 스타트마다 리셋된다. 공개 피드의 인기순에는 충분했지만 순위의 근거로는
  * 못 쓴다. 그래서 표 등록은 throttle과 무관하게 트랜잭션이 판정한다.
  *
+ * ── 재생 수와 표는 세는 범위가 다르다 ──
+ * `replayCount`(카드의 "리플레이 N회")는 **로그인한 청취자 전부**를 센다. 그룹에
+ * 들어오지 않은 채 링크로 들어온 사람도 포함이다. 예전에는 멤버가 아니면 아무것도
+ * 세지 않았는데, 그러면 링크를 받아 들어준 사람이 아무리 들어도 카드 숫자가 0에
+ * 붙박이라 "리플레이가 안 세진다"는 신고가 됐다 — 실제로 그 버그였다.
+ *
+ * 반면 `uniqueListeners`(표)는 여전히 **멤버만** 등록한다. 그룹 스테이지는
+ * '미등재'라 링크를 아는 외부인도 작품을 열 수 있고, 그 재생이 표에 닿으면
+ * **링크를 뿌리는 것이 곧 표 조작**이 되기 때문이다. 관람은 막지 않되 순위에는
+ * 넣지 않는다는 원칙은 그대로다.
+ *
+ * (따라서 rankingMetric을 'replayCount'로 둔 그룹은 순위가 링크 배포에 흔들릴 수
+ * 있다. 순위를 다투는 컨테스트라면 기본값인 'uniqueListeners'를 그대로 써야 한다.)
+ *
  * @param countReplay throttle에 걸리지 않았는가. 표 등록과 달리 재생 수는 이걸 따른다.
  * @param completed   끝까지 들었는가. 0.5초 눌렀다 나간 것을 표로 세지 않기 위한 것.
  */
@@ -568,16 +595,8 @@ async function recordGroupPlay(groupId, workId, uid, { countReplay, completed })
 
   // 그룹에 올라오지 않은 작품이거나 내린 작품이면 셀 것이 없다.
   if (!entrySnap.exists || entrySnap.data().status !== 'active') {
-    return { counted: false, reason: 'not-entered' };
+    return { counted: false, replayCounted: false, reason: 'not-entered' };
   }
-  /*
-   * 멤버가 아니면 아무것도 세지 않는다.
-   *
-   * 그룹 스테이지는 '미등재'라 링크를 아는 외부인도 작품을 열 수 있다. 그 재생이
-   * 집계에 닿으면 **링크를 뿌리는 것이 곧 표 조작**이 된다. 관람은 막지 않되
-   * 순위에는 넣지 않는다.
-   */
-  if (!memberSnap.exists) return { counted: false, reason: 'not-member' };
 
   /*
    * 자기 작품은 재생 수도 표도 세지 않는다.
@@ -585,21 +604,37 @@ async function recordGroupPlay(groupId, workId, uid, { countReplay, completed })
    * 표만 빼고 재생 수를 세면, 순위 기준이 replayCount인 그룹에서 자가 재생이
    * 그대로 점수가 된다. 자기 것을 눌러 이기는 경로를 아예 남기지 않는다.
    */
-  if (entrySnap.data().authorUid === uid) return { counted: false, reason: 'own-work' };
+  if (entrySnap.data().authorUid === uid) {
+    return { counted: false, replayCounted: false, reason: 'own-work' };
+  }
 
   const now = Date.now();
+
+  /*
+   * 재생 수는 멤버십과 무관하므로 트랜잭션 **밖에서** 올린다.
+   *
+   * 아래 트랜잭션은 "이 사람의 표가 이미 있는가"를 읽고 판정하는 일이고, 재생 수는
+   * 그 판정과 아무 상관이 없는 단순 증가다. 증가 연산은 교환법칙이 성립해서 따로
+   * 커밋해도 값이 어긋나지 않고, 무엇보다 멤버가 아닌 사람은 트랜잭션 자체에
+   * 들어가지 않으므로 여기서 올려야 한다.
+   */
+  let replayCounted = false;
+  if (countReplay) {
+    await entry.set({ replayCount: FieldValue.increment(1), lastPlayedAt: now }, { merge: true });
+    replayCounted = true;
+  }
+
+  // 여기부터는 순위(표)의 영역이다 — 멤버만 들어온다.
+  if (!memberSnap.exists) return { counted: false, replayCounted, reason: 'not-member' };
+
   return db.runTransaction(async (tx) => {
     const listen = listenRef(groupId, workId, uid);
     const listenSnap = await tx.get(listen);
 
-    if (countReplay) {
-      tx.set(entry, { replayCount: FieldValue.increment(1), lastPlayedAt: now }, { merge: true });
-    }
-
     // 이미 센 사람이다. 순위는 움직이지 않는다.
     if (listenSnap.exists) {
       if (countReplay) tx.update(listen, { plays: FieldValue.increment(1), lastAt: now });
-      return { counted: false, reason: 'already-counted' };
+      return { counted: false, replayCounted, reason: 'already-counted' };
     }
 
     /*
@@ -609,13 +644,13 @@ async function recordGroupPlay(groupId, workId, uid, { countReplay, completed })
      * 있어서 영영 표로 승격되지 않는다. "아직 표가 아니다"는 상태는 문서의 부재로
      * 표현해야 다시 시도할 수 있다.
      */
-    if (!completed) return { counted: false, reason: 'incomplete' };
+    if (!completed) return { counted: false, replayCounted, reason: 'incomplete' };
 
     tx.set(listen, { workId, uid, firstAt: now, lastAt: now, plays: 1 });
     tx.set(entry, { uniqueListeners: FieldValue.increment(1) }, { merge: true });
     // 청취왕 상을 위한 개인 집계. 여기서 같이 올려야 따로 훑지 않아도 된다.
     tx.set(member, { listenedCount: FieldValue.increment(1) }, { merge: true });
-    return { counted: true };
+    return { counted: true, replayCounted };
   });
 }
 
@@ -632,12 +667,17 @@ export const recordPlay = onCall(CALLABLE_OPTIONS, async (request) => {
   const completed = request.data?.completed === true;
 
   const now = Date.now();
-  const key = `${uid}:${workId}`;
-  const throttled = now - (recent.get(key) || 0) < WINDOW_MS;
-  if (!throttled) {
-    recent.set(key, now);
-    if (recent.size > 5000) recent.clear();
-  }
+  /*
+   * throttle 창은 **집계 대상마다 따로 잡는다.**
+   *
+   * 전역(workStats·works)은 uid+작품, 그룹은 uid+작품+그룹이다. 하나로 묶으면 공개
+   * 스테이지에서 방금 들은 사람이 곧바로 그룹에서 들었을 때 그룹 재생 수만 조용히
+   * 누락된다 — 클라이언트(remote.ts recordPlay)의 중복 방지 키가 groupId를 포함하는
+   * 것과 정확히 같은 이유다. 두 집계는 서로의 창을 소모하면 안 된다.
+   */
+  const inGroup = GROUP_ID.test(groupId);
+  const groupThrottled = inGroup ? throttleHit(`${uid}:${workId}:${groupId}`, now) : true;
+  const throttled = throttleHit(`${uid}:${workId}`, now);
 
   /*
    * throttle에 걸려도 **그냥 돌아가지 않는다.**
@@ -647,9 +687,9 @@ export const recordPlay = onCall(CALLABLE_OPTIONS, async (request) => {
    * 틀어지는 경로다. 재생 수만 건너뛰고 표 등록은 아래에서 계속한다.
    */
   let group = null;
-  if (GROUP_ID.test(groupId)) {
+  if (inGroup) {
     try {
-      group = await recordGroupPlay(groupId, workId, uid, { countReplay: !throttled, completed });
+      group = await recordGroupPlay(groupId, workId, uid, { countReplay: !groupThrottled, completed });
     } catch (error) {
       // 그룹 집계 실패가 전역 집계까지 막지는 않는다.
       console.warn('그룹 재생 집계 실패', groupId, workId, error?.code || error);
@@ -830,7 +870,10 @@ export const createGroup = onCall(CALLABLE_OPTIONS, async (request) => {
 
   const ownedSnap = await db.collection('groups').where('ownerUid', '==', uid).count().get();
   if (ownedSnap.data().count >= GROUPS_PER_OWNER_MAX) {
-    throw new HttpsError('resource-exhausted', '그룹은 계정당 3개까지 만들 수 있어요');
+    throw new HttpsError(
+      'resource-exhausted',
+      `그룹은 계정당 ${GROUPS_PER_OWNER_MAX}개까지 만들 수 있어요. 안 쓰는 그룹을 삭제하면 자리가 생겨요`,
+    );
   }
 
   const groupId = randomGroupId();
@@ -1341,4 +1384,98 @@ export const withdrawEntry = onCall(CALLABLE_OPTIONS, async (request) => {
     });
 
   return { ok: true };
+});
+
+/* ── deleteGroup ───────────────────────────────────── */
+
+/** 한 배치에 담을 쓰기 수. Firestore 상한은 500이라 여유를 두고 400으로 끊는다. */
+const DELETE_BATCH = 400;
+
+/** randomJoinCode 안의 지역 변수 `chunk`와 헷갈리지 않도록 이름을 달리 둔다. */
+function inChunks(items, size) {
+  const out = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * 그룹 삭제 — 주최자만.
+ *
+ * ── 왜 필요했나 ──
+ * 만든 그룹을 지울 방법이 아예 없었다. 계정당 3개 상한(GROUPS_PER_OWNER_MAX)은
+ * `groups.where('ownerUid','==',uid)`를 세므로, 시험 삼아 만든 그룹도 영영 자리를
+ * 차지한 채 남아 네 번째 그룹을 만들 수 없었다. 삭제가 생기면 그 자리는 그냥 돌아온다.
+ *
+ * ── 지우는 순서에 뜻이 있다 ──
+ * 1. **입장 코드 먼저.** 지우는 도중에 새로 들어오는 사람이 있으면 그 사람의
+ *    미러 문서(users/{uid}/groups/{groupId})가 아래 정리 대상 목록에 없어서 유령으로
+ *    남는다. 문을 먼저 잠근다.
+ * 2. **멤버 미러.** users/{uid} 아래에 있는 사본이라 그룹 문서를 지워도 같이 사라지지
+ *    않는다. 남겨두면 참가자의 "내 그룹" 목록에 없는 그룹이 계속 보인다.
+ * 3. **작품의 groupIds.** 작품 자체는 건드리지 않는다 — 그룹을 닫는 것이지 남이
+ *    만든 작품을 지우는 것이 아니다. 가리키는 손가락만 뗀다.
+ * 4. **그룹 문서와 하위 컬렉션.** recursiveDelete가 members·entries·listens를
+ *    한꺼번에 훑어 지운다(listens는 최대 200×100건이라 손으로 배치를 돌릴 양이 아니다).
+ *
+ * 중간에 실패하면 남은 것은 다음 호출이 이어서 지운다 — 각 단계가 "이미 없으면
+ * 넘어간다"로 쓰여 있어서 몇 번을 다시 불러도 안전하다.
+ */
+export const deleteGroup = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 300 }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+
+  const groupId = String(request.data?.groupId || '');
+  if (!GROUP_ID.test(groupId)) {
+    throw new HttpsError('invalid-argument', '그룹 번호가 이상해요');
+  }
+
+  const ref = groupRef(groupId);
+  const snap = await ref.get();
+  // 이미 지워졌으면 성공이다 — 두 번 눌렀을 뿐인 사람에게 에러를 보일 이유가 없다.
+  if (!snap.exists) return { ok: true, alreadyGone: true };
+  if (snap.data().ownerUid !== uid) {
+    throw new HttpsError('permission-denied', '그룹을 만든 사람만 삭제할 수 있어요');
+  }
+
+  // 1. 입장 코드 — 이 그룹을 가리키는 코드가 여러 개일 수 있다(코드 재발급).
+  const codeSnaps = await db.collection('joinCodes').where('groupId', '==', groupId).get();
+  for (const part of inChunks(codeSnaps.docs, DELETE_BATCH)) {
+    const batch = db.batch();
+    for (const doc of part) batch.delete(doc.ref);
+    await batch.commit();
+  }
+
+  // 2. 멤버 미러.
+  const memberSnaps = await ref.collection('members').get();
+  const memberUids = memberSnaps.docs.map((doc) => doc.id);
+  for (const part of inChunks(memberUids, DELETE_BATCH)) {
+    const batch = db.batch();
+    for (const memberUid of part) batch.delete(myGroupRef(memberUid, groupId));
+    await batch.commit();
+  }
+
+  /*
+   * 3. 작품의 groupIds.
+   *
+   * update는 문서가 없으면 실패하고 배치는 통째로 뒤집힌다. 그래서 먼저 getAll로
+   * 살아 있는 작품만 골라낸다 — 공유를 이미 중단한 작품이 하나 섞여 있다고 해서
+   * 나머지 199개의 정리가 막히면 안 된다.
+   */
+  const entrySnaps = await ref.collection('entries').get();
+  const workIds = entrySnaps.docs.map((doc) => doc.id).filter((id) => WORK_ID.test(id));
+  for (const part of inChunks(workIds, 100)) {
+    const workSnaps = await db.getAll(...part.map((workId) => db.doc(`works/${workId}`)));
+    const alive = workSnaps.filter((workSnap) => workSnap.exists);
+    if (alive.length === 0) continue;
+    const batch = db.batch();
+    for (const workSnap of alive) {
+      batch.update(workSnap.ref, { groupIds: FieldValue.arrayRemove(groupId) });
+    }
+    await batch.commit();
+  }
+
+  // 4. 그룹 문서 + members·entries·listens.
+  await db.recursiveDelete(ref);
+
+  return { ok: true, deletedMembers: memberUids.length, deletedEntries: workIds.length };
 });

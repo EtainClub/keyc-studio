@@ -2479,3 +2479,35 @@ button {
   text-align: right;
   font-size: 12px;
 }
+
+/* 그룹 삭제 확인 — 목록 위, 헤더 바로 아래에 펼쳐 둔다.
+   시트로 띄우지 않는 이유: 지워질 그룹의 이름과 참가자 수가 뒤에 그대로 보여야
+   "지금 어느 그룹을 지우는 중인지"가 확인되기 때문이다. */
+.group-delete-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 2px solid var(--danger);
+  background: rgba(255, 77, 109, 0.1);
+}
+.group-delete-confirm h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+.group-delete-confirm p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.group-delete-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.group-delete-actions .chip {
+  flex: 1;
+}

@@ -144,7 +144,24 @@ export function FeedScreen() {
       ) : groupId ? (
         // key=groupId: 그룹을 바꾸면 검색어·정렬 같은 내부 state를 새로 시작한다.
         // (자세한 이유는 GroupStageScreen 상단 주석 참고.)
-        <GroupStageScreen key={groupId} groupId={groupId} onSwitchGroup={() => setSearchParams({ g: '' })} />
+        <GroupStageScreen
+          key={groupId}
+          groupId={groupId}
+          onSwitchGroup={() => setSearchParams({ g: '' })}
+          onDeleted={() => {
+            /*
+             * 삭제한 그룹은 목록 캐시에도 남아 있다 — groupsRequestedRef가 한 번만
+             * 읽게 막고 있으므로 여기서 직접 다시 읽어야 방금 지운 그룹이 사라진다.
+             *
+             * autoPickedRef도 함께 세운다. 남은 그룹이 하나뿐일 때 자동 선택이 돌면
+             * 삭제하자마자 다른 그룹 스테이지로 끌려 들어가서, 방금 지운 것이
+             * 맞는지 확인할 화면을 못 본다.
+             */
+            autoPickedRef.current = true;
+            setSearchParams({ g: '' });
+            void loadMyGroups();
+          }}
+        />
       ) : (
         <GroupPicker
           groups={myGroups}

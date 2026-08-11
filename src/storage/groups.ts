@@ -51,6 +51,8 @@ export const MAX_GROUPS_PER_WORK = 3;
  * 유틸을 이 파일 안에 그대로 복제하는 쪽이 결합을 늘리지 않는다.
  */
 const CALL_TIMEOUT_MS = 15000;
+/** 그룹 삭제만 예외. 하위 문서를 전부 지우고 오므로 15초로는 모자랄 수 있다. */
+const DELETE_TIMEOUT_MS = 60000;
 
 function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -191,6 +193,19 @@ export async function submitToGroups(
       })
     : [];
   return { submitted, skipped };
+}
+
+/**
+ * 그룹 삭제. 만든 사람만 된다(서버가 ownerUid를 다시 검사한다).
+ *
+ * 다른 callable보다 오래 걸릴 수 있어 타임아웃을 따로 잡는다 — 서버가 멤버·작품·
+ * 청취 기록을 전부 훑어 지우기 때문이다. 여기서 15초에 끊어 버리면 사용자는
+ * "실패했다"고 읽지만 삭제는 계속 진행돼, 화면과 실제가 어긋난다.
+ */
+export async function deleteGroup(groupId: string): Promise<void> {
+  await requireUid();
+  const callable = httpsCallable(functions(), 'deleteGroup');
+  await withTimeout(callable({ groupId }), DELETE_TIMEOUT_MS, '그룹 삭제');
 }
 
 export async function withdrawEntry(groupId: string, workId: string): Promise<void> {

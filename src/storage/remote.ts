@@ -448,9 +448,19 @@ export async function recordPlay(
     const { user, error } = await ensureSignedIn();
     if (!user) throw error ?? new Error('재생 집계를 위한 로그인에 실패했어요');
     const fn = httpsCallable(functions(), 'recordPlay');
-    await fn({ workId, presses, groupId, completed });
+    const response = await fn({ workId, presses, groupId, completed });
     // 서버가 반영한 뒤에만 완료 처리한다. 실패한 호출은 같은 분 안에도 다시 시도할 수 있다.
     reported.add(key);
+
+    /*
+     * 그룹 집계가 왜 안 잡혔는지는 서버만 안다(참가자가 아님·내 작품·내려간 작품…).
+     * 삼켜 버리면 "그룹 리플레이 숫자가 안 올라요"라는 신고만 남고 원인을 물어볼
+     * 데가 없다. 사용자를 방해하지 않도록 화면에는 띄우지 않고 콘솔에만 남긴다.
+     */
+    const group = (response.data as { group?: { reason?: string } } | null)?.group;
+    if (groupId && group?.reason) {
+      console.info('[remote] 그룹 집계에 반영되지 않았어요', groupId, workId, group.reason);
+    }
   } catch (e) {
     // 통계는 실패해도 감상 경험을 막지 않는다.
     console.warn('[remote] 재생 집계 실패', e);

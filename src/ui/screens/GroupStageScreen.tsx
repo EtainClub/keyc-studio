@@ -13,7 +13,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchGroupInviteCode, fetchGroupStage, formatGroupCode, type GroupStageSort } from '../../storage/groups';
+import {
+  deleteGroup,
+  fetchGroupInviteCode,
+  fetchGroupStage,
+  formatGroupCode,
+  type GroupStageSort,
+} from '../../storage/groups';
 import type { GroupStageCursor, GroupStageItem, GroupSummary } from '../../storage/group-feed';
 import { PUBLIC_ORIGIN } from '../../storage/firebase';
 import { useAppState } from '../state';
@@ -45,11 +51,14 @@ const SORTS: { id: GroupStageSort; label: string }[] = [
 export function GroupStageScreen({
   groupId,
   onSwitchGroup,
+  onDeleted,
 }: {
   groupId: string;
   /** "다른 그룹" — 이 그룹 밖으로 나가 그룹 고르기(+ 코드로 새 그룹 입장)로 돌아간다.
    *  이 화면은 URL을 소유하지 않으니(위 주석 참고) 실제 전환은 FeedScreen이 한다. */
   onSwitchGroup: () => void;
+  /** 그룹이 실제로 지워진 뒤. 화면 전환과 "내 그룹" 목록 갱신은 FeedScreen 몫이다. */
+  onDeleted: () => void;
 }) {
   const nav = useNavigate();
   const { engine } = useAppState();
@@ -67,6 +76,15 @@ export function GroupStageScreen({
   const [loadingCode, setLoadingCode] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [codeCopied, setCodeCopied] = useState(false);
+
+  /**
+   * 삭제는 되돌릴 수 없다. 그래서 버튼 한 번으로는 실행하지 않고, 그룹 이름을
+   * 다시 보여주는 확인 단계를 한 번 거친다 — `window.confirm`을 쓰지 않는 이유는
+   * 어떤 그룹이 지워지는지, 작품은 남는지를 그 상자 안에서 설명할 수 없어서다.
+   */
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   /** 입력창에 보이는 값과 실제로 서버에 보낸 값을 나눈다. 사이의 지연이 디바운스다. */
   const [searchInput, setSearchInput] = useState('');
@@ -187,6 +205,21 @@ export function GroupStageScreen({
     }
   };
 
+  const removeGroup = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await deleteGroup(groupId);
+      onDeleted();
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : '그룹을 삭제하지 못했어요.');
+      setDeleting(false);
+    }
+    // 성공했을 때는 deleting을 되돌리지 않는다 — 이 컴포넌트가 곧 사라지므로,
+    // 없어진 화면의 버튼이 잠깐 다시 눌리는 상태를 만들 이유가 없다.
+  };
+
   const filtered = Boolean(search);
   const empty = items?.length === 0;
 
@@ -236,8 +269,57 @@ export function GroupStageScreen({
               )}
             </div>
           )}
+          {/* 삭제는 만든 사람만. 서버가 ownerUid를 다시 검사하므로 이 조건은
+              보안 경계가 아니라 남에게 헛된 버튼을 보이지 않기 위한 것이다. */}
+          {group?.role === 'owner' && !confirmingDelete && (
+            <button
+              type="button"
+              className="chip ghost danger"
+              onClick={() => {
+                setDeleteError('');
+                setConfirmingDelete(true);
+              }}
+            >
+              그룹 삭제
+            </button>
+          )}
         </div>
       </header>
+
+      {confirmingDelete && (
+        <section className="group-delete-confirm" role="alertdialog" aria-label="그룹 삭제 확인">
+          <h2>‘{group?.name || '이 그룹'}’을 삭제할까요?</h2>
+          <p>
+            참가자 {group?.memberCount.toLocaleString('ko-KR') ?? 0}명과 입장 코드, 이 그룹에 쌓인
+            리플레이·청취 기록이 모두 사라져요. <strong>되돌릴 수 없어요.</strong>
+          </p>
+          {/* 가장 흔한 걱정을 먼저 지운다 — 내 작품까지 지워지는 줄 알면 아무도 못 누른다. */}
+          <p className="note">올라온 작품 자체는 지워지지 않아요. 이 그룹에서만 내려가요.</p>
+          {deleteError && (
+            <p className="warn" role="alert">
+              {deleteError}
+            </p>
+          )}
+          <div className="group-delete-actions">
+            <button
+              type="button"
+              className="chip danger-solid"
+              disabled={deleting}
+              onClick={() => void removeGroup()}
+            >
+              {deleting ? '삭제하는 중…' : '정말 삭제할게요'}
+            </button>
+            <button
+              type="button"
+              className="chip"
+              disabled={deleting}
+              onClick={() => setConfirmingDelete(false)}
+            >
+              그대로 둘게요
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="feed-tools">
         <label className="feed-search">
