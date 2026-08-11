@@ -42,8 +42,19 @@ export function ViewScreen() {
    * 이미 재생 중인 작품을 처음부터 다시 불러온다. 이 화면에서 g는 마운트 중에
    * 바뀔 이유가 없는 값이라 ref로 최신값만 읽으면 충분하다.
    */
+  const groupId = searchParams.get('g');
   const groupIdRef = useRef<string | null>(null);
-  groupIdRef.current = searchParams.get('g');
+  groupIdRef.current = groupId;
+
+  /**
+   * 그룹에서 들어왔으면 그 그룹 스테이지로 정확히 되돌아가는 길을 화면에 둔다.
+   *
+   * 하단 내비게이션의 [스테이지]로는 안 된다 — 거기는 `/feed`(그룹 미선택)라
+   * 그룹을 매번 다시 고르게 만든다. `?g=`를 그대로 붙여 보내면 곧장 그 그룹의
+   * 목록으로 돌아간다. `nav(-1)`도 쓰지 않는다: 공유 링크로 바로 열었을 때는
+   * 돌아갈 이전 항목이 아예 없어 앱 밖으로 나가버린다.
+   */
+  const backTo = groupId ? `/feed?g=${encodeURIComponent(groupId)}` : null;
 
   useResumeOnVisible(() => void engine.resume());
 
@@ -128,8 +139,10 @@ export function ViewScreen() {
     return (
       <main className="screen view">
         <p className="warn">작품을 찾을 수 없어요.</p>
-        <button type="button" className="chip" onClick={() => nav('/')}>
-          홈으로
+        {/* 그룹에서 왔다면 홈이 아니라 그룹으로 돌려보낸다 — 없어진 작품 하나 때문에
+            그룹 스테이지 밖으로 튕겨 나갈 이유가 없다. */}
+        <button type="button" className="chip" onClick={() => nav(backTo ?? '/')}>
+          {backTo ? '그룹 스테이지로' : '홈으로'}
         </button>
       </main>
     );
@@ -138,15 +151,42 @@ export function ViewScreen() {
   return (
     <main className="screen view">
       <header className="view-head">
+        {backTo && (
+          <button type="button" className="chip view-back" onClick={() => nav(backTo)}>
+            <span aria-hidden="true">←</span> 그룹 스테이지
+          </button>
+        )}
         <h1>{work.title || '이름 없는 작품'}</h1>
         {work.hint && <p className="hint">{work.hint}</p>}
         <p className="nick">{work.authorNick} 만듦</p>
       </header>
 
+      {/*
+        * 진행 막대와 재생 조작은 **한 덩어리로 화면 위쪽에** 둔다.
+        *
+        * 예전에는 조작 버튼이 키캡 아래, 화면 맨 끝에 있었다. `.keyboard-plate`의
+        * `margin-block: auto`가 키캡을 가운데로 밀면서 버튼은 언제나 100dvh 상자의
+        * 바닥에 붙는데, 웹뷰(토스 미니앱 등)나 시스템 내비게이션 바가 겹치는 기기에서는
+        * 그 바닥이 실제로 보이는 영역 **밖**이라 버튼이 하단 내비게이션에 가리거나
+        * 아예 안 보였다. 위쪽 고정은 뷰포트 높이를 얼마로 재든 항상 보인다 —
+        * sticky로 바닥에 붙여 두는 방법은 잘못 잰 뷰포트 안에서 계산되므로
+        * 같은 기기에서 똑같이 가려진다.
+        */}
       {(phase === 'replay' || phase === 'paused') && (
-        <div className="progress" aria-hidden>
-          <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
-        </div>
+        <section className="playback">
+          <div className="progress" aria-hidden>
+            <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
+          </div>
+          <p className="live-hint">{phase === 'paused' ? '공연을 잠시 멈췄어요' : '공연 중…'}</p>
+          <div className="performance-controls" role="group" aria-label="공연 재생 제어">
+            <button type="button" className="chip performance-pause" onClick={toggleReplayPause}>
+              {phase === 'paused' ? '▶ 계속하기' : 'Ⅱ 일시정지'}
+            </button>
+            <button type="button" className="chip performance-stop" onClick={stopReplay}>
+              ■ 재생 중단
+            </button>
+          </div>
+        </section>
       )}
 
       <KeycapGrid
@@ -166,20 +206,6 @@ export function ViewScreen() {
         <button type="button" className="big-cta" onClick={() => playReplay(work)}>
           ▶ 작품 보기
         </button>
-      )}
-
-      {(phase === 'replay' || phase === 'paused') && (
-        <>
-          <p className="live-hint">{phase === 'paused' ? '공연을 잠시 멈췄어요' : '공연 중…'}</p>
-          <div className="performance-controls" aria-label="공연 재생 제어">
-            <button type="button" className="chip performance-pause" onClick={toggleReplayPause}>
-              {phase === 'paused' ? '▶ 계속하기' : 'Ⅱ 일시정지'}
-            </button>
-            <button type="button" className="chip performance-stop" onClick={stopReplay}>
-              ■ 재생 중단
-            </button>
-          </div>
-        </>
       )}
 
       {(phase === 'ended' || phase === 'free') && (

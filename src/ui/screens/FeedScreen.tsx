@@ -51,17 +51,33 @@ export function FeedScreen() {
   const groupId = searchParams.get('g') || null;
 
   const [myGroups, setMyGroups] = useState<MyGroup[] | null>(null);
+  /**
+   * 목록을 못 불러온 것과 "그룹이 없는 것"은 다르다.
+   * 예전에는 실패를 빈 배열로 삼켜서, 새로고침 뒤 목록을 못 읽으면 화면이
+   * "아직 참여한 그룹이 없어요"라고 **거짓말**을 했다 — 참여한 그룹이 사라진 것처럼
+   * 보이는 신고의 절반이 이것이었다. 실패는 실패로 보여주고 다시 시도할 길을 준다.
+   */
+  const [groupsError, setGroupsError] = useState('');
   // [그룹] 탭에 처음 들어갈 때만 내 그룹 목록을 읽는다 — 이 화면이 떠 있는 동안
   // 그룹이 늘어나는 경우(다른 탭에서 참여)는 없으니 매번 다시 읽을 이유가 없다.
   const groupsRequestedRef = useRef(false);
 
+  const loadMyGroups = useCallback(() => {
+    setGroupsError('');
+    setMyGroups(null);
+    return listMyGroups()
+      .then(setMyGroups)
+      .catch((cause: unknown) => {
+        setMyGroups([]);
+        setGroupsError(cause instanceof Error ? cause.message : '내 그룹을 불러오지 못했어요');
+      });
+  }, []);
+
   useEffect(() => {
     if (activeTab !== 'group' || groupsRequestedRef.current) return;
     groupsRequestedRef.current = true;
-    void listMyGroups()
-      .then(setMyGroups)
-      .catch(() => setMyGroups([]));
-  }, [activeTab]);
+    void loadMyGroups();
+  }, [activeTab, loadMyGroups]);
 
   // 그룹이 정확히 하나뿐이면 칩 하나만 있는 고르기 화면을 한 번 더 거치게 하지
   // 않는다 — 바로 그 그룹으로 들어간다. 딱 한 번만이다: 이 ref가 없으면 "다른 그룹"
@@ -130,14 +146,29 @@ export function FeedScreen() {
         // (자세한 이유는 GroupStageScreen 상단 주석 참고.)
         <GroupStageScreen key={groupId} groupId={groupId} onSwitchGroup={() => setSearchParams({ g: '' })} />
       ) : (
-        <GroupPicker groups={myGroups} onSelect={(id) => setSearchParams({ g: id })} />
+        <GroupPicker
+          groups={myGroups}
+          error={groupsError}
+          onRetry={() => void loadMyGroups()}
+          onSelect={(id) => setSearchParams({ g: id })}
+        />
       )}
     </main>
   );
 }
 
 /** [그룹] 탭인데 아직 그룹을 안 골랐을 때 보여주는 목록/빈 상태. */
-function GroupPicker({ groups, onSelect }: { groups: MyGroup[] | null; onSelect: (id: string) => void }) {
+function GroupPicker({
+  groups,
+  error,
+  onRetry,
+  onSelect,
+}: {
+  groups: MyGroup[] | null;
+  error: string;
+  onRetry: () => void;
+  onSelect: (id: string) => void;
+}) {
   const nav = useNavigate();
 
   if (groups === null) {
@@ -145,6 +176,20 @@ function GroupPicker({ groups, onSelect }: { groups: MyGroup[] | null; onSelect:
       <p className="feed-status" role="status" aria-live="polite">
         내 그룹을 불러오는 중…
       </p>
+    );
+  }
+
+  // 실패는 "그룹 없음"보다 먼저 본다 — 순서가 반대면 실패가 빈 상태로 위장된다.
+  if (error) {
+    return (
+      <section className="feed-empty">
+        <span className="feed-empty-icon" aria-hidden="true">↻</span>
+        <h2>내 그룹을 불러오지 못했어요</h2>
+        <p>{error}</p>
+        <button type="button" className="chip primary wide" onClick={onRetry}>
+          다시 불러오기
+        </button>
+      </section>
     );
   }
 

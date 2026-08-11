@@ -100,6 +100,17 @@ let signInPromise: Promise<SignInResult> | null = null;
  * 익명 로그인. 실패해도 앱을 멈추지 않는다(로컬 작업은 계속 가능).
  * 다만 **실패 원인은 버리지 않는다** — 공유 게이트가 그걸 읽을 수 있는 말로 바꾼다.
  * 원인을 삼키면 "그냥 안 돼요"만 남아서 설정 문제를 영영 못 찾는다.
+ *
+ * ── 저장된 세션 복원을 반드시 먼저 기다린다 ──
+ * `auth().currentUser`는 새로고침 직후 **항상 null이다.** IndexedDB에서 세션을
+ * 되살리는 일이 비동기라, 복원이 끝나기 전에는 로그인한 적 없는 것처럼 보인다.
+ * 그 null을 보고 `signInAnonymously`로 넘어가면 SDK 내부에서 복원을 기다린 뒤
+ * "지금 사용자가 익명이 아니다"라고 판단해 **새 익명 계정을 만들어 Google 세션을
+ * 덮어썼다** — 새로고침 한 번에 uid가 갈리니 내 그룹 목록이 비고(참여한 적 없는
+ * uid다), 그룹 재생 집계도 '멤버 아님'으로 전부 버려졌다. 실제로 그 버그였다.
+ *
+ * `authStateReady()`는 복원이 끝난 뒤에 resolve하므로, 그 뒤의 currentUser는
+ * "정말로 로그인한 적 없음"을 뜻한다. 그때만 새 익명 계정을 만든다.
  */
 export function ensureSignedIn(): Promise<SignInResult> {
   if (!isFirebaseConfigured) {
@@ -111,6 +122,12 @@ export function ensureSignedIn(): Promise<SignInResult> {
   if (!signInPromise) {
     signInPromise = (async () => {
       const a = auth();
+      try {
+        await a.authStateReady();
+      } catch (e) {
+        // 복원 자체가 실패하는 경우(저장소 접근 불가 등)는 아래 익명 로그인으로 이어간다.
+        console.warn('[firebase] 저장된 로그인 세션을 복원하지 못했어요', e);
+      }
       if (a.currentUser) return { user: a.currentUser, error: null };
       try {
         const cred = await signInAnonymously(a);
