@@ -8,7 +8,7 @@
  *   2. Firestore에 visibility:'local'로 문서 선생성 → 소유권 확정
  *   3. 자산 업로드 (hash로 중복 스킵, 실패 시 재시도)
  *   4. 썸네일 업로드
- *   5. 문서 갱신: remotePath, visibility:'link', discoverable:true
+ *   5. 문서 갱신: remotePath, visibility:'link', discoverable(옵션대로)
  *
  * 2번을 먼저 하는 이유는 Storage 쓰기 규칙이 "작품 문서가 있고 내가 소유자인가"를
  * 검사하기 때문이다. 3~5 사이에 실패하면 문서는 'local'로 남고 링크는 열리지 않는다.
@@ -29,6 +29,9 @@ import { assetPath, thumbPath } from './paths';
 import { parsePublicFeedPage, type FeedCursor, type PublicFeedPage } from './public-feed';
 import { toPortableWork } from './portable-work';
 import { renderShareThumb } from './thumbnail';
+// groups.ts는 remote.ts를 import하지 않는다 — 순환 없음. 그룹 제출은 공유가 이미
+// 끝난 뒤에 곁다리로 붙는 절차라, 이 파일 쪽에서만 한 방향으로 참조한다.
+import { submitToGroups } from './groups';
 
 const MAX_ART_BYTES = 200 * 1024;
 const MAX_SOUND_BYTES = 150 * 1024;
@@ -106,6 +109,10 @@ export type ShareOptions = {
   voiceMode: VoiceMode;
   /** 공유 기간(일). null이면 계속. */
   expireDays: 7 | 30 | null;
+  /** 공개 스테이지(모두의 스테이지)에 노출할 것인가. */
+  discoverable: boolean;
+  /** 제출할 그룹. 비어 있으면 그룹 제출을 하지 않는다. */
+  groupIds?: string[];
   onProgress?: (step: string) => void;
 };
 
@@ -166,7 +173,35 @@ export function explainFirebaseError(e: unknown): string {
   return msg || '공유하지 못했어요';
 }
 
-export type PublishResult = { url: string; work: Work };
+export type PublishResult = {
+  url: string;
+  work: Work;
+  /** 실제로 제출된 그룹. 일부만 됐을 수 있다. */
+  submittedGroups?: string[];
+  /** 그룹 제출이 통째로 실패했을 때의 사람이 읽을 수 있는 사유. */
+  groupError?: string;
+};
+
+/**
+ * 그룹 제출 skip 사유를 사람이 읽을 말로.
+ *
+ * 'already-submitted'는 이 함수로 안 들어온다 — 이미 올라가 있다는 뜻이라
+ * 에러가 아니라서 호출부에서 미리 걸러낸다.
+ */
+function explainGroupSkipReason(reason: string): string {
+  switch (reason) {
+    case 'group-full':
+      return '그룹에 자리가 다 찼어요';
+    case 'not-member':
+      return '그룹 참가자가 아니에요';
+    case 'admins-only':
+      return '운영진만 올릴 수 있는 그룹이에요';
+    case 'too-many-groups':
+      return '작품 하나는 그룹 3개까지만 올릴 수 있어요';
+    default:
+      return '그룹에 올리지 못했어요';
+  }
+}
 
 export async function publishWork(input: Work, options: ShareOptions): Promise<PublishResult> {
   if (!isFirebaseConfigured) {
@@ -251,9 +286,18 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
 
   // 5. 이제서야 링크가 열린다.
   onProgress?.('마무리하는 중…');
-  const expiresAt = options.expireDays
-    ? Date.now() + options.expireDays * 86_400_000
-    : null;
+  const groupIds = options.groupIds ?? [];
+  /*
+   * 그룹이 하나라도 있으면 expiresAt은 무조건 null이다.
+   * 참가자가 7일을 골라 두면 그룹 스테이지에서 작품이 조용히 사라진다. 서버
+   * (submitToGroup)도 같은 값을 강제하지만, 여기서 먼저 맞춰 두면 제출이
+   * 실패했을 때도 만료 상태가 어긋나지 않는다.
+   */
+  const expiresAt = groupIds.length
+    ? null
+    : options.expireDays
+      ? Date.now() + options.expireDays * 86_400_000
+      : null;
   const published: Work = { ...work, visibility: 'link' };
   const portablePublished = toPortableWork(published);
   await withTimeout(
@@ -261,8 +305,9 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
       assets: portablePublished.assets,
       keys: portablePublished.keys,
       visibility: 'link',
-      // 공개 피드 안내가 포함된 현재 ShareGate에서 보호자 확인을 받은 작품만 true다.
-      discoverable: true,
+      // 공개 피드에 노출할지는 게이트 화면에서 고른 대로다. 그룹 전용으로
+      // 올린 작품까지 무조건 공개 스테이지에 뜨던 게 이 필드를 하드코딩했던 문제였다.
+      discoverable: options.discoverable,
       expiresAt,
     }),
     WRITE_TIMEOUT_MS,
@@ -277,7 +322,33 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
     thumb: record?.thumb,
   });
 
-  return { url: shareUrl(work.id), work: published };
+  const result: PublishResult = { url: shareUrl(work.id), work: published };
+
+  /*
+   * 그룹 제출은 공유가 끝난 뒤에 곁다리로 붙인다. 실패해도 publishWork 전체를
+   * 실패시키지 않는다 — 링크는 이미 열렸고 공유 자체는 성공했다. 대신 결과에
+   * 담아 돌려줘서 화면이 "링크는 됐지만 그룹은 안 됐다"는 사실을 숨기지 않게 한다.
+   */
+  if (groupIds.length) {
+    onProgress?.('그룹에 올리는 중…');
+    try {
+      const { submitted, skipped } = await submitToGroups(work.id, groupIds);
+      result.submittedGroups = submitted;
+      if (submitted.length === 0 && skipped.length > 0) {
+        // 전부 skip됐을 때만 이유를 보여준다. already-submitted는 에러가 아니라서
+        // 다른 이유가 하나라도 있을 때만 그걸 대표로 보여준다.
+        const meaningful = skipped.filter((s) => s.reason !== 'already-submitted');
+        if (meaningful.length > 0) {
+          result.groupError = explainGroupSkipReason(meaningful[0].reason);
+        }
+      }
+    } catch (e) {
+      console.warn('[remote] 그룹 제출 실패', e);
+      result.groupError = explainFirebaseError(e);
+    }
+  }
+
+  return result;
 }
 
 /** 올리지 않기로 한 소리를 참조하던 키를 프리셋으로 되돌린다. */
@@ -344,17 +415,40 @@ export async function unshareWork(workId: string): Promise<void> {
 const reported = new Set<string>();
 const reporting = new Set<string>();
 
-/** 재생/누름 카운트. 한 세션에서 같은 작품은 분당 한 번만 보고한다. */
-export async function recordPlay(workId: string, presses: number): Promise<void> {
+export type RecordPlayOptions = {
+  /** 그룹 스테이지에서 들어왔다면 그 그룹. 서버가 멤버십을 다시 확인한다. */
+  groupId?: string | null;
+  /**
+   * 끝까지 들었는가. 그룹의 고유 청취자 한 표는 이 값이 true일 때만 등록된다.
+   * 0.5초 눌렀다 나간 것을 "들었다"로 세면 전수 청취가 무의미해진다.
+   */
+  completed?: boolean;
+};
+
+/**
+ * 재생/누름 카운트. 한 세션에서 같은 작품은 분당 한 번만 보고한다.
+ *
+ * 중복 방지 키에 groupId와 completed를 넣는 이유:
+ * 한 번의 감상에서 이 함수는 **두 번** 불린다 — 재생 시작(재생 수)과 완주(표 등록).
+ * 키가 workId와 분(minute)뿐이면 뒤에 오는 완주 보고가 앞의 것과 같은 키가 되어
+ * 조용히 삼켜지고, **표가 영영 등록되지 않는다.**
+ */
+export async function recordPlay(
+  workId: string,
+  presses: number,
+  options: RecordPlayOptions = {},
+): Promise<void> {
   if (!isFirebaseConfigured) return;
-  const key = `${workId}:${Math.floor(Date.now() / 60_000)}`;
+  const groupId = options.groupId || '';
+  const completed = options.completed === true;
+  const key = `${workId}:${groupId}:${completed}:${Math.floor(Date.now() / 60_000)}`;
   if (reported.has(key) || reporting.has(key)) return;
   reporting.add(key);
   try {
     const { user, error } = await ensureSignedIn();
     if (!user) throw error ?? new Error('재생 집계를 위한 로그인에 실패했어요');
     const fn = httpsCallable(functions(), 'recordPlay');
-    await fn({ workId, presses });
+    await fn({ workId, presses, groupId, completed });
     // 서버가 반영한 뒤에만 완료 처리한다. 실패한 호출은 같은 분 안에도 다시 시도할 수 있다.
     reported.add(key);
   } catch (e) {

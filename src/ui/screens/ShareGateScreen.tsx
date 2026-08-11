@@ -10,12 +10,20 @@
  *
  * 아래 보호자 확인은 **사용자 테스트 단계용 최소 구현**이다.
  * 일반 공개 시점에는 법률 검토를 받아야 한다 — 그건 코드로 정할 문제가 아니다.
+ *
+ * ── 그룹 제출 ──
+ * 그룹은 초대 코드로 들어온 사람만 보는 닫힌 공간이라 "누구나 찾고 볼 수 있다"는
+ * 위험은 없다. 그래도 이 화면이 경계선이라는 사실은 바뀌지 않는다 — 목소리와
+ * 그림이 이 기기 밖으로 나가는 건 똑같기 때문이다. 그래서 그룹만 골랐을 때는
+ * 문구를 "보호자 확인"이 아니라 "그룹 참가자들에게 공개되는 것에 대한 동의"로
+ * 바꾼다. 대상이 다르면 동의 내용도 다르므로, 대상이 바뀌면 체크는 자동으로 풀린다.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { VOICE_MODES, type VoiceMode } from '../../audio-engine/voice';
 import { explainFirebaseError, publishWork } from '../../storage/remote';
 import { isAdminEmail, isFirebaseConfigured } from '../../storage/firebase';
+import { listMyGroups, MAX_GROUPS_PER_WORK, type MyGroup } from '../../storage/groups';
 import { photoArtKeyNumbers, type Work } from '../../work-model/types';
 import { useAppState } from '../state';
 import { useModalShell } from '../hooks';
@@ -42,9 +50,42 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState('');
   const [error, setError] = useState('');
+  // 내 그룹 목록. 화면 진입 직후 바로 보여줘야 해서 마운트 시 한 번 불러온다.
+  const [groups, setGroups] = useState<MyGroup[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+  // 그룹이 없는 사람에게는 이 값이 항상 true로 남아 지금까지의 "공개 공유" 경험이 그대로 유지된다.
+  const [discoverable, setDiscoverable] = useState(true);
+  // 그룹 제출이 일부/전부 실패한 채로 공유는 성공했을 때, 그 사실을 숨기지 않고
+  // 한 번 더 보여주기 위한 중간 상태. 여기 값이 있으면 본문 대신 안내만 보여준다.
+  const [pendingDone, setPendingDone] = useState<{ url: string; work: Work; groupError: string } | null>(null);
   const sheetRef = useRef<HTMLElement>(null);
-  // 올리는 중에는 Esc로 못 닫는다. 중간에 끊기면 반쯤 올라간 작품이 남는다.
-  useModalShell(sheetRef, onCancel, busy);
+
+  const hasGroups = selectedGroupIds.length > 0;
+
+  useEffect(() => {
+    let cancelled = false;
+    // 그룹은 부가 기능이다 — 목록을 못 가져와도 공유 자체는 막지 않고 구역을 조용히 감춘다.
+    listMyGroups()
+      .then((list) => {
+        if (!cancelled) setGroups(list);
+      })
+      .catch(() => {
+        if (!cancelled) setGroups([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 그룹에 올리면 기간 제한이 의미가 없다(그룹 스테이지엔 만료가 없다) — 상태 자체를 null로 맞춰 둔다.
+  useEffect(() => {
+    if (hasGroups) setExpireDays(null);
+  }, [hasGroups]);
+
+  // 대상(공개 스테이지 ↔ 그룹)이 바뀌면 이전 체크는 다른 문구에 대한 동의였던 셈이라 무효다.
+  useEffect(() => {
+    setGuardianOk(false);
+  }, [hasGroups]);
 
   const artCount = work.assets.filter((a) => a.kind === 'art').length;
   const soundCount = work.assets.filter((a) => a.kind === 'sound').length;
@@ -53,6 +94,31 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
   const isAdmin = account.kind === 'google' && isAdminEmail(account.email);
   const blockedByPhoto = photoKeys.length > 0 && !isAdmin;
 
+  const toggleGroup = (id: string) => {
+    setSelectedGroupIds((prev) => {
+      if (prev.includes(id)) return prev.filter((g) => g !== id);
+      if (prev.length >= MAX_GROUPS_PER_WORK) return prev; // 상한 초과는 막는다. 아래 note가 이유를 알린다.
+      if (prev.length === 0) {
+        // 그룹을 처음 고르는 순간 "모두의 스테이지"를 자동으로 끈다. 반/모둠용으로 만든
+        // 작품이 실수로 공개 스테이지에도 뜨는 쪽을 기본값으로 두지 않기 위해서다.
+        // 사용자가 다시 켜는 건 막지 않는다.
+        setDiscoverable(false);
+      }
+      return [...prev, id];
+    });
+  };
+
+  const hasTarget = discoverable || hasGroups;
+
+  const finalize = () => {
+    if (pendingDone) onDone(pendingDone.url, pendingDone.work);
+  };
+  // 공유 자체는 이미 끝난 뒤라 "그만두기"가 아니라 "확인"으로 닫힌다. Esc·배경 클릭도 같은 동작이어야
+  // 한다 — 이미 성공한 공유를 취소할 방법은 없다.
+  const closeHandler = pendingDone ? finalize : onCancel;
+  // 올리는 중에는 Esc로 못 닫는다. 중간에 끊기면 반쯤 올라간 작품이 남는다.
+  useModalShell(sheetRef, closeHandler, busy);
+
   const share = async () => {
     setBusy(true);
     setError('');
@@ -60,9 +126,16 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
       const result = await publishWork(work, {
         voiceMode,
         expireDays,
+        discoverable,
+        groupIds: selectedGroupIds,
         onProgress: setStep,
       });
-      onDone(result.url, result.work);
+      if (result.groupError) {
+        // 링크는 이미 열렸다 — 그룹 제출 실패를 숨기지 않고 한 번 더 보여준 뒤에 마무리한다.
+        setPendingDone({ url: result.url, work: result.work, groupError: result.groupError });
+      } else {
+        onDone(result.url, result.work);
+      }
     } catch (e) {
       console.warn('[share] 공유 실패', e);
       setError(explainFirebaseError(e));
@@ -73,21 +146,41 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
   };
 
   return (
-    <div className="sheet-backdrop" onClick={busy ? undefined : onCancel}>
+    <div className="sheet-backdrop" onClick={busy ? undefined : closeHandler}>
       <section
         ref={sheetRef}
         className="sheet gate"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="인터넷에 올리기 전에"
+        aria-label={pendingDone ? '공유 결과' : '인터넷에 올리기 전에'}
       >
-        <header className="sheet-head">
-          <span className="sheet-title">인터넷에 올리기 전에</span>
-        </header>
+        {pendingDone ? (
+          <>
+            <header className="sheet-head">
+              <span className="sheet-title">링크는 열렸어요</span>
+            </header>
+            <div className="sheet-body">
+              {/* 링크는 이미 열렸으니 여기서는 그룹 제출 결과만 알린다 — 성공을 취소로 되돌릴 방법은 없다. */}
+              <p className="warn">그룹에는 올라가지 않았어요. {pendingDone.groupError}</p>
+              <p className="note">
+                링크는 정상적으로 열렸어요. 그룹은 나중에 그룹 화면에서 다시 올릴 수 있어요.
+              </p>
+            </div>
+            <div className="gate-actions">
+              <button type="button" className="sheet-done" onClick={finalize}>
+                확인
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <header className="sheet-head">
+              <span className="sheet-title">인터넷에 올리기 전에</span>
+            </header>
 
-        <div className="sheet-body">
-          {blockedByPhoto && (
+            <div className="sheet-body">
+              {blockedByPhoto && (
             <section className="gate-block gate-blocked">
               <h3 className="row-label">이 작품은 아직 공유할 수 없어요</h3>
               <p>
@@ -97,6 +190,37 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
               <p className="note">
                 그 키캡을 열어 &lsquo;전부 지우기&rsquo;를 누르고 직접 그리면 공유할 수 있어요.
               </p>
+            </section>
+          )}
+
+          {/* 0. 어디에 올릴까요 — 목소리 처리 선택보다 위. 여기서 고른 대로 discoverable/groupIds가 정해진다. */}
+          {groups.length > 0 && (
+            <section className="gate-block">
+              <h3 className="row-label">어디에 올릴까요?</h3>
+              <div className="gate-options">
+                {groups.map((g) => (
+                  <label key={g.id} className={`chip ${selectedGroupIds.includes(g.id) ? 'on' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedGroupIds.includes(g.id)}
+                      onChange={() => toggleGroup(g.id)}
+                    />
+                    <span>{g.name}</span>
+                  </label>
+                ))}
+                <label className={`chip ${discoverable ? 'on' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={discoverable}
+                    onChange={(e) => setDiscoverable(e.target.checked)}
+                  />
+                  <span>모두의 스테이지</span>
+                </label>
+              </div>
+              {selectedGroupIds.length >= MAX_GROUPS_PER_WORK && (
+                <p className="note">작품 하나는 그룹 최대 {MAX_GROUPS_PER_WORK}개까지만 올릴 수 있어요.</p>
+              )}
+              {!hasTarget && <p className="note">올릴 곳을 하나 이상 골라 주세요.</p>}
             </section>
           )}
 
@@ -139,25 +263,33 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
             </section>
           )}
 
-          {/* 4. 공유 기간 */}
-          <section className="gate-block">
-            <h3 className="row-label">얼마 동안 공유할까요</h3>
-            <div className="chip-grid">
-              {EXPIRES.map((e) => (
-                <button
-                  key={String(e.value)}
-                  type="button"
-                  className={`chip ${expireDays === e.value ? 'on' : ''}`}
-                  onClick={() => setExpireDays(e.value)}
-                >
-                  {e.label}
-                </button>
-              ))}
-            </div>
-            <p className="note">언제든 공유를 멈출 수 있어요. 멈추면 올린 파일도 지워져요.</p>
-          </section>
+          {/* 4. 공유 기간 — 그룹에 올리면 만료가 없으니 아예 감춘다. */}
+          {hasGroups ? (
+            <section className="gate-block">
+              <h3 className="row-label">얼마 동안 공유할까요</h3>
+              <p className="note">그룹에 올린 공연은 기간 제한 없이 남아요.</p>
+            </section>
+          ) : (
+            <section className="gate-block">
+              <h3 className="row-label">얼마 동안 공유할까요</h3>
+              <div className="chip-grid">
+                {EXPIRES.map((e) => (
+                  <button
+                    key={String(e.value)}
+                    type="button"
+                    className={`chip ${expireDays === e.value ? 'on' : ''}`}
+                    onClick={() => setExpireDays(e.value)}
+                  >
+                    {e.label}
+                  </button>
+                ))}
+              </div>
+              <p className="note">언제든 공유를 멈출 수 있어요. 멈추면 올린 파일도 지워져요.</p>
+            </section>
+          )}
 
-          {/* 3. 보호자 확인 */}
+          {/* 3. 보호자 확인 — 그룹만 골랐을 때는 "개인정보 처리 동의" 문구로 바뀐다. 대상이
+              바뀌면 guardianOk는 위 useEffect가 자동으로 풀어 준다. */}
           <section className="gate-block">
             <label className="gate-check">
               <input
@@ -166,8 +298,9 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
                 onChange={(e) => setGuardianOk(e.target.checked)}
               />
               <span>
-                보호자와 함께 확인했어요. 위 내용이 인터넷에 올라가고, 링크를 받은 사람뿐
-                아니라 키크 스테이지에서도 누구나 찾고 볼 수 있다는 걸 알고 있어요.
+                {hasGroups
+                  ? '참가자 본인(또는 보호자)이 목소리와 그림이 그룹 참가자들에게 공개되는 것에 동의했어요.'
+                  : '보호자와 함께 확인했어요. 위 내용이 인터넷에 올라가고, 링크를 받은 사람뿐 아니라 키크 스테이지에서도 누구나 찾고 볼 수 있다는 걸 알고 있어요.'}
               </span>
             </label>
           </section>
@@ -187,11 +320,13 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
             type="button"
             className="sheet-done"
             onClick={share}
-            disabled={!guardianOk || busy || !isFirebaseConfigured || blockedByPhoto}
+            disabled={!guardianOk || !hasTarget || busy || !isFirebaseConfigured || blockedByPhoto}
           >
             {busy ? '올리는 중…' : '공개하고 링크 만들기'}
           </button>
         </div>
+          </>
+        )}
       </section>
     </div>
   );

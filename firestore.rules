@@ -42,6 +42,23 @@ service cloud.firestore {
           && request.resource.data.work.keys.size() == 4
           && request.resource.data.work.replay.events.size() <= 600;
       }
+
+      /*
+       * 내가 속한 그룹의 미러.
+       *
+       * 진짜 멤버십은 groups/{gid}/members/{uid}에 있고 Functions만 쓴다. 여기 사본을
+       * 두는 이유는 **"내 그룹 목록"을 collectionGroup 색인 없이 읽기 위해서**다.
+       * members를 collectionGroup으로 훑으려면 색인이 필요하고, 그 색인은 남의 그룹
+       * 문서까지 같은 쿼리 공간에 넣는다. 자기 uid 아래 경로면 그런 고민이 없다.
+       *
+       * list를 여는 유일한 컬렉션이지만 경로의 uid가 인증 uid와 같을 때뿐이라
+       * 훑을 수 있는 것이 자기 것밖에 없다. 위 works와 같은 판단이다.
+       */
+      match /groups/{groupId} {
+        allow get, list: if request.auth != null && request.auth.uid == uid;
+        // 사본이 원본과 어긋나면 안 된다. 원본을 쓰는 Functions만 사본도 쓴다.
+        allow write: if false;
+      }
     }
 
     // 공개 여부만 담는다. 이름과 비공개/Google 사진 URL은 절대 이 문서에 넣지 않는다.
@@ -76,7 +93,16 @@ service cloud.firestore {
         // 집계는 별도 컬렉션에만 있다. 작품 문서에 심으려는 시도를 막는다.
         && !('stats' in request.resource.data)
         // 정렬용 재생 수는 Functions(Admin SDK)만 올린다. 새 작품은 0에서 시작한다.
-        && request.resource.data.get('replayCount', 0) == 0;
+        && request.resource.data.get('replayCount', 0) == 0
+        /*
+         * 그룹 소속도 Functions만 정한다.
+         *
+         * 클라이언트가 groupIds를 직접 쓸 수 있으면 남의 그룹 번호를 적어 넣을 수 있다.
+         * 그것만으로 그룹 스테이지에 뜨지는 않지만(entries 문서가 따로 있어야 한다),
+         * 이 필드는 작품 삭제 시 어느 그룹을 정리할지 정하는 근거다. 남이 쓰게 두면
+         * 삭제가 엉뚱한 그룹을 훑는다.
+         */
+        && !('groupIds' in request.resource.data);
 
       allow update: if request.auth != null
         && resource.data.authorUid == request.auth.uid
@@ -94,7 +120,9 @@ service cloud.firestore {
          * 값이 그대로 들어 있다. 그래서 "없어야 한다"가 아니라 "그대로여야 한다"로 본다.
          * get(기본값)을 쓰면 필드가 아직 없는 옛 문서도 통과한다.
          */
-        && request.resource.data.get('replayCount', -1) == resource.data.get('replayCount', -1);
+        && request.resource.data.get('replayCount', -1) == resource.data.get('replayCount', -1)
+        // 그룹 소속도 같은 이유로 그대로여야 한다(create의 주석 참고).
+        && request.resource.data.get('groupIds', []) == resource.data.get('groupIds', []);
 
       allow delete: if request.auth != null
         && resource.data.authorUid == request.auth.uid;
@@ -106,6 +134,53 @@ service cloud.firestore {
       allow get: if true;
       allow list: if false;
       allow write: if false;
+    }
+
+    /*
+     * ── 그룹 스테이지 ──────────────────────────────────
+     *
+     * **클라이언트에 아무것도 열지 않는다.** get조차 열지 않는 것이 의도다.
+     *
+     * 화면이 필요로 하는 것은 두 곳에서 온다:
+     *   · 그룹 이름과 내 역할 → users/{uid}/groups 미러 (위에서 자기 것만 list 허용)
+     *   · 스테이지 목록과 집계 → listGroupStage callable (Admin SDK가 최소 필드만 중계)
+     *
+     * 그래서 여기에 get을 열 이유가 없다. 열었다면 멤버십을 확인하려고 규칙 안에서
+     * exists()를 불러야 하고, **그 exists()는 규칙 평가마다 Firestore read로 청구된다.**
+     * 목록 한 쪽을 그릴 때마다 멤버십 조회가 카드 수만큼 붙는 구조가 된다.
+     * callable에서 멤버십을 한 번만 확인하는 편이 정확하고 싸다.
+     */
+    match /groups/{groupId} {
+      allow read, write: if false;
+
+      match /members/{memberUid} {
+        allow read, write: if false;
+      }
+
+      // 제출작 카드. 정렬 키(uniqueListeners, replayCount)가 이 문서에 들어 있다.
+      match /entries/{workId} {
+        allow read, write: if false;
+      }
+
+      /*
+       * 누가 무엇을 들었는가. 문서 하나가 곧 한 표다.
+       *
+       * 읽기까지 막는 이유: 이 컬렉션은 "누가 무엇을 들었는지"의 기록이라
+       * 그룹 안에서도 사생활이다. 진행률처럼 필요한 집계는 callable이 계산해서 준다.
+       */
+      match /listens/{listenId} {
+        allow read, write: if false;
+      }
+    }
+
+    /*
+     * 입장 코드 → 그룹 조회표.
+     *
+     * 읽기를 열면 코드 컬렉션을 훑어 모든 그룹의 코드를 얻을 수 있다. joinGroup
+     * callable만 Admin SDK로 조회하고, 거기서 시도 횟수도 제한한다.
+     */
+    match /joinCodes/{code} {
+      allow read, write: if false;
     }
   }
 }

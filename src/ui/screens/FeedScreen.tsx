@@ -8,10 +8,19 @@
  * 한 번에 다 받지 않는다. 서버가 커서를 주고, 화면 끝이 보이면 다음 쪽을 이어 붙인다.
  * 검색과 작성자 필터도 서버에서 처리한다 — 받아온 것만 거르면 "안 불러온 작품은
  * 검색해도 안 나오는" 조용한 거짓말이 된다.
+ *
+ * ── [모두]/[그룹] 탭 ──
+ * 이 화면은 이제 공개 피드 하나가 아니라 둘을 오간다. 탭 상태는 컴포넌트 state가
+ * 아니라 URL 쿼리(`g`)에 둔다 — 그래야 그룹 리플레이 링크(`/w/:id?g=...`)에서
+ * 뒤로가기를 눌렀을 때 그룹 탭으로 돌아오고, 새로고침해도 탭이 안 날아간다.
+ *
+ * 공개 피드의 훅(load/cursor/sort/search/authorNick)은 아래 `PublicFeedSection`으로
+ * 그대로 옮겼을 뿐 손대지 않았다 — [그룹] 탭일 때 그 훅들을 조건부로 부르면 React
+ * 규칙 위반이라, 통째로 별도 컴포넌트로 빼서 탭에 따라 마운트/언마운트되게 했다.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   explainFirebaseError,
   fetchPublicFeed,
@@ -19,8 +28,10 @@ import {
   type FeedSort,
   type PublicFeedItem,
 } from '../../storage/remote';
+import { listMyGroups, type MyGroup } from '../../storage/groups';
 import { useAppState } from '../state';
 import { ProfileAvatar } from '../components/ProfileAvatar';
+import { GroupStageScreen } from './GroupStageScreen';
 
 /** 타자를 멈춘 뒤 이만큼 기다렸다 검색한다. 한 글자마다 서버를 부르지 않기 위한 것. */
 const SEARCH_DEBOUNCE_MS = 400;
@@ -31,6 +42,138 @@ const SORTS: { id: FeedSort; label: string }[] = [
 ];
 
 export function FeedScreen() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const groupId = searchParams.get('g');
+  const activeTab: 'all' | 'group' = groupId ? 'group' : 'all';
+
+  const [myGroups, setMyGroups] = useState<MyGroup[] | null>(null);
+  // [그룹] 탭에 처음 들어갈 때만 내 그룹 목록을 읽는다 — 이 화면이 떠 있는 동안
+  // 그룹이 늘어나는 경우(다른 탭에서 참여)는 없으니 매번 다시 읽을 이유가 없다.
+  const groupsRequestedRef = useRef(false);
+
+  useEffect(() => {
+    if (activeTab !== 'group' || groupsRequestedRef.current) return;
+    groupsRequestedRef.current = true;
+    void listMyGroups()
+      .then(setMyGroups)
+      .catch(() => setMyGroups([]));
+  }, [activeTab]);
+
+  // 그룹이 정확히 하나뿐이면 칩 하나만 있는 고르기 화면을 한 번 더 거치게 하지
+  // 않는다 — 바로 그 그룹으로 들어간다.
+  useEffect(() => {
+    if (activeTab === 'group' && !groupId && myGroups && myGroups.length === 1) {
+      setSearchParams({ g: myGroups[0].id }, { replace: true });
+    }
+  }, [activeTab, groupId, myGroups, setSearchParams]);
+
+  const selectAll = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('g');
+    setSearchParams(next);
+  };
+  const selectGroupTab = () => {
+    if (activeTab === 'group') return;
+    // g가 이미 있으면 그대로 두고(같은 그룹으로 복귀), 없으면 그룹 고르기를 보여준다.
+    if (!groupId) setSearchParams(new URLSearchParams());
+  };
+
+  return (
+    <main className="screen feed">
+      <header className="feed-head">
+        <div>
+          <p className="feed-kicker">KEYC STAGE</p>
+          <h1>키크 스테이지</h1>
+          <p>모두의 키크 공연을 만나고 다시 연주해 보세요.</p>
+        </div>
+      </header>
+
+      {/* 정렬 세그먼트와 헷갈리지 않도록 라벨을 분명히 다르게 둔다. */}
+      <div className="seg feed-scope" role="group" aria-label="스테이지 종류">
+        <button
+          type="button"
+          className={`seg-btn ${activeTab === 'all' ? 'on' : ''}`}
+          aria-pressed={activeTab === 'all'}
+          onClick={selectAll}
+        >
+          모두
+        </button>
+        <button
+          type="button"
+          className={`seg-btn ${activeTab === 'group' ? 'on' : ''}`}
+          aria-pressed={activeTab === 'group'}
+          onClick={selectGroupTab}
+        >
+          그룹
+        </button>
+      </div>
+
+      {activeTab === 'all' ? (
+        <PublicFeedSection />
+      ) : groupId ? (
+        // key=groupId: 그룹을 바꾸면 검색어·정렬 같은 내부 state를 새로 시작한다.
+        // (자세한 이유는 GroupStageScreen 상단 주석 참고.)
+        <GroupStageScreen key={groupId} groupId={groupId} />
+      ) : (
+        <GroupPicker groups={myGroups} onSelect={(id) => setSearchParams({ g: id })} />
+      )}
+    </main>
+  );
+}
+
+/** [그룹] 탭인데 아직 그룹을 안 골랐을 때 보여주는 목록/빈 상태. */
+function GroupPicker({ groups, onSelect }: { groups: MyGroup[] | null; onSelect: (id: string) => void }) {
+  const nav = useNavigate();
+
+  if (groups === null) {
+    return (
+      <p className="feed-status" role="status" aria-live="polite">
+        내 그룹을 불러오는 중…
+      </p>
+    );
+  }
+
+  if (groups.length === 0) {
+    return (
+      <section className="feed-empty">
+        <span className="feed-empty-icon" aria-hidden="true">👥</span>
+        <h2>아직 참여한 그룹이 없어요</h2>
+        <p>초대 코드가 있으면 입장하고, 없으면 새로 만들어 보세요.</p>
+        <button type="button" className="chip primary wide" onClick={() => nav('/g/join')}>
+          코드로 입장하기
+        </button>
+        <button type="button" className="chip wide" onClick={() => nav('/g/join?new=1')}>
+          그룹 만들기
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label="내 그룹 고르기">
+      <p className="feed-status">들어갈 그룹을 골라주세요.</p>
+      <div className="feed-chips">
+        {groups.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            className="chip"
+            aria-label={`${g.name} 그룹 스테이지로 이동`}
+            onClick={() => onSelect(g.id)}
+          >
+            {g.name}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * 공개 피드 본체 — 원래 FeedScreen 전체였던 로직을 그대로 옮겼다.
+ * load/cursor/sort/search/authorNick 어느 것도 바뀌지 않았다.
+ */
+function PublicFeedSection() {
   const nav = useNavigate();
   const { engine, startNewDraft } = useAppState();
 
@@ -143,15 +286,7 @@ export function FeedScreen() {
   const empty = items?.length === 0;
 
   return (
-    <main className="screen feed">
-      <header className="feed-head">
-        <div>
-          <p className="feed-kicker">KEYC STAGE</p>
-          <h1>키크 스테이지</h1>
-          <p>모두의 키크 공연을 만나고 다시 연주해 보세요.</p>
-        </div>
-      </header>
-
+    <>
       <section className="feed-tools">
         <label className="feed-search">
           <span className="visually-hidden">공연 찾기</span>
@@ -330,6 +465,6 @@ export function FeedScreen() {
           </button>
         </div>
       )}
-    </main>
+    </>
   );
 }

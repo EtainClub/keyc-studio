@@ -2309,3 +2309,101 @@ button {
   color: var(--fg-dim);
   margin: 0 0 4px;
 }
+
+/* ── 그룹 스테이지 ─────────────────────────────── */
+
+/*
+ * .seg는 `flex: 1 1 200px`을 갖고 있다 — 가로줄(.draw-row) 안에 놓일 것을 전제로
+ * 한 값이다. .feed-sort가 이미 겪은 것과 같은 문제라(위 주석 참고) 여기서도 다시
+ * 못 박는다: 세로 flex 컨테이너(.screen) 바로 아래 두면 flex-basis 200px이
+ * **높이**로 잡혀 알약이 원이 된다.
+ */
+.seg.feed-scope {
+  flex: none;
+}
+.feed-scope .seg-btn {
+  flex: 1 1 0;
+}
+
+.group-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.feed-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+}
+.feed-mine-badge {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(255, 212, 0, 0.14);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+/* 리플레이 배지(.feed-badge)와 같은 초록을 쓴다 — "다 들었다"는 뜻으로 이미 익숙한 색. */
+.feed-listened-badge {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(121, 239, 194, 0.14);
+  color: #79efc2;
+  font-size: 11px;
+  font-weight: 800;
+}
+/* 들은 카드는 한 단 죽인다 — 안 들은 카드가 먼저 눈에 들어와야 그룹 스테이지의
+ * "아직 못 들은 걸 찾아 듣자"는 목적에 맞는다. */
+.feed-card.feed-listened {
+  opacity: 0.72;
+}
+/* 공개 피드의 .feed-author는 눌러서 필터링하는 버튼이라 밑줄이 있다. 그룹
+ * 스테이지에서는 별명이 눌리지 않으니 밑줄 없는 별도 클래스를 쓴다 — 안 눌리는
+ * 글자에 밑줄을 남기면 "이거 버튼 아닌가" 하고 눌러보다 아무 일도 안 일어난다. */
+.feed-author-static {
+  margin: 0;
+  padding: 2px 0;
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+
+/* ── 그룹 입장/만들기 ─────────────────────────── */
+
+/* .seg의 flex-basis 문제는 여기서도 똑같다 — /g/join의 최상위 .screen도 세로 컨테이너다. */
+.seg.join-mode {
+  flex: none;
+}
+.join-mode .seg-btn {
+  flex: 1 1 0;
+}
+
+.join-group-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.group-created {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 8px 4px;
+  text-align: center;
+}
+.group-created-code {
+  margin: 0;
+  padding: 18px 10px;
+  border-radius: var(--radius);
+  border: 2px dashed rgba(255, 212, 0, 0.4);
+  background: rgba(255, 212, 0, 0.08);
+  color: var(--accent);
+  font-size: 32px;
+  font-weight: 900;
+  /* 숫자 폭을 고정해 코드가 흔들리지 않게, 글자 사이도 넉넉히 벌려 옮겨 적기 쉽게. */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}

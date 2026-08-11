@@ -31,6 +31,7 @@ import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
  * 좁은 서브패스로 가져오면 그 체인 자체가 로드되지 않는다. 콜드 스타트도 빨라진다.
  */
 import { setGlobalOptions } from 'firebase-functions/v2/options';
+import { randomBytes } from 'node:crypto';
 
 initializeApp();
 
@@ -39,6 +40,44 @@ setGlobalOptions({ region: 'asia-northeast3', maxInstances: 10 });
 
 const db = getFirestore();
 const WORK_ID = /^[A-Za-z0-9_-]{12}$/;
+const GROUP_ID = /^[A-Za-z0-9_-]{12}$/;
+
+/* ── 그룹 공용 ─────────────────────────────────────── */
+
+/**
+ * 입장 코드 알파벳 — Crockford Base32에서 0/O, 1/I/L을 뺐다.
+ * 코드는 슬랙 공지에 붙고 회의실에서 구두로 불린다. 눈과 귀로 구분되지 않는
+ * 글자가 하나라도 있으면 "코드가 안 먹어요" 문의가 그 글자 수만큼 생긴다.
+ */
+const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+const CODE_LENGTH = 8;
+const JOIN_CODE = new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`);
+
+/** 무료 규모 상한. 클라이언트에도 같은 값이 있지만 판정은 여기서만 한다. */
+const GROUP_MEMBER_MAX = 100;
+const GROUP_ENTRY_MAX = 200;
+/** 한 작품이 동시에 올라갈 수 있는 그룹 수. */
+const MAX_GROUPS_PER_WORK = 3;
+/** 한 계정이 만들 수 있는 그룹 수. */
+const GROUPS_PER_OWNER_MAX = 3;
+
+const groupRef = (groupId) => db.doc(`groups/${groupId}`);
+const memberRef = (groupId, uid) => db.doc(`groups/${groupId}/members/${uid}`);
+const entryRef = (groupId, workId) => db.doc(`groups/${groupId}/entries/${workId}`);
+/**
+ * 청취 기록의 문서 ID.
+ *
+ * **이 ID가 고정이라는 사실이 곧 1인 1표다.** 같은 사람이 같은 작품을 또 들어도
+ * 같은 경로를 가리키므로 문서가 늘어나지 않는다. 판정 로직도 임계값도 없고,
+ * "문서가 있느냐 없느냐"만 남는다.
+ *
+ * uid와 workId 모두 [A-Za-z0-9_-] 12자라 구분자 __가 두 값 안에 나타날 수 없다.
+ * (Firebase uid는 28자 영숫자다 — 역시 언더스코어가 없다.)
+ */
+const listenRef = (groupId, workId, uid) =>
+  db.doc(`groups/${groupId}/listens/${workId}__${uid}`);
+/** users/{uid}/groups 미러. "내 그룹 목록"을 collectionGroup 색인 없이 읽기 위한 사본. */
+const myGroupRef = (uid, groupId) => db.doc(`users/${uid}/groups/${groupId}`);
 const PUBLIC_ORIGIN = (process.env.PUBLIC_ORIGIN || 'https://keyc.studio').replace(/\/+$/, '');
 const UPSTREAM_TIMEOUT_MS = 3_000;
 
@@ -53,6 +92,11 @@ const UPSTREAM_TIMEOUT_MS = 3_000;
  *   ENFORCE_APP_CHECK=true
  *
  * 일반 공개 전에 반드시 켤 것.
+ *
+ * ── 그룹 컨테스트를 켜기 전에는 선택이 아니다 ──
+ * 순위와 상품이 걸리면 callable을 스크립트로 직접 두드릴 이유가 생긴다. App Check가
+ * 꺼져 있으면 recordPlay의 표 등록을 브라우저 없이 반복 호출할 수 있다.
+ * 지금(v1)은 순위가 없어 동기가 없지만, P2에서 컨테스트를 켜는 작업의 선행 조건이다.
  */
 const ENFORCE_APP_CHECK = process.env.ENFORCE_APP_CHECK === 'true';
 
@@ -265,10 +309,24 @@ export const avatar = onRequest({ cors: false, invoker: 'public' }, async (req, 
   try {
     const workSnap = await db.collection('works').doc(workId).get();
     const work = workSnap.exists ? workSnap.data() : null;
+    /*
+     * 노출 자격은 "공개 피드에 떴는가"가 아니라 **"어느 스테이지든 올라가 있는가"**다.
+     *
+     * 그룹 전용 작품은 discoverable가 false다. 예전 조건(discoverable === true)을
+     * 그대로 두면 그룹 스테이지 카드의 아바타가 **전부 404가 된다.**
+     *
+     * 그룹 작품까지 여는 것이 안전한 이유: 아바타는 이미 publicProfiles.enabled라는
+     * 본인의 명시적 동의로 한 겹 막혀 있고, 그룹 스테이지는 '미등재' 수준이라
+     * workId를 아는 사람은 어차피 작품 자체를 열 수 있다. 새로 새는 것이 없다.
+     */
+    const onSomeStage =
+      work &&
+      (work.discoverable === true ||
+        (Array.isArray(work.groupIds) && work.groupIds.length > 0));
     if (
       !work ||
       work.visibility !== 'link' ||
-      work.discoverable !== true ||
+      !onSomeStage ||
       isExpired(work) ||
       typeof work.authorUid !== 'string'
     ) {
@@ -487,6 +545,80 @@ export const listPublicFeed = onCall(
 const recent = new Map();
 const WINDOW_MS = 60_000;
 
+/**
+ * 그룹 집계 — 여기가 순위의 근거다.
+ *
+ * ── 왜 별도의 문서로 세는가 ──
+ * FieldValue.increment는 **기억이 없는 연산**이다. 숫자에 1을 더할 뿐이라, 100번
+ * 눌린 작품이 한 사람이 100번 누른 것인지 100명이 한 번씩인지 구분할 방법이
+ * 원리적으로 없다. 그래서 "누가 들었는가"를 문서로 남기고, 그 문서 수를 센다.
+ *
+ * ── 왜 위의 메모리 throttle에 기대지 않는가 ──
+ * `recent`는 함수 **인스턴스의** 메모리다. maxInstances가 10이라 인스턴스마다 따로
+ * 세고 콜드 스타트마다 리셋된다. 공개 피드의 인기순에는 충분했지만 순위의 근거로는
+ * 못 쓴다. 그래서 표 등록은 throttle과 무관하게 트랜잭션이 판정한다.
+ *
+ * @param countReplay throttle에 걸리지 않았는가. 표 등록과 달리 재생 수는 이걸 따른다.
+ * @param completed   끝까지 들었는가. 0.5초 눌렀다 나간 것을 표로 세지 않기 위한 것.
+ */
+async function recordGroupPlay(groupId, workId, uid, { countReplay, completed }) {
+  const entry = entryRef(groupId, workId);
+  const member = memberRef(groupId, uid);
+  const [entrySnap, memberSnap] = await db.getAll(entry, member);
+
+  // 그룹에 올라오지 않은 작품이거나 내린 작품이면 셀 것이 없다.
+  if (!entrySnap.exists || entrySnap.data().status !== 'active') {
+    return { counted: false, reason: 'not-entered' };
+  }
+  /*
+   * 멤버가 아니면 아무것도 세지 않는다.
+   *
+   * 그룹 스테이지는 '미등재'라 링크를 아는 외부인도 작품을 열 수 있다. 그 재생이
+   * 집계에 닿으면 **링크를 뿌리는 것이 곧 표 조작**이 된다. 관람은 막지 않되
+   * 순위에는 넣지 않는다.
+   */
+  if (!memberSnap.exists) return { counted: false, reason: 'not-member' };
+
+  /*
+   * 자기 작품은 재생 수도 표도 세지 않는다.
+   *
+   * 표만 빼고 재생 수를 세면, 순위 기준이 replayCount인 그룹에서 자가 재생이
+   * 그대로 점수가 된다. 자기 것을 눌러 이기는 경로를 아예 남기지 않는다.
+   */
+  if (entrySnap.data().authorUid === uid) return { counted: false, reason: 'own-work' };
+
+  const now = Date.now();
+  return db.runTransaction(async (tx) => {
+    const listen = listenRef(groupId, workId, uid);
+    const listenSnap = await tx.get(listen);
+
+    if (countReplay) {
+      tx.set(entry, { replayCount: FieldValue.increment(1), lastPlayedAt: now }, { merge: true });
+    }
+
+    // 이미 센 사람이다. 순위는 움직이지 않는다.
+    if (listenSnap.exists) {
+      if (countReplay) tx.update(listen, { plays: FieldValue.increment(1), lastAt: now });
+      return { counted: false, reason: 'already-counted' };
+    }
+
+    /*
+     * 완주하지 않았으면 **문서를 만들지 않고 그냥 나간다.**
+     *
+     * counted:false 문서를 만들어 두면 안 된다 — 다음에 끝까지 들어도 문서가 이미
+     * 있어서 영영 표로 승격되지 않는다. "아직 표가 아니다"는 상태는 문서의 부재로
+     * 표현해야 다시 시도할 수 있다.
+     */
+    if (!completed) return { counted: false, reason: 'incomplete' };
+
+    tx.set(listen, { workId, uid, firstAt: now, lastAt: now, plays: 1 });
+    tx.set(entry, { uniqueListeners: FieldValue.increment(1) }, { merge: true });
+    // 청취왕 상을 위한 개인 집계. 여기서 같이 올려야 따로 훑지 않아도 된다.
+    tx.set(member, { listenedCount: FieldValue.increment(1) }, { merge: true });
+    return { counted: true };
+  });
+}
+
 export const recordPlay = onCall(CALLABLE_OPTIONS, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
@@ -496,12 +628,35 @@ export const recordPlay = onCall(CALLABLE_OPTIONS, async (request) => {
     throw new HttpsError('invalid-argument', '작품 번호가 이상해요');
   }
   const presses = Math.max(0, Math.min(1000, Number(request.data?.presses) || 0));
+  const groupId = String(request.data?.groupId || '');
+  const completed = request.data?.completed === true;
 
   const now = Date.now();
   const key = `${uid}:${workId}`;
-  if (now - (recent.get(key) || 0) < WINDOW_MS) return { ok: true, throttled: true };
-  recent.set(key, now);
-  if (recent.size > 5000) recent.clear();
+  const throttled = now - (recent.get(key) || 0) < WINDOW_MS;
+  if (!throttled) {
+    recent.set(key, now);
+    if (recent.size > 5000) recent.clear();
+  }
+
+  /*
+   * throttle에 걸려도 **그냥 돌아가지 않는다.**
+   *
+   * 예전에는 여기서 early return이었다. 그러면 공개 스테이지에서 같은 작품을 1분 안에
+   * 들었던 사람이 그룹 스테이지에서 완주해도 표가 등록되지 않는다 — 순위가 조용히
+   * 틀어지는 경로다. 재생 수만 건너뛰고 표 등록은 아래에서 계속한다.
+   */
+  let group = null;
+  if (GROUP_ID.test(groupId)) {
+    try {
+      group = await recordGroupPlay(groupId, workId, uid, { countReplay: !throttled, completed });
+    } catch (error) {
+      // 그룹 집계 실패가 전역 집계까지 막지는 않는다.
+      console.warn('그룹 재생 집계 실패', groupId, workId, error?.code || error);
+    }
+  }
+
+  if (throttled) return { ok: true, throttled: true, group };
 
   await db.doc(`workStats/${workId}`).set(
     {
@@ -529,7 +684,7 @@ export const recordPlay = onCall(CALLABLE_OPTIONS, async (request) => {
     console.warn('정렬용 재생 수를 올리지 못했습니다', workId, error?.code || error);
   }
 
-  return { ok: true };
+  return { ok: true, group };
 });
 
 /* ── unshareWork ───────────────────────────────────── */
@@ -552,17 +707,608 @@ export const unshareWork = onCall(CALLABLE_OPTIONS, async (request) => {
   const ref = db.collection('works').doc(workId);
   const snap = await ref.get();
   if (!snap.exists) return { ok: true, alreadyGone: true };
-  if (snap.data().authorUid !== uid) {
+  const work = snap.data();
+  if (work.authorUid !== uid) {
     throw new HttpsError('permission-denied', '내 작품이 아니에요');
   }
 
   // 파일을 먼저 지운다. 문서만 지우고 파일이 남는 상황을 만들지 않는다.
   await getStorage().bucket().deleteFiles({ prefix: `works/${workId}/` });
+
+  /*
+   * 그룹에 올라가 있던 제출은 **지우지 않고 내린다.**
+   *
+   * entries 문서를 지워 버리면 그 그룹의 순위 이력에서 이 작품이 통째로 사라진다.
+   * 발표가 끝난 뒤 작성자가 공유를 멈췄을 때 지난 등수까지 없어지는 건 곤란하다.
+   * status만 'removed'로 바꾸면 목록에서는 빠지고 기록은 남는다.
+   *
+   * 작품 문서를 지우기 **전에** 한다. 지운 뒤에 하면 groupIds를 읽을 곳이 없어져
+   * 어느 그룹을 정리해야 하는지 영영 알 수 없다.
+   */
+  const groupIds = Array.isArray(work.groupIds) ? work.groupIds.filter((id) => GROUP_ID.test(id)) : [];
+  await Promise.allSettled(
+    groupIds.map((groupId) =>
+      entryRef(groupId, workId)
+        .set({ status: 'removed', removedAt: Date.now() }, { merge: true })
+        .then(() => groupRef(groupId).set(
+          { counts: { entries: FieldValue.increment(-1) } },
+          { merge: true },
+        )),
+    ),
+  );
+
   await ref.delete();
   await db
     .doc(`workStats/${workId}`)
     .delete()
     .catch(() => {});
+
+  return { ok: true, withdrawnFrom: groupIds.length };
+});
+
+/* ── 그룹 ──────────────────────────────────────────── */
+
+/**
+ * 그룹 ID 알파벳. [A-Za-z0-9_-] 64자 — GROUP_ID 정규식과 짝을 이룬다.
+ *
+ * 64 = 2^6이라 무작위 바이트의 하위 6비트(0~63)를 그대로 인덱스로 쓰면
+ * 모듈로 연산 없이도 정확히 균등하다. 256이 64로 나누어떨어지기 때문에
+ * 거부 샘플링도 필요 없다.
+ */
+const GROUP_ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+function randomGroupId() {
+  const bytes = randomBytes(12);
+  let id = '';
+  for (let i = 0; i < 12; i++) id += GROUP_ID_ALPHABET[bytes[i] & 63];
+  return id;
+}
+
+/**
+ * 입장 코드 생성 — 거부 샘플링.
+ *
+ * CODE_ALPHABET은 30자라 256을 30으로 나누면 나머지가 남는다(256 = 30×8 + 16).
+ * 그냥 `byte % 30`을 쓰면 나머지 16칸에 해당하는 앞쪽 문자들이 더 자주 나와
+ * 코드가 눈에 덜 띄게 편향된다. 240(= 30×8, 256 미만에서 30의 배수인 가장 큰 값)
+ * 이상의 바이트를 버리고 나머지만 쓰면 남은 값의 분포가 정확히 균등해진다.
+ */
+function randomJoinCode() {
+  const REJECT_AT = Math.floor(256 / CODE_ALPHABET.length) * CODE_ALPHABET.length; // 240
+  let code = '';
+  while (code.length < CODE_LENGTH) {
+    const chunk = randomBytes(CODE_LENGTH);
+    for (const b of chunk) {
+      if (code.length >= CODE_LENGTH) break;
+      if (b >= REJECT_AT) continue;
+      code += CODE_ALPHABET[b % CODE_ALPHABET.length];
+    }
+  }
+  return code;
+}
+
+/**
+ * joinGroup 시도 횟수 제한 — uid당 1분에 10회.
+ *
+ * recordPlay의 `recent`와 같은 인스턴스 메모리 Map이라 완전하지 않다
+ * (콜드 스타트마다 리셋되고 maxInstances가 10이라 인스턴스마다 따로 센다).
+ * 그래도 코드 공간이 30^8(약 6,561억 가지)이라 이 방어를 우회해도 대입 자체가
+ * 현실적이지 않다 — 서두르는 실수를 막는 것이지 무차별 대입의 마지막 방어선은 아니다.
+ */
+const joinAttempts = new Map();
+const JOIN_ATTEMPT_WINDOW_MS = 60_000;
+const JOIN_ATTEMPT_MAX = 10;
+
+function underJoinAttemptLimit(uid) {
+  const now = Date.now();
+  const rec = joinAttempts.get(uid);
+  if (!rec || now - rec.windowStart >= JOIN_ATTEMPT_WINDOW_MS) {
+    joinAttempts.set(uid, { count: 1, windowStart: now });
+    if (joinAttempts.size > 5000) joinAttempts.clear();
+    return true;
+  }
+  if (rec.count >= JOIN_ATTEMPT_MAX) return false;
+  rec.count++;
+  return true;
+}
+
+/**
+ * 그룹 만들기.
+ * 비익명 계정만 만들 수 있다 — 초대 코드와 정원을 관리하는 주최자 자리가
+ * 기기를 바꾸면 사라지는 익명 계정이면 그룹이 통째로 고아가 된다.
+ */
+export const createGroup = onCall(CALLABLE_OPTIONS, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+  if (request.auth.token.firebase?.sign_in_provider === 'anonymous') {
+    throw new HttpsError('failed-precondition', '그룹을 만들려면 Google 계정으로 로그인해 주세요');
+  }
+
+  const name = String(request.data?.name || '').trim();
+  if (name.length < 1 || name.length > 30) {
+    throw new HttpsError('invalid-argument', '그룹 이름은 1~30자로 적어주세요');
+  }
+
+  const ownedSnap = await db.collection('groups').where('ownerUid', '==', uid).count().get();
+  if (ownedSnap.data().count >= GROUPS_PER_OWNER_MAX) {
+    throw new HttpsError('resource-exhausted', '그룹은 계정당 3개까지 만들 수 있어요');
+  }
+
+  const groupId = randomGroupId();
+
+  /*
+   * 입장 코드는 조회 후 쓰지 않고 곧바로 create()로 찜한다.
+   * "먼저 조회하고 비어 있으면 쓴다"는 그 사이에 다른 요청이 같은 코드를
+   * 먼저 차지할 수 있는 경합(TOCTOU)이 있다. create()는 문서가 이미 있으면
+   * 원자적으로 ALREADY_EXISTS 실패를 돌려주므로, 그 실패 자체를 "다시 뽑아라"라는
+   * 신호로 쓰면 경합이 원리적으로 생기지 않는다.
+   */
+  let code = null;
+  for (let attempt = 0; attempt < 5 && !code; attempt++) {
+    const candidate = randomJoinCode();
+    try {
+      await db.collection('joinCodes').doc(candidate).create({
+        groupId,
+        disabled: false,
+        createdAt: Date.now(),
+      });
+      code = candidate;
+    } catch (error) {
+      if (error?.code !== 6 /* ALREADY_EXISTS */) throw error;
+    }
+  }
+  if (!code) {
+    throw new HttpsError('resource-exhausted', '입장 코드를 만들지 못했어요. 다시 시도해 주세요');
+  }
+
+  const now = Date.now();
+  const nick = String(request.auth.token.name || '친구').slice(0, 30);
+  const batch = db.batch();
+  batch.set(groupRef(groupId), {
+    name,
+    ownerUid: uid,
+    createdAt: now,
+    privacy: 'unlisted',
+    join: {
+      codeHash: null,
+      codeHint: code,
+      rotatedAt: now,
+      requiresGoogle: false,
+      emailDomain: null,
+    },
+    limits: { members: GROUP_MEMBER_MAX, entries: GROUP_ENTRY_MAX },
+    submitPolicy: 'members',
+    contest: {
+      phase: 'open',
+      submitClosesAt: null,
+      stageClosesAt: null,
+      rankingMetric: 'uniqueListeners',
+      revealRanking: 'onClose',
+    },
+    counts: { members: 1, entries: 0 },
+  });
+  batch.set(memberRef(groupId, uid), {
+    uid,
+    role: 'owner',
+    nick,
+    joinedAt: now,
+    listenedCount: 0,
+  });
+  batch.set(myGroupRef(uid, groupId), {
+    groupId,
+    name,
+    role: 'owner',
+    joinedAt: now,
+  });
+
+  /*
+   * 코드를 먼저 찜했으므로, 그룹 쓰기가 실패하면 **찜한 코드를 돌려놓아야 한다.**
+   *
+   * 안 그러면 joinCodes에 있지도 않은 그룹을 가리키는 문서가 남는다. joinGroup이
+   * not-found로 막아주긴 하지만, 그 코드는 영영 다시 못 쓰는 채로 남고 주최자는
+   * "코드를 받았는데 안 들어가진다"는 상태에 갇힌다. 실패한 시도는 흔적을 남기지 않는다.
+   */
+  try {
+    await batch.commit();
+  } catch (error) {
+    await db.collection('joinCodes').doc(code).delete().catch(() => {});
+    throw error;
+  }
+
+  return { groupId, code, name };
+});
+
+/**
+ * 그룹 참가.
+ * 링크를 두 번 눌러도 에러가 아니다 — 이미 멤버면 조용히 성공으로 처리한다.
+ */
+export const joinGroup = onCall(CALLABLE_OPTIONS, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+
+  if (!underJoinAttemptLimit(uid)) {
+    throw new HttpsError('resource-exhausted', '너무 여러 번 시도했어요. 잠시 후 다시 해주세요');
+  }
+
+  const code = String(request.data?.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!JOIN_CODE.test(code)) {
+    throw new HttpsError('invalid-argument', '코드가 8자리가 아니에요');
+  }
+
+  const codeSnap = await db.collection('joinCodes').doc(code).get();
+  const codeData = codeSnap.exists ? codeSnap.data() : null;
+  if (!codeData || codeData.disabled === true) {
+    throw new HttpsError('not-found', '그런 코드가 없어요');
+  }
+
+  const groupId = String(codeData.groupId || '');
+  const groupSnap = await groupRef(groupId).get();
+  if (!groupSnap.exists) {
+    throw new HttpsError('not-found', '그런 코드가 없어요');
+  }
+  const group = groupSnap.data();
+
+  const memberSnap = await memberRef(groupId, uid).get();
+  if (memberSnap.exists) {
+    // 이미 멤버다. 링크를 다시 눌렀을 뿐이니 에러가 아니라 성공으로 답한다.
+    return { groupId, name: group.name, alreadyMember: true };
+  }
+
+  const memberLimit = Number(group.limits?.members) || GROUP_MEMBER_MAX;
+  const memberCount = Number(group.counts?.members) || 0;
+  if (memberCount >= memberLimit) {
+    throw new HttpsError('resource-exhausted', `이 그룹은 자리가 다 찼어요(${memberLimit}명)`);
+  }
+
+  const now = Date.now();
+  const nick = String(request.auth.token.name || '친구').slice(0, 30);
+  const batch = db.batch();
+  batch.set(memberRef(groupId, uid), {
+    uid,
+    role: 'member',
+    nick,
+    joinedAt: now,
+    listenedCount: 0,
+  });
+  batch.set(myGroupRef(uid, groupId), {
+    groupId,
+    name: group.name,
+    role: 'member',
+    joinedAt: now,
+  });
+  batch.set(groupRef(groupId), { counts: { members: FieldValue.increment(1) } }, { merge: true });
+  await batch.commit();
+
+  return { groupId, name: group.name, alreadyMember: false };
+});
+
+/** listPublicFeed와 같은 이유로 같은 모양의 상한을 둔다 — 그 함수의 주석 참고. */
+const STAGE_PAGE = 12;
+const STAGE_BATCH = 60;
+const STAGE_MAX_BATCHES = 5;
+
+function parseStageCursor(value) {
+  if (!value || typeof value !== 'object') return null;
+  const at = Number(value.value);
+  const id = String(value.id || '');
+  if (!Number.isFinite(at) || !WORK_ID.test(id)) return null;
+  return { value: at, id };
+}
+
+/**
+ * 그룹 스테이지 목록.
+ * 배치 스캔·배치 상한·"훑은 마지막 문서를 가리키는 커서"는 listPublicFeed와
+ * 완전히 같은 이유로 같은 모양이다 — 검색어는 Firestore가 부분 일치를 못 해서
+ * 읽은 뒤 걸러야 하고, 그래서 한 호출이 읽을 수 있는 양에 상한이 필요하다.
+ */
+export const listGroupStage = onCall(CALLABLE_OPTIONS, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+
+  const groupId = String(request.data?.groupId || '');
+  if (!GROUP_ID.test(groupId)) {
+    throw new HttpsError('invalid-argument', '그룹 번호가 이상해요');
+  }
+
+  const [memberSnap, groupSnap] = await db.getAll(memberRef(groupId, uid), groupRef(groupId));
+  if (!memberSnap.exists) {
+    throw new HttpsError('permission-denied', '이 그룹의 참가자가 아니에요');
+  }
+  if (!groupSnap.exists) {
+    throw new HttpsError('not-found', '그런 그룹이 없어요');
+  }
+  const group = groupSnap.data();
+  const member = memberSnap.data();
+
+  const rankingMetric = group.contest?.rankingMetric === 'replayCount' ? 'replayCount' : 'uniqueListeners';
+  /*
+   * 'unheard'는 **"내가 안 들은 것"이 아니라 "남들이 덜 들은 것"**이다.
+   *
+   * 진짜 개인화된 미청취 정렬을 하려면 이 사람의 listens 문서를 전부(최대 200개)
+   * 읽어 와서 메모리에서 갈라야 한다. 한 쪽을 그릴 때마다 200 read는 12 read짜리
+   * 목록에 붙일 비용이 아니다.
+   *
+   * uniqueListeners 오름차순은 색인 하나로 끝나면서 목적(노출 형평성 — 늦게 올린
+   * 사람이 구조적으로 묻히지 않게)을 거의 그대로 달성한다. 개인화는 카드의
+   * listened 표시가 대신한다. 화면 라벨을 "덜 들린 순"으로 쓰는 이유가 이것이다.
+   * 개인화된 정렬은 P2로 미룬다.
+   */
+  const sortInput = String(request.data?.sort || 'unheard');
+  const { field: sortField, dir: sortDir } =
+    sortInput === 'latest'
+      ? { field: 'submittedAt', dir: 'desc' }
+      : sortInput === 'popular'
+        ? { field: rankingMetric, dir: 'desc' }
+        : { field: 'uniqueListeners', dir: 'asc' }; // 'unheard' 기본값 — 안 들어본 작품을 먼저 보여준다.
+
+  const search = String(request.data?.search || '').trim().toLowerCase().slice(0, 40);
+  const limit = Math.max(1, Math.min(STAGE_PAGE, Number(request.data?.limit) || STAGE_PAGE));
+  let cursor = parseStageCursor(request.data?.cursor);
+
+  const entriesCol = db.collection(`groups/${groupId}/entries`);
+  // 정렬 방향과 __name__ 방향을 맞춘다 — 복합 색인이 그렇게 정의돼 있어야 한다.
+  const base = entriesCol.where('status', '==', 'active').orderBy(sortField, sortDir).orderBy('__name__', sortDir);
+
+  const rows = [];
+  let exhausted = false;
+  let stoppedMidBatch = false;
+
+  for (let batchNo = 0; batchNo < STAGE_MAX_BATCHES && rows.length < limit; batchNo++) {
+    let q = base.limit(STAGE_BATCH);
+    if (cursor) q = q.startAfter(cursor.value, entriesCol.doc(cursor.id));
+    const snap = await q.get();
+    if (snap.empty) {
+      exhausted = true;
+      break;
+    }
+
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      // 커서는 맞았는지와 무관하게 훑은 마지막 문서를 따라간다(listPublicFeed와 동일).
+      const sortValue = Number(data[sortField]);
+      if (Number.isFinite(sortValue)) cursor = { value: sortValue, id: doc.id };
+
+      const title = String(data.title || '').slice(0, 20);
+      const hint = String(data.hint || '').slice(0, 40);
+      const authorNick = String(data.authorNick || '친구').slice(0, 30);
+      if (search && !`${title} ${hint} ${authorNick}`.toLowerCase().includes(search)) continue;
+
+      rows.push({
+        id: doc.id,
+        title,
+        hint,
+        authorNick,
+        authorUid: typeof data.authorUid === 'string' ? data.authorUid : null,
+        durationMs: Number(data.durationMs) || 0,
+        replayCount: Number(data.replayCount) || 0,
+        uniqueListeners: Number(data.uniqueListeners) || 0,
+        submittedAt: Number(data.submittedAt) || 0,
+      });
+      if (rows.length >= limit) {
+        stoppedMidBatch = true;
+        break;
+      }
+    }
+
+    // 배치를 끝까지 훑었을 때만 "다 봤다"고 말할 수 있다 — listPublicFeed와 같은 이유.
+    if (stoppedMidBatch) break;
+    if (snap.size < STAGE_BATCH) {
+      exhausted = true;
+      break;
+    }
+  }
+
+  const authorUids = [...new Set(rows.map((row) => row.authorUid).filter(Boolean))];
+  const [listenSnaps, profileSnaps] = await Promise.all([
+    rows.length > 0 ? db.getAll(...rows.map((row) => listenRef(groupId, row.id, uid))) : Promise.resolve([]),
+    authorUids.length > 0
+      ? db.getAll(...authorUids.map((authorUid) => db.collection('publicProfiles').doc(authorUid)))
+      : Promise.resolve([]),
+  ]);
+  const listenedIds = new Set(listenSnaps.filter((s) => s.exists).map((s) => s.id));
+  const avatarOwners = new Set(
+    profileSnaps.filter((p) => p.exists && p.data()?.enabled === true).map((p) => p.id),
+  );
+
+  const items = rows.map(({ authorUid, ...item }) => ({
+    ...item,
+    avatarUrl: authorUid && avatarOwners.has(authorUid) ? `/avatar/${item.id}` : null,
+    listened: listenedIds.has(`${item.id}__${uid}`),
+    mine: authorUid === uid,
+  }));
+
+  // count()는 집계 쿼리다 — 문서를 하나씩 읽지 않고 서버가 센 숫자 하나만 돌아온다.
+  const listenedCountSnap = await db
+    .collection(`groups/${groupId}/listens`)
+    .where('uid', '==', uid)
+    .count()
+    .get();
+
+  return {
+    group: {
+      id: groupId,
+      name: group.name,
+      role: member.role,
+      memberCount: Number(group.counts?.members) || 0,
+      entryCount: Number(group.counts?.entries) || 0,
+      submitPolicy: group.submitPolicy,
+      rankingMetric,
+    },
+    items,
+    nextCursor: exhausted ? null : cursor,
+    listenedCount: listenedCountSnap.data().count,
+  };
+});
+
+/**
+ * 그룹에 제출.
+ * 한 작품을 여러 그룹에 동시에 올릴 수 있지만 MAX_GROUPS_PER_WORK로 막혀 있다.
+ */
+export const submitToGroup = onCall(CALLABLE_OPTIONS, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+
+  const workId = String(request.data?.workId || '');
+  if (!WORK_ID.test(workId)) {
+    throw new HttpsError('invalid-argument', '작품 번호가 이상해요');
+  }
+
+  const workRef = db.collection('works').doc(workId);
+  const workSnap = await workRef.get();
+  if (!workSnap.exists || workSnap.data().authorUid !== uid) {
+    throw new HttpsError('permission-denied', '내 작품이 아니에요');
+  }
+  const work = workSnap.data();
+  if (work.visibility !== 'link') {
+    throw new HttpsError('failed-precondition', '먼저 공유를 완료해 주세요');
+  }
+
+  const requestedIds = Array.isArray(request.data?.groupIds) ? request.data.groupIds : [];
+  const uniqueRequested = [...new Set(requestedIds.map(String))]
+    .filter((id) => GROUP_ID.test(id))
+    .slice(0, MAX_GROUPS_PER_WORK);
+
+  const existingGroupIds = Array.isArray(work.groupIds) ? work.groupIds.filter((id) => GROUP_ID.test(id)) : [];
+  const existingSet = new Set(existingGroupIds);
+
+  const submitted = [];
+  const skipped = [];
+  // 기존에 올라가 있던 그룹 수에서 시작해, 새로 통과하는 그룹만큼만 늘린다.
+  let capUsed = existingSet.size;
+
+  for (const groupId of uniqueRequested) {
+    const isNewGroup = !existingSet.has(groupId);
+    if (isNewGroup && capUsed >= MAX_GROUPS_PER_WORK) {
+      skipped.push({ groupId, reason: 'too-many-groups' });
+      continue;
+    }
+
+    const [memberSnap, groupSnap, entrySnap] = await db.getAll(
+      memberRef(groupId, uid),
+      groupRef(groupId),
+      entryRef(groupId, workId),
+    );
+    if (!groupSnap.exists || !memberSnap.exists) {
+      skipped.push({ groupId, reason: 'not-member' });
+      continue;
+    }
+    const group = groupSnap.data();
+    const role = memberSnap.data().role;
+    if (group.submitPolicy === 'admins' && role === 'member') {
+      skipped.push({ groupId, reason: 'admins-only' });
+      continue;
+    }
+    if (entrySnap.exists && entrySnap.data().status === 'active') {
+      // 에러가 아니다 — 이미 올라가 있으니 그대로 둔다.
+      skipped.push({ groupId, reason: 'already-submitted' });
+      continue;
+    }
+    const entryLimit = Number(group.limits?.entries) || GROUP_ENTRY_MAX;
+    const entryCount = Number(group.counts?.entries) || 0;
+    if (entryCount >= entryLimit) {
+      skipped.push({ groupId, reason: 'group-full' });
+      continue;
+    }
+
+    const now = Date.now();
+    const batch = db.batch();
+    /*
+     * 다시 올리는 경우 집계를 **0으로 되돌리면 안 된다.**
+     *
+     * 표의 원본은 listens 문서다. 내렸다가 다시 올렸을 때 여기서 uniqueListeners를
+     * 0으로 덮으면, 이미 들어서 listens 문서를 가진 사람들은 다시 세어질 수 없고
+     * (그 문서가 곧 "이미 셌다"는 표시다) 집계는 영영 실제보다 낮은 채로 고정된다.
+     * 그래서 카드 정보만 새로 쓰고 집계 필드는 처음 만들 때만 넣는다.
+     */
+    const entryFields = {
+      workId,
+      authorUid: uid,
+      authorNick: work.authorNick || '친구',
+      title: work.title || '',
+      hint: work.hint || '',
+      durationMs: Number(work.replay?.durationMs) || 0,
+      submittedAt: now,
+      status: 'active',
+      removedAt: null,
+    };
+    if (!entrySnap.exists) {
+      entryFields.uniqueListeners = 0;
+      entryFields.replayCount = 0;
+      entryFields.lastPlayedAt = null;
+    }
+    batch.set(entryRef(groupId, workId), entryFields, { merge: true });
+    batch.set(groupRef(groupId), { counts: { entries: FieldValue.increment(1) } }, { merge: true });
+    await batch.commit();
+
+    submitted.push(groupId);
+    if (isNewGroup) capUsed++;
+  }
+
+  if (submitted.length > 0) {
+    /*
+     * expiresAt을 null로 함께 쓴다.
+     *
+     * 참가자가 공유 기간을 7일로 골라 두면 컨테스트가 끝나기 전에 작품이 만료돼
+     * 스테이지에서 사라진다. 화면에서도 만료일 선택을 숨기지만, 진짜 방어선은
+     * 여기다 — 어떤 경로로 들어와도 그룹에 올라간 작품은 만료되지 않는다.
+     */
+    await workRef.update({
+      groupIds: FieldValue.arrayUnion(...submitted),
+      expiresAt: null,
+    });
+  }
+
+  return { ok: true, submitted, skipped };
+});
+
+/**
+ * 그룹 제출 내리기.
+ * 작성자 본인이거나 그 그룹의 owner/admin이면 내릴 수 있다.
+ */
+export const withdrawEntry = onCall(CALLABLE_OPTIONS, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+
+  const groupId = String(request.data?.groupId || '');
+  const workId = String(request.data?.workId || '');
+  if (!GROUP_ID.test(groupId)) {
+    throw new HttpsError('invalid-argument', '그룹 번호가 이상해요');
+  }
+  if (!WORK_ID.test(workId)) {
+    throw new HttpsError('invalid-argument', '작품 번호가 이상해요');
+  }
+
+  const ref = entryRef(groupId, workId);
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: true, alreadyGone: true };
+  const entry = snap.data();
+
+  if (entry.authorUid !== uid) {
+    const memberSnap = await memberRef(groupId, uid).get();
+    const role = memberSnap.exists ? memberSnap.data().role : null;
+    if (role !== 'owner' && role !== 'admin') {
+      throw new HttpsError('permission-denied', '내릴 권한이 없어요');
+    }
+  }
+
+  // 이미 내려간 항목이면 다시 할 일이 없다 — counts.entries를 또 깎으면 안 된다.
+  if (entry.status === 'removed') return { ok: true };
+
+  /*
+   * 문서를 지우지 않고 status만 바꾼다 — 순위 이력을 남기기 위해서다.
+   * unshareWork에서 같은 판단을 내린 이유와 같다(위 주석 참고).
+   */
+  const batch = db.batch();
+  batch.set(ref, { status: 'removed', removedAt: Date.now() }, { merge: true });
+  batch.set(groupRef(groupId), { counts: { entries: FieldValue.increment(-1) } }, { merge: true });
+  await batch.commit();
+
+  await db
+    .doc(`works/${workId}`)
+    .update({ groupIds: FieldValue.arrayRemove(groupId) })
+    .catch((error) => {
+      // 작품 문서가 이미 지워졌을 수 있다(unshareWork가 먼저 지났을 때). 치명적이지 않다.
+      console.warn('작품의 groupIds 정리 실패', workId, groupId, error?.code || error);
+    });
 
   return { ok: true };
 });

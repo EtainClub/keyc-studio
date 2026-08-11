@@ -14,7 +14,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { fetchWork, recordPlay, shareUrl } from '../../storage/remote';
 import { registerAssets } from '../../storage/assets';
 import type { Work } from '../../work-model/types';
@@ -27,6 +27,7 @@ type Phase = 'loading' | 'idle' | 'replay' | 'paused' | 'ended' | 'free' | 'miss
 export function ViewScreen() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const { engine } = useAppState();
   const gridRef = useRef<GridHandle>(null);
   const [work, setWork] = useState<Work | null>(null);
@@ -34,17 +35,33 @@ export function ViewScreen() {
   const [progress, setProgress] = useState(0);
   const [presses, setPresses] = useState(0);
 
+  /**
+   * 그룹 리플레이 링크(`/w/:id?g=...`)에서 왔는지. ref로 들고 있는 이유: 이 값을
+   * playReplay의 useCallback 의존성에 넣으면 groupId가 바뀔 때마다 콜백이 새로
+   * 만들어지고, 그러면 아래 마운트 effect(`[id, engine, playReplay]`)가 다시 돌아
+   * 이미 재생 중인 작품을 처음부터 다시 불러온다. 이 화면에서 g는 마운트 중에
+   * 바뀔 이유가 없는 값이라 ref로 최신값만 읽으면 충분하다.
+   */
+  const groupIdRef = useRef<string | null>(null);
+  groupIdRef.current = searchParams.get('g');
+
   useResumeOnVisible(() => void engine.resume());
 
   const playReplay = useCallback(
     async (w: Work) => {
       await engine.unlock();
-      void recordPlay(w.id, 0);
+      void recordPlay(w.id, 0, { groupId: groupIdRef.current });
       setProgress(0);
       setPhase('replay');
       engine.playReplay(w, {
         onProgress: setProgress,
-        onEnd: () => setPhase('ended'),
+        onEnd: () => {
+          setPhase('ended');
+          // 시작 시점과 따로, 끝까지 들었을 때만 "한 표"를 보고한다. 이걸 빠뜨리면
+          // 그룹의 고유 청취자 수가 영영 늘지 않는다 — 중간에 나가버린 재생까지
+          // 표로 세면 "몇 명이 진짜 들었는지"라는 지표 자체가 무의미해진다.
+          void recordPlay(w.id, 0, { groupId: groupIdRef.current, completed: true });
+        },
       });
     },
     [engine],
@@ -193,7 +210,7 @@ export function ViewScreen() {
             type="button"
             className="chip"
             onClick={() => {
-              void recordPlay(work.id, presses);
+              void recordPlay(work.id, presses, { groupId: groupIdRef.current });
               engine.stop();
               nav('/');
             }}
