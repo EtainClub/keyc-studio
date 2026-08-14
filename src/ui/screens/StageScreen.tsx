@@ -14,12 +14,20 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { durationForTempo } from '../../work-model/timing';
-import { TEMPO_LABEL, type KeyIndex, type TempoPreset } from '../../work-model/types';
+import type { KeyIndex, TempoPreset } from '../../work-model/types';
+import { t } from '../../i18n';
 import { KeycapGrid, type GridHandle, type LoopState } from '../components/KeycapGrid';
 import { useResumeOnVisible } from '../hooks';
 import { useAppState } from '../state';
 
 const TEMPOS: TempoPreset[] = ['slow', 'normal', 'fast'];
+
+/** 빠르기 이름은 화면 것이다 — work-model은 언어를 모른다(types.ts 참고). */
+const TEMPO_LABEL: Record<TempoPreset, string> = {
+  slow: t('tempo.slow'),
+  normal: t('tempo.normal'),
+  fast: t('tempo.fast'),
+};
 
 export function StageScreen() {
   const nav = useNavigate();
@@ -57,13 +65,13 @@ export function StageScreen() {
     <main className="screen stage">
       <header className="bar">
         <button type="button" className="bar-back" onClick={() => nav('/create')}>
-          ‹ 꾸미기
+          {t('stageScreen.backToCreate')}
         </button>
-        <h1>무대</h1>
+        <h1>{t('stageScreen.title')}</h1>
       </header>
 
       <p className="guide">
-        공연이 시작할 때 자동으로 반복할 키를 골라요. 키를 누르면 소리를 확인할 수 있어요.
+        {t('stageScreen.guide')}
       </p>
 
       <KeycapGrid
@@ -79,20 +87,20 @@ export function StageScreen() {
       />
 
       <section className="tempo">
-        <h2 className="row-label">빠르기</h2>
+        <h2 className="row-label">{t('stageScreen.tempo')}</h2>
         <div className="chip-grid">
-          {TEMPOS.map((t) => (
+          {TEMPOS.map((preset) => (
             <button
-              key={t}
+              key={preset}
               type="button"
-              className={`chip big ${draft.tempo.preset === t ? 'on' : ''}`}
-              onClick={() => pickTempo(t)}
+              className={`chip big ${draft.tempo.preset === preset ? 'on' : ''}`}
+              onClick={() => pickTempo(preset)}
             >
-              {TEMPO_LABEL[t]}
+              {TEMPO_LABEL[preset]}
             </button>
           ))}
         </div>
-        <p className="note">공연은 {seconds}초 — 박자에 딱 맞게 끝나요.</p>
+        <p className="note">{t('stageScreen.duration', { seconds })}</p>
       </section>
 
       <button
@@ -104,7 +112,7 @@ export function StageScreen() {
           nav('/perform');
         }}
       >
-        공연하러 가기 →
+        {t('stageScreen.toPerform')}
       </button>
     </main>
   );

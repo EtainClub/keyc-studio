@@ -6,6 +6,7 @@
  */
 
 import { getDownloadURL, ref } from 'firebase/storage';
+import { t } from '../i18n';
 import type { AssetRef, Work } from '../work-model/types';
 import { getAssetBlob, localKeyOf } from './db';
 import { isFirebaseConfigured, storage } from './firebase';
@@ -28,7 +29,7 @@ const urlCache = new Map<string, string>();
 async function remoteUrl(path: string): Promise<string> {
   const cached = urlCache.get(path);
   if (cached) return cached;
-  if (!isFirebaseConfigured) throw new Error(`원격 자산을 가져올 수 없어요: ${path}`);
+  if (!isFirebaseConfigured) throw new Error(t('asset.remoteUnavailable', { path }));
   const url = await getDownloadURL(ref(storage(), path));
   urlCache.set(path, url);
   return url;
@@ -37,16 +38,16 @@ async function remoteUrl(path: string): Promise<string> {
 async function blobOf(entry: { ref: AssetRef; workId: string }): Promise<Blob> {
   const local = await getAssetBlob(entry.ref.localKey ?? localKeyOf(entry.workId, entry.ref.id));
   if (local) return local;
-  if (!entry.ref.remotePath) throw new Error(`자산을 찾을 수 없어요: ${entry.ref.id}`);
+  if (!entry.ref.remotePath) throw new Error(t('asset.notFound', { id: entry.ref.id }));
   const res = await fetch(await remoteUrl(entry.ref.remotePath));
-  if (!res.ok) throw new Error(`자산을 가져오지 못했어요: ${entry.ref.id}`);
+  if (!res.ok) throw new Error(t('asset.fetchFailed', { id: entry.ref.id }));
   return res.blob();
 }
 
 /** 오디오 엔진용. assetId → ArrayBuffer. */
 export async function resolveAsset(assetId: string): Promise<ArrayBuffer> {
   const entry = lookupAsset(assetId);
-  if (!entry) throw new Error(`알 수 없는 자산: ${assetId}`);
+  if (!entry) throw new Error(t('asset.unknown', { id: assetId }));
   return (await blobOf(entry)).arrayBuffer();
 }
 
@@ -57,7 +58,7 @@ export async function resolveImageUrl(assetId: string): Promise<string> {
   const existing = objectUrls.get(assetId);
   if (existing) return existing;
   const entry = lookupAsset(assetId);
-  if (!entry) throw new Error(`알 수 없는 자산: ${assetId}`);
+  if (!entry) throw new Error(t('asset.unknown', { id: assetId }));
 
   const local = await getAssetBlob(entry.ref.localKey ?? localKeyOf(entry.workId, entry.ref.id));
   if (local) {
@@ -65,7 +66,7 @@ export async function resolveImageUrl(assetId: string): Promise<string> {
     objectUrls.set(assetId, url);
     return url;
   }
-  if (!entry.ref.remotePath) throw new Error(`그림을 찾을 수 없어요: ${assetId}`);
+  if (!entry.ref.remotePath) throw new Error(t('asset.artNotFound', { id: assetId }));
   return remoteUrl(entry.ref.remotePath);
 }
 

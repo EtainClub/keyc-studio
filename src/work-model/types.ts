@@ -187,11 +187,11 @@ export const TEMPO_BPM: Record<TempoPreset, TempoBpm> = {
   fast: 130,
 };
 
-export const TEMPO_LABEL: Record<TempoPreset, string> = {
-  slow: '느리게',
-  normal: '보통',
-  fast: '빠르게',
-};
+/*
+ * 빠르기 이름(느리게/보통/빠르게)은 여기 없다.
+ * 이 모듈은 화면도 언어도 모르는 순수 스키마다 — 이름은 StageScreen이
+ * i18n 사전에서 가져온다.
+ */
 
 export function tempoOf(preset: TempoPreset): Tempo {
   return { preset, bpm: TEMPO_BPM[preset] };

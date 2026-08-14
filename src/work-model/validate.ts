@@ -5,6 +5,7 @@
  * 두 곳의 상한값(title 20 / hint 40 / events 600 / keys 4)은 항상 같아야 한다.
  */
 
+import { t } from '../i18n';
 import { durationForTempo } from './timing';
 import {
   HINT_MAX,
@@ -49,49 +50,52 @@ export function validateWork(work: Work): ValidationError[] {
   const errors: ValidationError[] = [];
 
   if (work.schemaVersion !== SCHEMA_VERSION) {
-    errors.push({ field: 'schemaVersion', message: '알 수 없는 스키마 버전이에요' });
+    errors.push({ field: 'schemaVersion', message: t('validate.schemaVersion') });
   }
   if (!work.id || work.id.length !== WORK_ID_LENGTH) {
-    errors.push({ field: 'id', message: '작품 번호가 올바르지 않아요' });
+    errors.push({ field: 'id', message: t('validate.id') });
   }
   if (Array.from(work.title).length > TITLE_MAX) {
-    errors.push({ field: 'title', message: `제목은 ${TITLE_MAX}자까지예요` });
+    errors.push({ field: 'title', message: t('validate.title', { max: TITLE_MAX }) });
   }
   if (Array.from(work.hint).length > HINT_MAX) {
-    errors.push({ field: 'hint', message: `한 줄 힌트는 ${HINT_MAX}자까지예요` });
+    errors.push({ field: 'hint', message: t('validate.hint', { max: HINT_MAX }) });
   }
   if (work.keys.length !== KEY_COUNT) {
-    errors.push({ field: 'keys', message: '키캡은 4개여야 해요' });
+    errors.push({ field: 'keys', message: t('validate.keyCount') });
   }
   if (work.replay.events.length > REPLAY_EVENTS_MAX) {
-    errors.push({ field: 'replay.events', message: '공연 기록이 너무 길어요' });
+    errors.push({ field: 'replay.events', message: t('validate.eventsTooLong') });
   }
   if (!Number.isInteger(work.replay.seed) || work.replay.seed < 0) {
-    errors.push({ field: 'replay.seed', message: '공연 씨앗값이 올바르지 않아요' });
+    errors.push({ field: 'replay.seed', message: t('validate.seed') });
   }
   if (work.replay.durationMs !== durationForTempo(work.tempo)) {
     // 템포를 바꾸고 길이를 안 고친 경우. 조용히 넘기면 리플레이가 어긋난다.
-    errors.push({ field: 'replay.durationMs', message: '공연 길이가 빠르기와 맞지 않아요' });
+    errors.push({ field: 'replay.durationMs', message: t('validate.duration') });
   }
 
   work.keys.forEach((k, i) => {
     if (k.sound.pitch < 0.5 || k.sound.pitch > 2) {
-      errors.push({ field: `keys[${i}].sound.pitch`, message: '음높이 범위를 벗어났어요' });
+      errors.push({ field: `keys[${i}].sound.pitch`, message: t('validate.pitch') });
     }
     if (k.sound.gain < 0 || k.sound.gain > 1) {
-      errors.push({ field: `keys[${i}].sound.gain`, message: '소리 크기 범위를 벗어났어요' });
+      errors.push({ field: `keys[${i}].sound.gain`, message: t('validate.gain') });
     }
     if (!k.sound.assetId && !k.sound.presetId) {
-      errors.push({ field: `keys[${i}].sound`, message: '소리가 없어요' });
+      errors.push({ field: `keys[${i}].sound`, message: t('validate.noSound') });
     }
     if (k.sound.assetId && !work.assets.some((a) => a.id === k.sound.assetId)) {
-      errors.push({ field: `keys[${i}].sound.assetId`, message: '소리 파일을 찾을 수 없어요' });
+      errors.push({ field: `keys[${i}].sound.assetId`, message: t('validate.soundMissing') });
     }
     if (
       k.appearance.artAssetId &&
       !work.assets.some((a) => a.id === k.appearance.artAssetId)
     ) {
-      errors.push({ field: `keys[${i}].appearance.artAssetId`, message: '그림을 찾을 수 없어요' });
+      errors.push({
+        field: `keys[${i}].appearance.artAssetId`,
+        message: t('validate.artMissing'),
+      });
     }
   });
 

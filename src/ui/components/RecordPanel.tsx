@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { VoiceRecorder } from '../../audio-engine/recorder';
+import { t } from '../../i18n';
 import type { EncodedSound } from '../../audio-engine/wav';
 
 type Phase = 'idle' | 'asking' | 'countdown' | 'recording' | 'review' | 'error';
@@ -48,8 +49,8 @@ export function RecordPanel({ onAccept, onPreview }: Props) {
     } catch (e) {
       setError(
         e instanceof Error && e.name === 'NotAllowedError'
-          ? '마이크를 쓸 수 없어요. 브라우저 설정에서 허용해 주세요.'
-          : '마이크를 열지 못했어요.',
+          ? t('record.denied')
+          : t('record.failed'),
       );
       setPhase('error');
       return;
@@ -80,11 +81,11 @@ export function RecordPanel({ onAccept, onPreview }: Props) {
     <div className="recorder">
       {phase === 'idle' && (
         <button type="button" className="rec-button" onClick={start}>
-          <span className="rec-dot" />내 목소리 녹음
+          <span className="rec-dot" />{t('record.cta')}
         </button>
       )}
 
-      {phase === 'asking' && <p className="rec-hint">마이크를 준비하고 있어요…</p>}
+      {phase === 'asking' && <p className="rec-hint">{t('record.preparing')}</p>}
 
       {phase === 'countdown' && (
         <div className="rec-count" aria-live="assertive">
@@ -95,25 +96,28 @@ export function RecordPanel({ onAccept, onPreview }: Props) {
       {phase === 'recording' && (
         <div className="rec-live">
           <div className="rec-ring" style={{ transform: `scale(${1 + level * 0.6})` }} />
-          <p>지금 말해요!</p>
+          <p>{t('record.speakNow')}</p>
         </div>
       )}
 
       {phase === 'review' && result && (
         <div className="rec-review">
-          {result.tooQuiet && <p className="warn">소리가 너무 작아요. 다시 해볼까요?</p>}
+          {result.tooQuiet && <p className="warn">{t('record.tooQuiet')}</p>}
           <p className="rec-size">
-            {result.durationSec.toFixed(1)}초 · {Math.round(result.bytes / 1024)}KB
+            {t('record.meta', {
+              seconds: result.durationSec.toFixed(1),
+              kb: Math.round(result.bytes / 1024),
+            })}
           </p>
           <div className="draw-row">
             <button type="button" className="chip" onClick={() => onPreview(result.blob)}>
-              ▶ 들어보기
+              {t('record.listen')}
             </button>
             <button type="button" className="chip" onClick={start}>
-              ↺ 다시 녹음
+              {t('record.again')}
             </button>
             <button type="button" className="chip primary" onClick={accept}>
-              이걸로 할래요
+              {t('record.use')}
             </button>
           </div>
         </div>
@@ -123,7 +127,7 @@ export function RecordPanel({ onAccept, onPreview }: Props) {
         <div className="rec-review">
           <p className="warn">{error}</p>
           <button type="button" className="chip" onClick={start}>
-            다시 시도
+            {t('common.retry')}
           </button>
         </div>
       )}

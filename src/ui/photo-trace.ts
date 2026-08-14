@@ -23,6 +23,8 @@
  * 한쪽은 새까맣게 뭉치고 다른 쪽은 아무것도 안 나온다.
  */
 
+import { t } from '../i18n';
+
 const SIZE = 512;
 
 export type TraceStrength = 'soft' | 'normal' | 'strong';
@@ -89,9 +91,9 @@ const LINE_RADIUS = 2;
  * '연하게/진하게'로 부르면 아이가 색연필 굵기로 오해한다.
  */
 export const TRACE_STRENGTHS: { id: TraceStrength; label: string }[] = [
-  { id: 'soft', label: '단순하게' },
-  { id: 'normal', label: '보통' },
-  { id: 'strong', label: '자세하게' },
+  { id: 'soft', label: t('trace.soft') },
+  { id: 'normal', label: t('trace.normal') },
+  { id: 'strong', label: t('trace.strong') },
 ];
 
 /**
@@ -136,7 +138,7 @@ async function loadBitmap(file: Blob): Promise<ImageBitmap | HTMLImageElement> {
     return await new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('이 사진은 열 수 없어요'));
+      img.onerror = () => reject(new Error(t('trace.cannotOpen')));
       img.src = url;
     });
   } finally {

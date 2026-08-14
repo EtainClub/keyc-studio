@@ -10,6 +10,7 @@
  */
 
 import { useRef } from 'react';
+import { t } from '../../i18n';
 import { useModalShell } from '../hooks';
 
 type Props = {
@@ -27,7 +28,7 @@ export function ConfirmDialog({
   title,
   detail,
   confirmLabel,
-  cancelLabel = '그만두기',
+  cancelLabel = t('common.cancel'),
   onConfirm,
   onCancel,
 }: Props) {

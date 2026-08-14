@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { t } from '../../i18n';
 import { useAppState } from '../state';
 
 type IconName = 'home' | 'feed' | 'create';
@@ -38,7 +39,7 @@ export function BottomNav() {
   };
 
   return (
-    <nav className="bottom-nav" aria-label="주요 메뉴">
+    <nav className="bottom-nav" aria-label={t('nav.aria')}>
       <button
         type="button"
         className={`bottom-nav-item${homeActive ? ' active' : ''}`}
@@ -46,7 +47,7 @@ export function BottomNav() {
         onClick={() => nav('/')}
       >
         <NavIcon name="home" />
-        <span>홈</span>
+        <span>{t('common.home')}</span>
       </button>
       <button
         type="button"
@@ -55,11 +56,11 @@ export function BottomNav() {
         onClick={() => nav('/feed')}
       >
         <NavIcon name="feed" />
-        <span>스테이지</span>
+        <span>{t('common.stage')}</span>
       </button>
       <button type="button" className="bottom-nav-item create" onClick={create}>
         <span className="bottom-nav-create-icon"><NavIcon name="create" /></span>
-        <span>만들기</span>
+        <span>{t('common.create')}</span>
       </button>
     </nav>
   );

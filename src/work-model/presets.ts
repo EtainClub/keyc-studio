@@ -6,6 +6,8 @@
  * 안 지키면 과거 작품들이 어느 날 다르게 들린다.
  */
 
+import { t } from '../i18n';
+
 export type PresetId =
   | 'realTactile9@1'
   | 'realTactile8@1'
@@ -31,24 +33,28 @@ export type PresetInfo = {
   kind: 'keycap' | 'effect' | 'legacy';
 };
 
+/**
+ * label만 언어를 탄다. id는 절대 번역하지 않는다 — 저장된 작품이 참조하는 값이다.
+ * 언어는 앱이 뜰 때 고정되므로 이 배열도 모듈 로드 시점에 한 번만 만들어진다.
+ */
 export const PRESETS: PresetInfo[] = [
-  { id: 'realTactile9@1', label: '타건 A', emoji: '⌨️', kind: 'keycap' },
-  { id: 'realTactile8@1', label: '타건 B', emoji: '⌨️', kind: 'keycap' },
-  { id: 'realTactile14@1', label: '타건 C', emoji: '⌨️', kind: 'keycap' },
-  { id: 'realMxBlue@1', label: 'MX 블루', emoji: '🔵', kind: 'keycap' },
+  { id: 'realTactile9@1', label: t('preset.realTactile9'), emoji: '⌨️', kind: 'keycap' },
+  { id: 'realTactile8@1', label: t('preset.realTactile8'), emoji: '⌨️', kind: 'keycap' },
+  { id: 'realTactile14@1', label: t('preset.realTactile14'), emoji: '⌨️', kind: 'keycap' },
+  { id: 'realMxBlue@1', label: t('preset.realMxBlue'), emoji: '🔵', kind: 'keycap' },
   // 합성 타건음은 기존 작품의 재생 호환성을 위해 보존하되 새 작품과 선택 목록에서는 숨긴다.
-  { id: 'keyLinear@1', label: '리니어', emoji: '🔴', kind: 'legacy' },
-  { id: 'keyTactile@1', label: '택타일', emoji: '🟤', kind: 'legacy' },
-  { id: 'keyClicky@1', label: '클릭', emoji: '🔵', kind: 'legacy' },
-  { id: 'keyThock@1', label: '도각', emoji: '⚫', kind: 'legacy' },
-  { id: 'tok@1', label: '톡', emoji: '👆', kind: 'effect' },
-  { id: 'kkuk@1', label: '꾹', emoji: '🫵', kind: 'effect' },
-  { id: 'ppyong@1', label: '뿅', emoji: '✨', kind: 'effect' },
-  { id: 'dung@1', label: '둥', emoji: '🥁', kind: 'effect' },
-  { id: 'ttok@1', label: '딱', emoji: '👏', kind: 'effect' },
-  { id: 'chak@1', label: '착', emoji: '🪄', kind: 'effect' },
-  { id: 'bbiyong@1', label: '삐용', emoji: '🚨', kind: 'effect' },
-  { id: 'bung@1', label: '붕', emoji: '🚗', kind: 'effect' },
+  { id: 'keyLinear@1', label: t('preset.keyLinear'), emoji: '🔴', kind: 'legacy' },
+  { id: 'keyTactile@1', label: t('preset.keyTactile'), emoji: '🟤', kind: 'legacy' },
+  { id: 'keyClicky@1', label: t('preset.keyClicky'), emoji: '🔵', kind: 'legacy' },
+  { id: 'keyThock@1', label: t('preset.keyThock'), emoji: '⚫', kind: 'legacy' },
+  { id: 'tok@1', label: t('preset.tok'), emoji: '👆', kind: 'effect' },
+  { id: 'kkuk@1', label: t('preset.kkuk'), emoji: '🫵', kind: 'effect' },
+  { id: 'ppyong@1', label: t('preset.ppyong'), emoji: '✨', kind: 'effect' },
+  { id: 'dung@1', label: t('preset.dung'), emoji: '🥁', kind: 'effect' },
+  { id: 'ttok@1', label: t('preset.ttok'), emoji: '👏', kind: 'effect' },
+  { id: 'chak@1', label: t('preset.chak'), emoji: '🪄', kind: 'effect' },
+  { id: 'bbiyong@1', label: t('preset.bbiyong'), emoji: '🚨', kind: 'effect' },
+  { id: 'bung@1', label: t('preset.bung'), emoji: '🚗', kind: 'effect' },
 ];
 
 export const KEYCAP_PRESETS = PRESETS.filter((preset) => preset.kind === 'keycap');

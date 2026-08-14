@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { t } from '../../i18n';
 import { deleteAccountBackup } from '../../storage/account';
 import { deleteWorkRecord, listWorkRecords, type WorkRecord } from '../../storage/db';
 import { missionOfDay } from '../../work-model/missions';
@@ -80,12 +81,12 @@ export function HomeScreen() {
   return (
     <main className="screen home">
       <header className="home-head">
-        <h1 className="logo">키캡 크리에이터</h1>
+        <h1 className="logo">{t('common.appName')}</h1>
         <div className="profile-menu" ref={profileMenuRef}>
           <button
             type="button"
             className="profile-trigger"
-            aria-label="프로필 메뉴 열기"
+            aria-label={t('home.profileMenu')}
             aria-haspopup="menu"
             aria-expanded={profileMenuOpen}
             aria-controls="home-profile-menu"
@@ -99,7 +100,7 @@ export function HomeScreen() {
                 <ProfileAvatar url={profile.avatarUrl} name={profile.name} />
                 <span>
                   <strong>{profile.name}</strong>
-                  <small>{account.kind === 'google' ? 'Google에 보관 중' : '이 기기에 저장 중'}</small>
+                  <small>{account.kind === 'google' ? t('home.storedGoogle') : t('home.storedDevice')}</small>
                 </span>
               </div>
               <button
@@ -112,7 +113,7 @@ export function HomeScreen() {
                 }}
               >
                 <span className="profile-menu-icon" aria-hidden="true">✎</span>
-                프로필 편집
+                {t('home.editProfile')}
               </button>
               <button
                 type="button"
@@ -124,7 +125,7 @@ export function HomeScreen() {
                 }}
               >
                 <span className="profile-menu-icon guide" aria-hidden="true">?</span>
-                앱 사용법
+                {t('home.howTo')}
               </button>
             </div>
           ) : null}
@@ -132,38 +133,38 @@ export function HomeScreen() {
       </header>
 
       <p className="mission">
-        <span className="mission-tag">오늘의 미션</span>
+        <span className="mission-tag">{t('home.missionTag')}</span>
         {mission}
       </p>
 
       <button type="button" className="big-cta" onClick={create}>
         <span className="big-cta-plus">＋</span>
-        새로 만들기
+        {t('home.newWork')}
       </button>
 
       <section className="my-works">
-        <h2>내 작품</h2>
+        <h2>{t('home.myWorks')}</h2>
         {records.length === 0 ? (
-          <p className="empty">아직 없어요. 위 버튼을 눌러 첫 작품을 만들어 보세요.</p>
+          <p className="empty">{t('home.empty')}</p>
         ) : (
           <ul className="work-list">
             {records.map((r) => (
               <li key={r.work.id}>
                 <button type="button" className="work-card" onClick={() => open(r)}>
                   <WorkThumbnail blob={r.thumb} />
-                  <span className="work-title">{r.work.title || '이름 없는 작품'}</span>
+                  <span className="work-title">{r.work.title || t('common.untitled')}</span>
                   <span className="work-state">
                     {isShareCurrent(r.work, r.published)
-                      ? '공유됨 · 눌러서 듣기'
+                      ? t('home.stateShared')
                       : r.published
-                        ? '변경됨 · 눌러서 다시 공유'
-                        : '만드는 중 · 눌러서 이어서'}
+                        ? t('home.stateChanged')
+                        : t('home.stateDraft')}
                   </span>
                 </button>
                 <button
                   type="button"
                   className="work-delete"
-                  aria-label={`${r.work.title || '이름 없는 작품'} 지우기`}
+                  aria-label={t('home.deleteAria', { title: r.work.title || t('common.untitled') })}
                   onClick={() => setPendingDelete(r)}
                 >
                   ✕
@@ -176,9 +177,11 @@ export function HomeScreen() {
 
       {pendingDelete && (
         <ConfirmDialog
-          title={`'${pendingDelete.work.title || '이름 없는 작품'}'을 지울까요?`}
-          detail="그린 그림과 녹음한 소리도 함께 사라져요. 되돌릴 수 없어요."
-          confirmLabel="지우기"
+          title={t('home.deleteTitle', {
+            title: pendingDelete.work.title || t('common.untitled'),
+          })}
+          detail={t('home.deleteDetail')}
+          confirmLabel={t('common.delete')}
           onConfirm={() => void remove(pendingDelete)}
           onCancel={() => setPendingDelete(null)}
         />

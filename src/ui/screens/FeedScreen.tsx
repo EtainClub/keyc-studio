@@ -28,6 +28,7 @@ import {
   type FeedSort,
   type PublicFeedItem,
 } from '../../storage/remote';
+import { t } from '../../i18n';
 import { listMyGroups, type MyGroup } from '../../storage/groups';
 import { PUBLIC_ORIGIN } from '../../storage/firebase';
 import { useAppState } from '../state';
@@ -38,8 +39,8 @@ import { GroupStageScreen } from './GroupStageScreen';
 const SEARCH_DEBOUNCE_MS = 400;
 
 const SORTS: { id: FeedSort; label: string }[] = [
-  { id: 'latest', label: '최신순' },
-  { id: 'popular', label: '많이 들은 순' },
+  { id: 'latest', label: t('feed.sort.latest') },
+  { id: 'popular', label: t('feed.sort.popular') },
 ];
 
 export function FeedScreen() {
@@ -69,7 +70,7 @@ export function FeedScreen() {
       .then(setMyGroups)
       .catch((cause: unknown) => {
         setMyGroups([]);
-        setGroupsError(cause instanceof Error ? cause.message : '내 그룹을 불러오지 못했어요');
+        setGroupsError(cause instanceof Error ? cause.message : t('feed.groupsLoadFailed'));
       });
   }, []);
 
@@ -114,20 +115,20 @@ export function FeedScreen() {
       <header className="feed-head">
         <div>
           <p className="feed-kicker">KEYC STAGE</p>
-          <h1>키크 스테이지</h1>
-          <p>모두의 키크 공연을 만나고 다시 연주해 보세요.</p>
+          <h1>{t('feed.title')}</h1>
+          <p>{t('feed.lead')}</p>
         </div>
       </header>
 
       {/* 정렬 세그먼트와 헷갈리지 않도록 라벨을 분명히 다르게 둔다. */}
-      <div className="seg feed-scope" role="group" aria-label="스테이지 종류">
+      <div className="seg feed-scope" role="group" aria-label={t('feed.scopeAria')}>
         <button
           type="button"
           className={`seg-btn ${activeTab === 'all' ? 'on' : ''}`}
           aria-pressed={activeTab === 'all'}
           onClick={selectAll}
         >
-          모두
+          {t('feed.scopeAll')}
         </button>
         <button
           type="button"
@@ -135,7 +136,7 @@ export function FeedScreen() {
           aria-pressed={activeTab === 'group'}
           onClick={selectGroupTab}
         >
-          그룹
+          {t('feed.scopeGroup')}
         </button>
       </div>
 
@@ -191,7 +192,7 @@ function GroupPicker({
   if (groups === null) {
     return (
       <p className="feed-status" role="status" aria-live="polite">
-        내 그룹을 불러오는 중…
+        {t('feed.groupsLoading')}
       </p>
     );
   }
@@ -201,10 +202,10 @@ function GroupPicker({
     return (
       <section className="feed-empty">
         <span className="feed-empty-icon" aria-hidden="true">↻</span>
-        <h2>내 그룹을 불러오지 못했어요</h2>
+        <h2>{t('feed.groupsLoadFailed')}</h2>
         <p>{error}</p>
         <button type="button" className="chip primary wide" onClick={onRetry}>
-          다시 불러오기
+          {t('feed.reload')}
         </button>
       </section>
     );
@@ -214,28 +215,28 @@ function GroupPicker({
     return (
       <section className="feed-empty">
         <span className="feed-empty-icon" aria-hidden="true">👥</span>
-        <h2>아직 참여한 그룹이 없어요</h2>
-        <p>초대 코드가 있으면 입장하고, 없으면 새로 만들어 보세요.</p>
+        <h2>{t('feed.noGroupsTitle')}</h2>
+        <p>{t('feed.noGroupsBody')}</p>
         <button type="button" className="chip primary wide" onClick={() => nav('/g/join')}>
-          코드로 입장하기
+          {t('feed.joinByCode')}
         </button>
         <button type="button" className="chip wide" onClick={() => nav('/g/join?new=1')}>
-          그룹 만들기
+          {t('feed.createGroup')}
         </button>
       </section>
     );
   }
 
   return (
-    <section aria-label="내 그룹 고르기">
-      <p className="feed-status">들어갈 그룹을 골라주세요.</p>
+    <section aria-label={t('feed.pickGroupAria')}>
+      <p className="feed-status">{t('feed.pickGroup')}</p>
       <div className="feed-chips">
         {groups.map((g) => (
           <button
             key={g.id}
             type="button"
             className="chip"
-            aria-label={`${g.name} 그룹 스테이지로 이동`}
+            aria-label={t('feed.goToGroupAria', { name: g.name })}
             onClick={() => onSelect(g.id)}
           >
             {g.name}
@@ -246,10 +247,10 @@ function GroupPicker({
           목록만 있으면 이미 입장한 그룹 밖으로는 못 나가는 화면이 된다. */}
       <div className="join-group-panel group-picker-more">
         <button type="button" className="chip wide" onClick={() => nav('/g/join')}>
-          코드로 새 그룹 입장하기
+          {t('feed.joinAnother')}
         </button>
         <button type="button" className="chip wide" onClick={() => nav('/g/join?new=1')}>
-          그룹 만들기
+          {t('feed.createGroup')}
         </button>
       </div>
     </section>
@@ -376,13 +377,13 @@ function PublicFeedSection() {
     <>
       <section className="feed-tools">
         <label className="feed-search">
-          <span className="visually-hidden">공연 찾기</span>
+          <span className="visually-hidden">{t('feed.searchLabel')}</span>
           <span className="feed-search-icon" aria-hidden="true">🔍</span>
           <input
             type="search"
             name="feed-search"
             autoComplete="off"
-            placeholder="제목·힌트·별명으로 찾기…"
+            placeholder={t('feed.searchPlaceholder')}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
@@ -390,7 +391,7 @@ function PublicFeedSection() {
             <button
               type="button"
               className="feed-search-clear"
-              aria-label="검색어 지우기"
+              aria-label={t('feed.clearSearch')}
               onClick={() => setSearchInput('')}
             >
               ✕
@@ -399,7 +400,7 @@ function PublicFeedSection() {
         </label>
 
         {/* 정렬은 둘 중 하나다 — 세그먼트로 두어 지금 어느 쪽인지 한눈에 보이게 한다. */}
-        <div className="seg feed-sort" role="group" aria-label="정렬 기준">
+        <div className="seg feed-sort" role="group" aria-label={t('feed.sortAria')}>
           {SORTS.map((s) => (
             <button
               key={s.id}
@@ -418,10 +419,10 @@ function PublicFeedSection() {
             <button
               type="button"
               className="chip on feed-filter-chip"
-              aria-label={`${authorNick} 작성자 필터 끄기`}
+              aria-label={t('feed.authorFilterOff', { nick: authorNick })}
               onClick={() => setAuthorNick('')}
             >
-              {authorNick}의 공연만 <span aria-hidden>✕</span>
+              {t('feed.authorFilterOn', { nick: authorNick })} <span aria-hidden>✕</span>
             </button>
           </div>
         )}
@@ -430,9 +431,11 @@ function PublicFeedSection() {
       {/* 결과 개수는 스크린리더에도 알린다. 검색은 화면이 조용히 바뀌는 대표적인 자리다. */}
       <p className="feed-status" role="status" aria-live="polite">
         {items === null
-          ? '키크 스테이지를 불러오는 중…'
+          ? t('feed.loading')
           : filtered
-            ? `${items.length}개 찾았어요${cursor ? ' (더 있어요)' : ''}`
+            ? (cursor
+              ? t('feed.foundCountMore', { n: items.length })
+              : t('feed.foundCount', { n: items.length }))
             : ''}
       </p>
 
@@ -443,16 +446,16 @@ function PublicFeedSection() {
           </span>
           <h2>
             {error
-              ? '스테이지를 불러오지 못했어요'
+              ? t('feed.loadFailed')
               : filtered
-                ? '찾는 공연이 없어요'
-                : '아직 공개된 공연이 없어요'}
+                ? t('feed.noMatch')
+                : t('feed.empty')}
           </h2>
           <p>
             {error ||
               (filtered
-                ? '다른 말로 찾아보거나 조건을 지워 보세요.'
-                : '첫 공연을 완성해 공개하면 이곳에서 모두 함께 리플레이할 수 있어요.')}
+                ? t('feed.noMatchHelp')
+                : t('feed.emptyHelp'))}
           </p>
           {error ? (
             <button
@@ -460,22 +463,22 @@ function PublicFeedSection() {
               className="chip primary wide"
               onClick={() => void load({ cursor: null, append: false })}
             >
-              다시 불러오기
+              {t('feed.reload')}
             </button>
           ) : filtered ? (
             <button type="button" className="chip primary wide" onClick={clearFilters}>
-              조건 지우기
+              {t('feed.clearFilters')}
             </button>
           ) : (
             <button type="button" className="chip primary wide" onClick={create}>
-              첫 작품 만들기
+              {t('guide.firstWork')}
             </button>
           )}
         </section>
       ) : null}
 
       {items && items.length > 0 ? (
-        <section className="feed-list" aria-label="키크 스테이지 공개 작품">
+        <section className="feed-list" aria-label={t('feed.listAria')}>
           {items.map((item, index) => (
             <article className={`feed-card${index === 0 ? ' featured' : ''}`} key={item.id}>
               <div className="feed-cover">
@@ -499,8 +502,8 @@ function PublicFeedSection() {
                     />
                   )}
                 </div>
-                <span className="feed-badge">공개</span>
-                <span className="feed-duration">{Math.round(item.durationMs / 1000)}초</span>
+                <span className="feed-badge">{t('feed.badgePublic')}</span>
+                <span className="feed-duration">{t('feed.duration', { seconds: Math.round(item.durationMs / 1000) })}</span>
               </div>
               <div className="feed-card-body">
                 <div className="feed-card-copy">
@@ -512,27 +515,27 @@ function PublicFeedSection() {
                     <button
                       type="button"
                       className="feed-author"
-                      aria-label={`${item.authorNick}의 공연만 보기`}
+                      aria-label={t('feed.onlyAuthorAria', { nick: item.authorNick })}
                       onClick={() => setAuthorNick(item.authorNick)}
                     >
-                      {item.authorNick}의 공연
+                      {t('feed.authorWorks', { nick: item.authorNick })}
                     </button>
                   </div>
-                  <h2>{item.title || '이름 없는 작품'}</h2>
+                  <h2>{item.title || t('common.untitled')}</h2>
                   {item.hint ? <p className="feed-hint">{item.hint}</p> : null}
                   <p className="feed-replay-count">
                     <span aria-hidden="true">▶</span>
-                    리플레이 {item.replayCount.toLocaleString('ko-KR')}회
+                    {t('feed.replayCount', { n: item.replayCount })}
                   </p>
                 </div>
                 <button
                   type="button"
                   className="feed-replay"
-                  aria-label={`${item.title || '이름 없는 작품'} 리플레이`}
+                  aria-label={t('feed.replayAria', { title: item.title || t('common.untitled') })}
                   onClick={() => replay(item.id)}
                 >
                   <span aria-hidden="true">▶</span>
-                  리플레이
+                  {t('feed.replay')}
                 </button>
               </div>
             </article>
@@ -548,7 +551,7 @@ function PublicFeedSection() {
             disabled={loadingMore}
             onClick={() => void load({ cursor, append: true })}
           >
-            {loadingMore ? '불러오는 중…' : '더 보기'}
+            {loadingMore ? t('feed.loadingMore') : t('feed.more')}
           </button>
         </div>
       )}

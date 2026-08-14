@@ -6,6 +6,7 @@
  * 개수를 검사하기 때문에 압축 인코딩으로 바꾸면 규칙이 무력해진다.
  */
 
+import { t } from '../i18n';
 import { createDefaultKey } from './defaults';
 import { newSeed } from './rng';
 import { durationForTempo } from './timing';
@@ -68,7 +69,7 @@ export function parseWork(raw: unknown): Work | null {
     presetVersion: typeof src.presetVersion === 'string' ? src.presetVersion : PRESET_VERSION,
     title: typeof src.title === 'string' ? src.title : '',
     hint: typeof src.hint === 'string' ? src.hint : '',
-    authorNick: typeof src.authorNick === 'string' ? src.authorNick : '이름없는친구',
+    authorNick: typeof src.authorNick === 'string' ? src.authorNick : t('serialize.unknownAuthor'),
     authorUid: typeof src.authorUid === 'string' ? src.authorUid : null,
     createdAt: typeof src.createdAt === 'number' ? src.createdAt : Date.now(),
     tempo,

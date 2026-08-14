@@ -1,3 +1,5 @@
+import { t } from '../../i18n';
+
 export function ProfileAvatar({ url, name }: { url: string | null; name: string }) {
   return url ? (
     <img
@@ -11,7 +13,7 @@ export function ProfileAvatar({ url, name }: { url: string | null; name: string 
     />
   ) : (
     <span className="profile-avatar profile-avatar-fallback" aria-hidden="true">
-      {Array.from(name.trim())[0] || '키'}
+      {Array.from(name.trim())[0] || t('common.avatarFallback')}
     </span>
   );
 }

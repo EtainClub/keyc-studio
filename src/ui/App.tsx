@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { t } from '../i18n';
 import { BottomNav } from './components/BottomNav';
 import { AppStateProvider } from './state';
 import { HomeScreen } from './screens/HomeScreen';
@@ -59,7 +60,7 @@ function AppRoutes() {
 
   return (
     <div className={`app-shell${showBottomNav ? ' with-bottom-nav' : ''}`}>
-      <Suspense fallback={<main className="screen"><p className="note">준비 중…</p></main>}>
+      <Suspense fallback={<main className="screen"><p className="note">{t('common.loading')}</p></main>}>
         <Routes>
           <Route path="/" element={<HomeScreen />} />
           <Route path="/feed" element={<FeedScreen />} />

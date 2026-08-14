@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { workBytes } from '../../storage/db';
 import { explainFirebaseError, shareUrl, unshareWork } from '../../storage/remote';
+import { t } from '../../i18n';
 import { HINT_MAX, TITLE_MAX } from '../../work-model/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { KeycapGrid, type GridHandle } from '../components/KeycapGrid';
@@ -68,11 +69,11 @@ export function WorkCardScreen() {
     const link = url ?? shareUrl(draft.id);
     try {
       await navigator.clipboard.writeText(link);
-      setNotice('링크를 복사했어요');
+      setNotice(t('card.copied'));
     } catch {
       // prompt()를 띄우지 않는다. 링크는 이미 화면에 그대로 보이므로
       // 무엇을 하면 되는지만 알려주면 된다.
-      setNotice('복사하지 못했어요. 위 링크를 길게 눌러 복사해 주세요.');
+      setNotice(t('card.copyFailed'));
     }
   };
 
@@ -82,9 +83,9 @@ export function WorkCardScreen() {
       await unshareWork(draft.id);
       patchDraft({ visibility: 'local' });
       setUrl(null);
-      setNotice('공유를 멈췄어요.');
+      setNotice(t('card.shareStopped'));
     } catch (e) {
-      setShareError(`공유를 멈추지 못했어요. ${explainFirebaseError(e)}`);
+      setShareError(t('card.stopFailed', { reason: explainFirebaseError(e) }));
     }
   };
 
@@ -92,24 +93,24 @@ export function WorkCardScreen() {
     <main className="screen card">
       <header className="bar">
         <button type="button" className="bar-back" onClick={() => nav('/perform')}>
-          ‹ 공연
+          {t('card.backToPerform')}
         </button>
-        <h1>작품 카드</h1>
+        <h1>{t('card.title')}</h1>
       </header>
 
       {/* 이 화면의 키캡은 볼거리다. "작품 다시 보기"로 재생하는 동안에만 밝아진다. */}
       <KeycapGrid ref={gridRef} keys={draft.keys} disabled muted={!replaying} />
 
       <button type="button" className="chip wide" onClick={replay} disabled={replaying}>
-        {replaying ? '재생 중…' : '▶ 작품 다시 보기'}
+        {replaying ? t('card.replaying') : t('card.replay')}
       </button>
 
       <label className="field">
-        <span>제목</span>
+        <span>{t('card.titleField')}</span>
         <input
           value={draft.title}
           maxLength={TITLE_MAX}
-          placeholder="예: 고양이의 하루"
+          placeholder={t('card.titlePlaceholder')}
           onChange={(e) => patchDraft({ title: e.target.value })}
         />
         <em>
@@ -118,11 +119,11 @@ export function WorkCardScreen() {
       </label>
 
       <label className="field">
-        <span>한 줄 힌트</span>
+        <span>{t('card.hintField')}</span>
         <input
           value={draft.hint}
           maxLength={HINT_MAX}
-          placeholder="예: 고양이가 어디 가는지 봐주세요"
+          placeholder={t('card.hintPlaceholder')}
           onChange={(e) => patchDraft({ hint: e.target.value })}
         />
         <em>
@@ -131,8 +132,8 @@ export function WorkCardScreen() {
       </label>
 
       <p className="note">
-        만든이: {draft.authorNick}
-        {bytes !== null && ` · 작품 크기 ${Math.round(bytes / 1024)}KB`}
+        {t('card.author', { nick: draft.authorNick })}
+        {bytes !== null && t('card.size', { kb: Math.round(bytes / 1024) })}
       </p>
 
       {!url && draft.visibility === 'local' && (
@@ -144,24 +145,24 @@ export function WorkCardScreen() {
             setGateOpen(true);
           }}
         >
-          공유하기
+          {t('card.share')}
         </button>
       )}
 
       {(url || draft.visibility === 'link') && (
         <section className="share-done">
-          <p className="done-msg">공유 중이에요 🎉</p>
+          <p className="done-msg">{t('card.sharing')}</p>
           <code className="share-link">{url ?? shareUrl(draft.id)}</code>
           <div className="draw-row">
             <button type="button" className="chip" onClick={copy}>
-              링크 복사
+              {t('card.copyLink')}
             </button>
             <button type="button" className="chip primary" onClick={() => nav(`/w/${draft.id}`)}>
-              보러 가기
+              {t('card.goSee')}
             </button>
           </div>
           <button type="button" className="chip wide" onClick={() => setConfirmStop(true)}>
-            공유 멈추기
+            {t('card.stopShare')}
           </button>
         </section>
       )}
@@ -173,14 +174,14 @@ export function WorkCardScreen() {
       {shareError && <p className="warn">{shareError}</p>}
 
       <button type="button" className="chip wide" onClick={() => nav('/')}>
-        홈으로
+        {t('card.toHome')}
       </button>
 
       {confirmStop && (
         <ConfirmDialog
-          title="공유를 멈출까요?"
-          detail="인터넷에 올린 그림과 소리가 지워지고, 링크를 받은 사람도 더는 볼 수 없어요."
-          confirmLabel="공유 멈추기"
+          title={t('card.stopTitle')}
+          detail={t('card.stopDetail')}
+          confirmLabel={t('card.stopShare')}
           onConfirm={() => void stopSharing()}
           onCancel={() => setConfirmStop(false)}
         />

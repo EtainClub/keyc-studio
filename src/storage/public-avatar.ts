@@ -6,6 +6,7 @@
  */
 import { deleteDoc, doc, setDoc } from 'firebase/firestore/lite';
 import { deleteObject, ref, uploadBytes } from 'firebase/storage';
+import { t } from '../i18n';
 import { auth, firestore, isFirebaseConfigured, isPermanentUser, storage } from './firebase';
 import type { CreatorProfile } from './identity';
 import { publicAvatarPath } from './paths';
@@ -19,7 +20,7 @@ function publicProfileRef(uid: string) {
 
 export async function syncPublicAvatar(profile: CreatorProfile): Promise<void> {
   if (!isFirebaseConfigured) {
-    if (profile.stageAvatarEnabled) throw new Error('공개 프로필을 사용하려면 Firebase 설정이 필요해요.');
+    if (profile.stageAvatarEnabled) throw new Error(t('avatar.needFirebase'));
     return;
   }
 
@@ -28,12 +29,12 @@ export async function syncPublicAvatar(profile: CreatorProfile): Promise<void> {
     return;
   }
   if (profile.avatarSource !== 'custom' || !profile.avatarUrl?.startsWith('data:image/')) {
-    throw new Error('스테이지에 공개할 사진을 직접 선택해 주세요. Google 사진은 자동 공개하지 않아요.');
+    throw new Error(t('avatar.pickOwn'));
   }
 
   const user = auth().currentUser;
   if (!isPermanentUser(user)) {
-    throw new Error('공개 사진을 언제든 내릴 수 있도록 먼저 Google 계정을 연결해 주세요.');
+    throw new Error(t('profile.needAccountFirst'));
   }
   const uid = user.uid;
   const path = publicAvatarPath(uid);
@@ -66,7 +67,7 @@ async function renderPublicAvatar(source: string): Promise<Blob> {
   canvas.width = PUBLIC_AVATAR_SIZE;
   canvas.height = PUBLIC_AVATAR_SIZE;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('공개용 사진을 처리할 수 없어요.');
+  if (!ctx) throw new Error(t('avatar.cannotProcess'));
   ctx.fillStyle = '#2a1e50';
   ctx.fillRect(0, 0, PUBLIC_AVATAR_SIZE, PUBLIC_AVATAR_SIZE);
   const scale = Math.max(PUBLIC_AVATAR_SIZE / image.naturalWidth, PUBLIC_AVATAR_SIZE / image.naturalHeight);
@@ -81,12 +82,12 @@ async function renderPublicAvatar(source: string): Promise<Blob> {
   );
   const blob = await new Promise<Blob>((resolve, reject) =>
     canvas.toBlob(
-      (value) => value ? resolve(value) : reject(new Error('공개용 사진을 줄이지 못했어요.')),
+      (value) => value ? resolve(value) : reject(new Error(t('avatar.resizeFailed'))),
       'image/jpeg',
       0.78,
     ),
   );
-  if (blob.size > PUBLIC_AVATAR_MAX_BYTES) throw new Error('공개용 사진의 용량을 줄이지 못했어요.');
+  if (blob.size > PUBLIC_AVATAR_MAX_BYTES) throw new Error(t('avatar.stillTooBig'));
   return blob;
 }
 
@@ -94,7 +95,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('공개용 사진을 읽지 못했어요.'));
+    image.onerror = () => reject(new Error(t('avatar.readFailed')));
     image.src = url;
   });
 }

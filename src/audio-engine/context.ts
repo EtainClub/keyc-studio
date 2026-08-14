@@ -5,6 +5,8 @@
  * 첫 사용자 제스처(pointerdown)에서 반드시 unlock한다 — iOS는 그 전엔 소리를 내지 않는다.
  */
 
+import { t } from '../i18n';
+
 let ctx: AudioContext | null = null;
 let unlocked = false;
 
@@ -13,7 +15,7 @@ type Ctor = typeof AudioContext;
 function getCtor(): Ctor {
   const w = window as unknown as { AudioContext?: Ctor; webkitAudioContext?: Ctor };
   const C = w.AudioContext ?? w.webkitAudioContext;
-  if (!C) throw new Error('이 브라우저는 Web Audio를 지원하지 않아요');
+  if (!C) throw new Error(t('engine.noWebAudio'));
   return C;
 }
 

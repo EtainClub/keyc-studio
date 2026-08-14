@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { t } from '../../i18n';
 import { fetchWork, recordPlay, shareUrl } from '../../storage/remote';
 import { registerAssets } from '../../storage/assets';
 import type { Work } from '../../work-model/types';
@@ -130,7 +131,7 @@ export function ViewScreen() {
   if (phase === 'loading') {
     return (
       <main className="screen view">
-        <p className="note">불러오는 중…</p>
+        <p className="note">{t('view.loading')}</p>
       </main>
     );
   }
@@ -138,11 +139,11 @@ export function ViewScreen() {
   if (phase === 'missing' || !work) {
     return (
       <main className="screen view">
-        <p className="warn">작품을 찾을 수 없어요.</p>
+        <p className="warn">{t('view.notFound')}</p>
         {/* 그룹에서 왔다면 홈이 아니라 그룹으로 돌려보낸다 — 없어진 작품 하나 때문에
             그룹 스테이지 밖으로 튕겨 나갈 이유가 없다. */}
         <button type="button" className="chip" onClick={() => nav(backTo ?? '/')}>
-          {backTo ? '그룹 스테이지로' : '홈으로'}
+          {backTo ? t('view.toGroupStage') : t('card.toHome')}
         </button>
       </main>
     );
@@ -153,12 +154,12 @@ export function ViewScreen() {
       <header className="view-head">
         {backTo && (
           <button type="button" className="chip view-back" onClick={() => nav(backTo)}>
-            <span aria-hidden="true">←</span> 그룹 스테이지
+            <span aria-hidden="true">←</span> {t('view.backGroupStage')}
           </button>
         )}
-        <h1>{work.title || '이름 없는 작품'}</h1>
+        <h1>{work.title || t('common.untitled')}</h1>
         {work.hint && <p className="hint">{work.hint}</p>}
-        <p className="nick">{work.authorNick} 만듦</p>
+        <p className="nick">{t('view.by', { nick: work.authorNick })}</p>
       </header>
 
       {/*
@@ -177,13 +178,13 @@ export function ViewScreen() {
           <div className="progress" aria-hidden>
             <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
           </div>
-          <p className="live-hint">{phase === 'paused' ? '공연을 잠시 멈췄어요' : '공연 중…'}</p>
-          <div className="performance-controls" role="group" aria-label="공연 재생 제어">
+          <p className="live-hint">{phase === 'paused' ? t('view.paused') : t('view.playing')}</p>
+          <div className="performance-controls" role="group" aria-label={t('perform.controlsAria')}>
             <button type="button" className="chip performance-pause" onClick={toggleReplayPause}>
-              {phase === 'paused' ? '▶ 계속하기' : 'Ⅱ 일시정지'}
+              {phase === 'paused' ? t('perform.resume') : t('perform.pause')}
             </button>
             <button type="button" className="chip performance-stop" onClick={stopReplay}>
-              ■ 재생 중단
+              {t('view.stop')}
             </button>
           </div>
         </section>
@@ -204,7 +205,7 @@ export function ViewScreen() {
 
       {phase === 'idle' && (
         <button type="button" className="big-cta" onClick={() => playReplay(work)}>
-          ▶ 작품 보기
+          {t('view.play')}
         </button>
       )}
 
@@ -212,14 +213,14 @@ export function ViewScreen() {
         <div className="done-row">
           {phase === 'ended' && (
             <button type="button" className="big-cta" onClick={() => startFree(work)}>
-              👆 내가 직접 눌러보기
+              {t('view.tryYourself')}
             </button>
           )}
           {phase === 'free' && (
-            <p className="note">마음대로 눌러보세요. {presses}번 눌렀어요.</p>
+            <p className="note">{t('view.pressHint', { presses })}</p>
           )}
           <button type="button" className="chip" onClick={() => playReplay(work)}>
-            ↻ 작품 다시 보기
+            {t('view.replay')}
           </button>
           <button
             type="button"
@@ -240,7 +241,7 @@ export function ViewScreen() {
               else await navigator.clipboard.writeText(link).catch(() => {});
             }}
           >
-            친구에게 보내기
+            {t('view.sendFriend')}
           </button>
           <button
             type="button"
@@ -251,7 +252,7 @@ export function ViewScreen() {
               nav('/');
             }}
           >
-            나도 만들래요
+            {t('view.makeMine')}
           </button>
         </div>
       )}

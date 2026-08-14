@@ -7,6 +7,7 @@
  * 폐기 예정 API지만 여기서는 "소리가 아예 안 나오는 것"보다 낫다.
  */
 
+import { t } from '../i18n';
 import { getAudioContext, unlockAudio } from './context';
 import { RECORDER_PROCESSOR_NAME, recorderWorkletUrl } from './recorder-worklet';
 import { finishRecording, MAX_RECORD_SECONDS, type EncodedSound } from './wav';
@@ -47,7 +48,7 @@ export class VoiceRecorder {
   async prepare(): Promise<void> {
     await unlockAudio();
     if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('이 브라우저에서는 녹음할 수 없어요');
+      throw new Error(t('engine.cannotRecord'));
     }
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {

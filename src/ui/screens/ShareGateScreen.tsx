@@ -21,6 +21,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { VOICE_MODES, type VoiceMode } from '../../audio-engine/voice';
+import { t } from '../../i18n';
 import { explainFirebaseError, publishWork } from '../../storage/remote';
 import { isAdminEmail, isFirebaseConfigured } from '../../storage/firebase';
 import { listMyGroups, MAX_GROUPS_PER_WORK, type MyGroup } from '../../storage/groups';
@@ -37,9 +38,9 @@ type Props = {
 type ExpireChoice = 7 | 30 | null;
 
 const EXPIRES: { value: ExpireChoice; label: string }[] = [
-  { value: 7, label: '7일' },
-  { value: 30, label: '30일' },
-  { value: null, label: '계속' },
+  { value: 7, label: t('gate.expire.7') },
+  { value: 30, label: t('gate.expire.30') },
+  { value: null, label: t('gate.expire.forever') },
 ];
 
 export function ShareGate({ work, onDone, onCancel }: Props) {
@@ -153,42 +154,39 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={pendingDone ? '공유 결과' : '인터넷에 올리기 전에'}
+        aria-label={pendingDone ? t('gate.resultAria') : t('gate.aria')}
       >
         {pendingDone ? (
           <>
             <header className="sheet-head">
-              <span className="sheet-title">링크는 열렸어요</span>
+              <span className="sheet-title">{t('gate.linkOpened')}</span>
             </header>
             <div className="sheet-body">
               {/* 링크는 이미 열렸으니 여기서는 그룹 제출 결과만 알린다 — 성공을 취소로 되돌릴 방법은 없다. */}
-              <p className="warn">그룹에는 올라가지 않았어요. {pendingDone.groupError}</p>
+              <p className="warn">{t('gate.groupFailed', { reason: pendingDone.groupError })}</p>
               <p className="note">
-                링크는 정상적으로 열렸어요. 그룹은 나중에 그룹 화면에서 다시 올릴 수 있어요.
+                {t('gate.groupFailedNote')}
               </p>
             </div>
             <div className="gate-actions">
               <button type="button" className="sheet-done" onClick={finalize}>
-                확인
+                {t('gate.ok')}
               </button>
             </div>
           </>
         ) : (
           <>
             <header className="sheet-head">
-              <span className="sheet-title">인터넷에 올리기 전에</span>
+              <span className="sheet-title">{t('gate.title')}</span>
             </header>
 
             <div className="sheet-body">
               {blockedByPhoto && (
             <section className="gate-block gate-blocked">
-              <h3 className="row-label">이 작품은 아직 공유할 수 없어요</h3>
-              <p>
-                키캡 {photoKeys.join(', ')}번에 사진에서 딴 그림이 붙어 있어요. 사진에서 만든
-                그림은 인터넷에 올릴 수 없어요.
-              </p>
+              <h3 className="row-label">{t('gate.blockedTitle')}</h3>
+              <p>{t('gate.blockedBody', { keys: photoKeys.join(', ') })}</p>
               <p className="note">
-                그 키캡을 열어 &lsquo;전부 지우기&rsquo;를 누르고 직접 그리면 공유할 수 있어요.
+                {t('gate.blockedFix')}
               </p>
             </section>
           )}
@@ -196,7 +194,7 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
           {/* 0. 어디에 올릴까요 — 목소리 처리 선택보다 위. 여기서 고른 대로 discoverable/groupIds가 정해진다. */}
           {groups.length > 0 && (
             <section className="gate-block">
-              <h3 className="row-label">어디에 올릴까요?</h3>
+              <h3 className="row-label">{t('gate.whereTitle')}</h3>
               <div className="gate-options">
                 {groups.map((g) => (
                   <label key={g.id} className={`chip ${selectedGroupIds.includes(g.id) ? 'on' : ''}`}>
@@ -214,39 +212,39 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
                     checked={discoverable}
                     onChange={(e) => setDiscoverable(e.target.checked)}
                   />
-                  <span>모두의 스테이지</span>
+                  <span>{t('gate.publicStage')}</span>
                 </label>
               </div>
               {selectedGroupIds.length >= MAX_GROUPS_PER_WORK && (
-                <p className="note">작품 하나는 그룹 최대 {MAX_GROUPS_PER_WORK}개까지만 올릴 수 있어요.</p>
+                <p className="note">{t('gate.groupLimit', { max: MAX_GROUPS_PER_WORK })}</p>
               )}
-              {!hasTarget && <p className="note">올릴 곳을 하나 이상 골라 주세요.</p>}
+              {!hasTarget && <p className="note">{t('gate.pickTarget')}</p>}
             </section>
           )}
 
           {/* 1. 무엇이 올라가는지 쉬운 말로 */}
           <section className="gate-block">
-            <h3 className="row-label">이런 게 올라가요</h3>
+            <h3 className="row-label">{t('gate.uploadsTitle')}</h3>
             <ul className="gate-list">
-              <li>내가 그린 그림 {artCount}개</li>
+              <li>{t('gate.itemArt', { n: artCount })}</li>
               {/* 사진에서 딴 그림이 섞여 있으면 그 사실을 숨기지 않는다. 이 화면의 존재 이유다. */}
               {photoKeys.length > 0 && (
-                <li>그중 사진에서 선을 딴 그림 {photoKeys.length}개 (키캡 {photoKeys.join(', ')}번)</li>
+                <li>{t('gate.itemPhotoArt', { n: photoKeys.length, keys: photoKeys.join(', ') })}</li>
               )}
-              <li>내가 녹음한 소리 {soundCount}개</li>
-              <li>작품 제목과 한 줄 힌트</li>
-              <li>내 별명 ({work.authorNick})</li>
-              {profile.stageAvatarEnabled ? <li>내가 공개하기로 한 스테이지 프로필 사진</li> : null}
-              <li>키캡을 누른 순서와 시간</li>
-              <li>제목·별명·미리보기{profile.stageAvatarEnabled ? '·공개용 프로필 사진' : ''}가 키크 스테이지에 보여요</li>
+              <li>{t('gate.itemSound', { n: soundCount })}</li>
+              <li>{t('gate.itemTitleHint')}</li>
+              <li>{t('gate.itemNick', { nick: work.authorNick })}</li>
+              {profile.stageAvatarEnabled ? <li>{t('gate.itemAvatar')}</li> : null}
+              <li>{t('gate.itemReplay')}</li>
+              <li>{profile.stageAvatarEnabled ? t('gate.itemStageWithAvatar') : t('gate.itemStage')}</li>
             </ul>
-            <p className="note">이름·학교·전화번호 같은 건 올리지 않아요.</p>
+            <p className="note">{t('gate.noPersonal')}</p>
           </section>
 
           {/* 2. 목소리 처리 */}
           {soundCount > 0 && (
             <section className="gate-block">
-              <h3 className="row-label">내 목소리는 어떻게 할까요</h3>
+              <h3 className="row-label">{t('gate.voiceTitle')}</h3>
               <div className="gate-options">
                 {VOICE_MODES.map((m) => (
                   <button
@@ -266,12 +264,12 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
           {/* 4. 공유 기간 — 그룹에 올리면 만료가 없으니 아예 감춘다. */}
           {hasGroups ? (
             <section className="gate-block">
-              <h3 className="row-label">얼마 동안 공유할까요</h3>
-              <p className="note">그룹에 올린 공연은 기간 제한 없이 남아요.</p>
+              <h3 className="row-label">{t('gate.durationTitle')}</h3>
+              <p className="note">{t('gate.groupNoExpiry')}</p>
             </section>
           ) : (
             <section className="gate-block">
-              <h3 className="row-label">얼마 동안 공유할까요</h3>
+              <h3 className="row-label">{t('gate.durationTitle')}</h3>
               <div className="chip-grid">
                 {EXPIRES.map((e) => (
                   <button
@@ -284,7 +282,7 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
                   </button>
                 ))}
               </div>
-              <p className="note">언제든 공유를 멈출 수 있어요. 멈추면 올린 파일도 지워져요.</p>
+              <p className="note">{t('gate.stopAnytime')}</p>
             </section>
           )}
 
@@ -299,14 +297,14 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
               />
               <span>
                 {hasGroups
-                  ? '참가자 본인(또는 보호자)이 목소리와 그림이 그룹 참가자들에게 공개되는 것에 동의했어요.'
-                  : '보호자와 함께 확인했어요. 위 내용이 인터넷에 올라가고, 링크를 받은 사람뿐 아니라 키크 스테이지에서도 누구나 찾고 볼 수 있다는 걸 알고 있어요.'}
+                  ? t('gate.consentGroup')
+                  : t('gate.consentPublic')}
               </span>
             </label>
           </section>
 
           {!isFirebaseConfigured && (
-            <p className="warn">지금은 공유 설정이 안 돼 있어요 (Firebase 설정 필요)</p>
+            <p className="warn">{t('gate.notConfigured')}</p>
           )}
           {error && <p className="warn">{error}</p>}
           {busy && step && <p className="note">{step}</p>}
@@ -314,7 +312,7 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
 
         <div className="gate-actions">
           <button type="button" className="chip" onClick={onCancel} disabled={busy}>
-            그만두기
+            {t('common.cancel')}
           </button>
           <button
             type="button"
@@ -322,7 +320,7 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
             onClick={share}
             disabled={!guardianOk || !hasTarget || busy || !isFirebaseConfigured || blockedByPhoto}
           >
-            {busy ? '올리는 중…' : '공개하고 링크 만들기'}
+            {busy ? t('gate.uploading') : t('gate.publish')}
           </button>
         </div>
           </>

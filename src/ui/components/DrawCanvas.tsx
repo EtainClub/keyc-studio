@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useImperativeHandle, useRef, useState, forwardRef } from 'react';
+import { t } from '../../i18n';
 import {
   DEFAULT_TRACE_STRENGTH,
   TRACE_STRENGTHS,
@@ -30,22 +31,22 @@ const CANVAS_SIZE = 512;
 const HISTORY_LIMIT = 8;
 
 const PALETTE: { c: string; label: string }[] = [
-  { c: '#111111', label: '까망' },
-  { c: '#FFFFFF', label: '하양' },
-  { c: '#FF4D6D', label: '빨강' },
-  { c: '#FF9F1C', label: '주황' },
-  { c: '#FFD400', label: '노랑' },
-  { c: '#3DD6A0', label: '초록' },
-  { c: '#4CC9F0', label: '하늘' },
-  { c: '#7B61FF', label: '보라' },
-  { c: '#B5651D', label: '갈색' },
-  { c: '#FF8FCF', label: '분홍' },
+  { c: '#111111', label: t('draw.color.black') },
+  { c: '#FFFFFF', label: t('draw.color.white') },
+  { c: '#FF4D6D', label: t('draw.color.red') },
+  { c: '#FF9F1C', label: t('draw.color.orange') },
+  { c: '#FFD400', label: t('draw.color.yellow') },
+  { c: '#3DD6A0', label: t('draw.color.green') },
+  { c: '#4CC9F0', label: t('draw.color.sky') },
+  { c: '#7B61FF', label: t('draw.color.purple') },
+  { c: '#B5651D', label: t('draw.color.brown') },
+  { c: '#FF8FCF', label: t('draw.color.pink') },
 ];
 
 const WIDTHS: { v: number; label: string; dot: number }[] = [
-  { v: 8, label: '가늘게', dot: 10 },
-  { v: 18, label: '보통', dot: 18 },
-  { v: 34, label: '굵게', dot: 28 },
+  { v: 8, label: t('draw.width.thin'), dot: 10 },
+  { v: 18, label: t('draw.width.normal'), dot: 18 },
+  { v: 34, label: t('draw.width.thick'), dot: 28 },
 ];
 
 /** 그림 한 장과 그 출처. 사진이 섞였는지는 저장하는 쪽이 반드시 알아야 한다. */
@@ -176,7 +177,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, Props>(function DrawCanva
     try {
       const edges = await tracePhotoToArt(file, next);
       if (!edges) {
-        setTraceError('선을 찾지 못했어요. 더 또렷한 사진으로 해볼까요?');
+        setTraceError(t('draw.noLines'));
         return;
       }
       snapshot();
@@ -186,7 +187,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, Props>(function DrawCanva
       setTainted(true);
     } catch (e) {
       console.warn('[photo-trace] 실패', e);
-      setTraceError(e instanceof Error ? e.message : '사진을 열지 못했어요');
+      setTraceError(e instanceof Error ? e.message : t('draw.photoFailed'));
     } finally {
       setTracing(false);
     }
@@ -257,11 +258,11 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, Props>(function DrawCanva
           onPointerCancel={up}
         />
         <span className="draw-pad-gloss" aria-hidden />
-        {tracing && <span className="draw-pad-busy">사진에서 선을 따는 중…</span>}
+        {tracing && <span className="draw-pad-busy">{t('draw.tracing')}</span>}
       </div>
 
       <div className="draw-tools">
-        <div className={`palette ${erasing ? 'muted' : ''}`} role="group" aria-label="색 고르기">
+        <div className={`palette ${erasing ? 'muted' : ''}`} role="group" aria-label={t('draw.paletteAria')}>
           {PALETTE.map(({ c, label }) => (
             <button
               key={c}
@@ -276,14 +277,14 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, Props>(function DrawCanva
         </div>
 
         <div className="draw-row">
-          <div className="seg" role="group" aria-label="붓과 지우개">
+          <div className="seg" role="group" aria-label={t('draw.brushEraserAria')}>
             <button
               type="button"
               className={`seg-btn ${!erasing ? 'on' : ''}`}
               aria-pressed={!erasing}
               onClick={() => setErasing(false)}
             >
-              <span aria-hidden>✏️</span> 그리기
+              <span aria-hidden>✏️</span> {t('draw.brush')}
             </button>
             <button
               type="button"
@@ -291,11 +292,11 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, Props>(function DrawCanva
               aria-pressed={erasing}
               onClick={() => setErasing(true)}
             >
-              <span aria-hidden>🧽</span> 지우개
+              <span aria-hidden>🧽</span> {t('draw.eraser')}
             </button>
           </div>
 
-          <div className="size-group" role="group" aria-label="굵기 고르기">
+          <div className="size-group" role="group" aria-label={t('draw.widthAria')}>
             {WIDTHS.map((w) => (
               <button
                 key={w.v}
@@ -313,10 +314,10 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, Props>(function DrawCanva
 
         <div className="draw-row undo-row">
           <button type="button" className="chip ghost" onClick={undo} disabled={!canUndo}>
-            <span aria-hidden>↩️</span> 되돌리기
+            <span aria-hidden>↩️</span> {t('draw.undo')}
           </button>
           <button type="button" className="chip ghost danger" onClick={clearAll}>
-            <span aria-hidden>🗑️</span> 전부 지우기
+            <span aria-hidden>🗑️</span> {t('draw.clearAll')}
           </button>
         </div>
 
@@ -341,10 +342,10 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, Props>(function DrawCanva
                 disabled={tracing}
                 onClick={() => fileRef.current?.click()}
               >
-                <span aria-hidden>🖼️</span> 사진에서 선 따기
+                <span aria-hidden>🖼️</span> {t('draw.fromPhoto')}
               </button>
               {photoRef.current && (
-                <div className="seg" role="group" aria-label="선 자세한 정도">
+                <div className="seg" role="group" aria-label={t('draw.detailAria')}>
                   {TRACE_STRENGTHS.map((s) => (
                     <button
                       key={s.id}
@@ -366,7 +367,7 @@ export const DrawCanvas = forwardRef<DrawCanvasHandle, Props>(function DrawCanva
             {traceError && <p className="warn">{traceError}</p>}
             {tainted && (
               <p className="note">
-                사진에서 딴 선이에요. 사진 원본은 저장하지 않아요. 지우개로 다듬을 수 있어요.
+                {t('draw.photoNote')}
               </p>
             )}
           </div>

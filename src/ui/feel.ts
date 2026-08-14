@@ -6,6 +6,7 @@
  * 데이터(haptic 필드)는 네이티브를 위해 v1부터 쌓인다.
  */
 
+import { t } from '../i18n';
 import type { Haptic, Led, Motion } from '../work-model/types';
 
 export type FeelSpec = {
@@ -25,7 +26,7 @@ export type FeelSpec = {
 
 export const FEELS: Record<Haptic, FeelSpec> = {
   tok: {
-    label: '톡',
+    label: t('feel.tok'),
     emoji: '👆',
     depth: 6,
     scale: 0.96,
@@ -34,7 +35,7 @@ export const FEELS: Record<Haptic, FeelSpec> = {
     vibrate: 10,
   },
   kkuk: {
-    label: '꾹',
+    label: t('feel.kkuk'),
     emoji: '🫳',
     depth: 13,
     scale: 0.92,
@@ -43,7 +44,7 @@ export const FEELS: Record<Haptic, FeelSpec> = {
     vibrate: 35,
   },
   tongtong: {
-    label: '통통',
+    label: t('feel.tongtong'),
     emoji: '🏀',
     depth: 9,
     scale: 0.94,
@@ -52,7 +53,7 @@ export const FEELS: Record<Haptic, FeelSpec> = {
     vibrate: [10, 60, 10],
   },
   bureure: {
-    label: '부르르',
+    label: t('feel.bureure'),
     emoji: '📳',
     depth: 4,
     scale: 0.98,
@@ -61,7 +62,7 @@ export const FEELS: Record<Haptic, FeelSpec> = {
     vibrate: [8, 20, 8, 20, 8],
   },
   kung: {
-    label: '쿵',
+    label: t('feel.kung'),
     emoji: '🪨',
     depth: 16,
     scale: 0.9,
@@ -70,7 +71,7 @@ export const FEELS: Record<Haptic, FeelSpec> = {
     vibrate: 60,
   },
   dugeun: {
-    label: '두근',
+    label: t('feel.dugeun'),
     emoji: '💓',
     depth: 8,
     scale: 0.95,
@@ -84,19 +85,19 @@ export const HAPTIC_ORDER: Haptic[] = ['tok', 'kkuk', 'tongtong', 'bureure', 'ku
 
 /** id의 `@1`은 프리셋 버전이다. 프리셋을 고치면 여기에 `@2`를 추가한다. */
 export const MOTIONS: { id: Motion; label: string; emoji: string }[] = [
-  { id: 'squish@1', label: '찌그러지기', emoji: '🫠' },
-  { id: 'jump@1', label: '뛰기', emoji: '🦘' },
-  { id: 'shake@1', label: '흔들기', emoji: '🌀' },
-  { id: 'spin@1', label: '돌기', emoji: '🎡' },
-  { id: 'pop@1', label: '뿅', emoji: '🎈' },
-  { id: 'melt@1', label: '녹기', emoji: '🍦' },
+  { id: 'squish@1', label: t('motion.squish'), emoji: '🫠' },
+  { id: 'jump@1', label: t('motion.jump'), emoji: '🦘' },
+  { id: 'shake@1', label: t('motion.shake'), emoji: '🌀' },
+  { id: 'spin@1', label: t('motion.spin'), emoji: '🎡' },
+  { id: 'pop@1', label: t('motion.pop'), emoji: '🎈' },
+  { id: 'melt@1', label: t('motion.melt'), emoji: '🍦' },
 ];
 
 export const LEDS: { id: Led; label: string; emoji: string }[] = [
-  { id: 'none', label: '없음', emoji: '⚪' },
-  { id: 'flash@1', label: '반짝', emoji: '⚡' },
-  { id: 'breath@1', label: '숨쉬기', emoji: '🫧' },
-  { id: 'rainbow@1', label: '무지개', emoji: '🌈' },
+  { id: 'none', label: t('led.none'), emoji: '⚪' },
+  { id: 'flash@1', label: t('led.flash'), emoji: '⚡' },
+  { id: 'breath@1', label: t('led.breath'), emoji: '🫧' },
+  { id: 'rainbow@1', label: t('led.rainbow'), emoji: '🌈' },
 ];
 
 /** 웹에서 가능한 만큼의 진동. iOS Safari는 무시한다. */

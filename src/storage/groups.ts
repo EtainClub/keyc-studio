@@ -15,6 +15,7 @@
 
 import { collection, getDocs } from 'firebase/firestore/lite';
 import { httpsCallable } from 'firebase/functions';
+import { t } from '../i18n';
 import { ensureSignedIn, firestore, functions, isFirebaseConfigured } from './firebase';
 import { acquireUid } from './identity';
 import {
@@ -56,7 +57,7 @@ const DELETE_TIMEOUT_MS = 60000;
 
 function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`서버가 응답하지 않아요 (${what})`)), ms);
+    const timer = setTimeout(() => reject(new Error(t('remote.timeout', { what }))), ms);
     p.then(
       (v) => {
         clearTimeout(timer);
@@ -72,7 +73,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
 
 function requireConfigured(): void {
   if (!isFirebaseConfigured) {
-    throw new Error('그룹 스테이지가 아직 준비되지 않았어요 (Firebase 설정 필요)');
+    throw new Error(t('groups.notConfigured'));
   }
 }
 
@@ -98,7 +99,7 @@ export async function createGroup(name: string): Promise<{ groupId: string; code
   const response = await withTimeout(
     callable({ name }),
     CALL_TIMEOUT_MS,
-    '그룹 만들기',
+    t('groups.op.create'),
   );
   const data = asRecord(response.data);
   if (
@@ -108,7 +109,7 @@ export async function createGroup(name: string): Promise<{ groupId: string; code
     !data.code ||
     typeof data.name !== 'string'
   ) {
-    throw new Error('그룹을 만들었지만 응답을 이해하지 못했어요');
+    throw new Error(t('groups.createBadResponse'));
   }
   return { groupId: data.groupId, code: data.code, name: data.name.slice(0, GROUP_NAME_MAX) };
 }
@@ -120,11 +121,11 @@ export async function fetchGroupInviteCode(groupId: string): Promise<string> {
   const response = await withTimeout(
     callable({ groupId }),
     CALL_TIMEOUT_MS,
-    '초대 코드 불러오기',
+    t('groups.op.invite'),
   );
   const data = asRecord(response.data);
   if (typeof data.code !== 'string' || !data.code) {
-    throw new Error('초대 코드를 이해하지 못했어요');
+    throw new Error(t('groups.inviteBadResponse'));
   }
   return data.code;
 }
@@ -136,11 +137,11 @@ export async function joinGroup(code: string): Promise<{ groupId: string; name: 
   const response = await withTimeout(
     callable({ code: normalizeJoinCode(code) }),
     CALL_TIMEOUT_MS,
-    '그룹 입장',
+    t('groups.op.join'),
   );
   const data = asRecord(response.data);
   if (typeof data.groupId !== 'string' || !GROUP_ID.test(data.groupId) || typeof data.name !== 'string') {
-    throw new Error('입장했지만 응답을 이해하지 못했어요');
+    throw new Error(t('groups.joinBadResponse'));
   }
   return {
     groupId: data.groupId,
@@ -163,7 +164,7 @@ export async function fetchGroupStage(query: GroupStageQuery): Promise<GroupStag
       cursor: query.cursor ?? null,
     }),
     CALL_TIMEOUT_MS,
-    '그룹 스테이지 불러오기',
+    t('groups.op.stage'),
   );
   return parseGroupStagePage(response.data);
 }
@@ -178,7 +179,7 @@ export async function submitToGroups(
   const response = await withTimeout(
     callable({ workId, groupIds }),
     CALL_TIMEOUT_MS,
-    '그룹에 제출',
+    t('groups.op.submit'),
   );
   const data = asRecord(response.data);
   const submitted = Array.isArray(data.submitted)
@@ -205,13 +206,13 @@ export async function submitToGroups(
 export async function deleteGroup(groupId: string): Promise<void> {
   await requireUid();
   const callable = httpsCallable(functions(), 'deleteGroup');
-  await withTimeout(callable({ groupId }), DELETE_TIMEOUT_MS, '그룹 삭제');
+  await withTimeout(callable({ groupId }), DELETE_TIMEOUT_MS, t('groups.op.delete'));
 }
 
 export async function withdrawEntry(groupId: string, workId: string): Promise<void> {
   await requireUid();
   const callable = httpsCallable(functions(), 'withdrawEntry');
-  await withTimeout(callable({ groupId, workId }), CALL_TIMEOUT_MS, '제출 취소');
+  await withTimeout(callable({ groupId, workId }), CALL_TIMEOUT_MS, t('groups.op.withdraw'));
 }
 
 const GROUP_ROLES: readonly GroupRole[] = ['owner', 'admin', 'member'];

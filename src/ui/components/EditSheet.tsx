@@ -30,6 +30,7 @@ import type {
 import { invalidateAsset } from '../../storage/assets';
 import { hashBlob, putAssetBlob } from '../../storage/db';
 import { isAdminEmail } from '../../storage/firebase';
+import { t } from '../../i18n';
 import { FEELS, HAPTIC_ORDER, LEDS, MOTIONS } from '../feel';
 import { useAssetUrl, useModalShell } from '../hooks';
 import { useAppState } from '../state';
@@ -40,21 +41,21 @@ import { RecordPanel } from './RecordPanel';
 type TabId = 'art' | 'sound' | 'motion' | 'feel' | 'loop';
 
 const TABS: { id: TabId; label: string; emoji: string }[] = [
-  { id: 'art', label: '그림', emoji: '🎨' },
-  { id: 'sound', label: '소리', emoji: '🔊' },
-  { id: 'motion', label: '움직임', emoji: '🤸' },
-  { id: 'feel', label: '느낌', emoji: '✋' },
-  { id: 'loop', label: '반복', emoji: '🔁' },
+  { id: 'art', label: t('edit.tab.art'), emoji: '🎨' },
+  { id: 'sound', label: t('edit.tab.sound'), emoji: '🔊' },
+  { id: 'motion', label: t('edit.tab.motion'), emoji: '🤸' },
+  { id: 'feel', label: t('edit.tab.feel'), emoji: '✋' },
+  { id: 'loop', label: t('edit.tab.loop'), emoji: '🔁' },
 ];
 
 /** 키캡 본체 색. 그림 색과 헷갈리지 않게 이 탭에서만 쓰는 별도 목록이다. */
 const CAP_COLORS: { c: string; label: string }[] = [
-  { c: DEFAULT_COLORS[0], label: '분홍' },
-  { c: DEFAULT_COLORS[1], label: '노랑' },
-  { c: DEFAULT_COLORS[2], label: '초록' },
-  { c: DEFAULT_COLORS[3], label: '파랑' },
-  { c: '#FFFFFF', label: '하양' },
-  { c: '#B98CFF', label: '보라' },
+  { c: DEFAULT_COLORS[0], label: t('edit.capColor.pink') },
+  { c: DEFAULT_COLORS[1], label: t('edit.capColor.yellow') },
+  { c: DEFAULT_COLORS[2], label: t('edit.capColor.green') },
+  { c: DEFAULT_COLORS[3], label: t('edit.capColor.blue') },
+  { c: '#FFFFFF', label: t('edit.capColor.white') },
+  { c: '#B98CFF', label: t('edit.capColor.purple') },
 ];
 
 type Props = {
@@ -116,11 +117,11 @@ export function EditSheet({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={`키캡 ${keyDef.idx + 1} 꾸미기`}
+        aria-label={t('edit.aria', { n: keyDef.idx + 1 })}
       >
         <header className="sheet-head">
-          <span className="sheet-title">키캡 {keyDef.idx + 1} 꾸미기</span>
-          <button type="button" className="sheet-close" onClick={close} aria-label="닫기">
+          <span className="sheet-title">{t('edit.title', { n: keyDef.idx + 1 })}</span>
+          <button type="button" className="sheet-close" onClick={close} aria-label={t('common.close')}>
             ✕
           </button>
         </header>
@@ -165,7 +166,7 @@ export function EditSheet({
         </div>
 
         <button type="button" className="sheet-done" onClick={close}>
-          다 됐어요
+          {t('edit.done')}
         </button>
       </section>
     </div>
@@ -227,16 +228,16 @@ function ArtTab({
     <div className="tab-art">
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span className="sheet-field-step" aria-hidden>1</span> 키캡 색을 골라요
+          <span className="sheet-field-step" aria-hidden>1</span> {t('edit.step1')}
         </h3>
-        <div className="cap-colors" role="group" aria-label="키캡 색">
+        <div className="cap-colors" role="group" aria-label={t('edit.capColorsAria')}>
           {CAP_COLORS.map(({ c, label }) => (
             <button
               key={c}
               type="button"
               className={`cap-swatch ${keyDef.appearance.baseColor === c ? 'on' : ''}`}
               style={{ background: c }}
-              aria-label={`키캡 색 ${label}`}
+              aria-label={t('edit.capColorAria', { label })}
               aria-pressed={keyDef.appearance.baseColor === c}
               onClick={() => onPatch({ appearance: { ...keyDef.appearance, baseColor: c } })}
             />
@@ -246,7 +247,7 @@ function ArtTab({
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span className="sheet-field-step" aria-hidden>2</span> 키캡 위에 그림을 그려요
+          <span className="sheet-field-step" aria-hidden>2</span> {t('edit.step2')}
         </h3>
         <DrawCanvas
           ref={canvasRef}
@@ -255,7 +256,7 @@ function ArtTab({
           photoTraceEnabled={canTracePhoto}
           initialFromPhoto={artFromPhoto}
         />
-        <p className="note">그린 그림은 저절로 키캡에 붙어요.</p>
+        <p className="note">{t('edit.artNote')}</p>
       </section>
     </div>
   );
@@ -264,17 +265,17 @@ function ArtTab({
 /* ── 소리 ─────────────────────────────────────────────── */
 
 const PITCH_STEPS: { v: number; label: string }[] = [
-  { v: 0.6, label: '아주 낮게' },
-  { v: 0.8, label: '낮게' },
-  { v: 1, label: '그대로' },
-  { v: 1.35, label: '높게' },
-  { v: 1.8, label: '아주 높게' },
+  { v: 0.6, label: t('edit.pitch.veryLow') },
+  { v: 0.8, label: t('edit.pitch.low') },
+  { v: 1, label: t('edit.pitch.same') },
+  { v: 1.35, label: t('edit.pitch.high') },
+  { v: 1.8, label: t('edit.pitch.veryHigh') },
 ];
 
 const GAIN_STEPS: { v: number; label: string }[] = [
-  { v: 0.45, label: '작게' },
-  { v: 0.75, label: '보통' },
-  { v: 1, label: '크게' },
+  { v: 0.45, label: t('edit.gain.soft') },
+  { v: 0.75, label: t('edit.gain.normal') },
+  { v: 1, label: t('edit.gain.loud') },
 ];
 
 function SoundTab({
@@ -340,30 +341,30 @@ function SoundTab({
     <div className="tab-sound">
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span aria-hidden>🎙️</span> 내 목소리로 만들기
+          <span aria-hidden>🎙️</span> {t('edit.recordOwn')}
         </h3>
         <RecordPanel onAccept={acceptRecording} onPreview={previewBlob} />
-        {keyDef.sound.assetId && <p className="note">지금은 내가 녹음한 소리를 쓰고 있어요 🎙️</p>}
+        {keyDef.sound.assetId && <p className="note">{t('edit.usingOwn')}</p>}
       </section>
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span aria-hidden>⌨️</span> 실제 녹음 타건음
+          <span aria-hidden>⌨️</span> {t('edit.realKeys')}
         </h3>
-        <p className="note">진짜 기계식 키보드를 한 번씩 눌러 녹음한 소리예요.</p>
+        <p className="note">{t('edit.realKeysNote')}</p>
         {presetButtons(KEYCAP_PRESETS)}
       </section>
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span aria-hidden>✨</span> 재미있는 효과음
+          <span aria-hidden>✨</span> {t('edit.effects')}
         </h3>
         {presetButtons(EFFECT_PRESETS)}
       </section>
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span aria-hidden>🎵</span> 높낮이
+          <span aria-hidden>🎵</span> {t('edit.pitchLabel')}
         </h3>
         <div className="chip-grid">
           {PITCH_STEPS.map((s) => (
@@ -381,7 +382,7 @@ function SoundTab({
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span aria-hidden>🔉</span> 소리 크기
+          <span aria-hidden>🔉</span> {t('edit.gainLabel')}
         </h3>
         <div className="chip-grid">
           {GAIN_STEPS.map((s) => (
@@ -436,7 +437,7 @@ function MotionTab({
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span aria-hidden>🤸</span> 어떻게 움직일까요
+          <span aria-hidden>🤸</span> {t('edit.motionLabel')}
         </h3>
         <div className="chip-grid">
           {MOTIONS.map((m) => (
@@ -457,7 +458,7 @@ function MotionTab({
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span aria-hidden>💡</span> 빛
+          <span aria-hidden>💡</span> {t('edit.ledLabel')}
         </h3>
         <div className="chip-grid">
           {LEDS.map((l) => (
@@ -485,7 +486,7 @@ function FeelTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
   const feel = FEELS[keyDef.haptic];
   return (
     <div className="tab-feel">
-      <p className="note">눌러보면 느낌이 달라요. 눌리는 깊이와 튕기는 정도가 바뀝니다.</p>
+      <p className="note">{t('edit.feelNote')}</p>
       <div className="demo-stage">
         <button
           type="button"
@@ -529,7 +530,7 @@ function FeelTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span aria-hidden>✋</span> 어떤 느낌으로 눌릴까요
+          <span aria-hidden>✋</span> {t('edit.feelLabel')}
         </h3>
         <div className="chip-grid">
           {HAPTIC_ORDER.map((h) => (
@@ -551,17 +552,17 @@ function FeelTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
 /* ── 반복 ─────────────────────────────────────────────── */
 
 const EVERY: { v: EveryBeats; label: string }[] = [
-  { v: 1, label: '아주 자주' },
-  { v: 2, label: '자주' },
-  { v: 4, label: '가끔' },
-  { v: 8, label: '아주 가끔' },
+  { v: 1, label: t('edit.every.1') },
+  { v: 2, label: t('edit.every.2') },
+  { v: 4, label: t('edit.every.4') },
+  { v: 8, label: t('edit.every.8') },
 ];
 
 const OFFSET: { v: OffsetBeats; label: string }[] = [
-  { v: 0, label: '바로' },
-  { v: 1, label: '조금 뒤에' },
-  { v: 2, label: '더 뒤에' },
-  { v: 3, label: '한참 뒤에' },
+  { v: 0, label: t('edit.offset.0') },
+  { v: 1, label: t('edit.offset.1') },
+  { v: 2, label: t('edit.offset.2') },
+  { v: 3, label: t('edit.offset.3') },
 ];
 
 function LoopTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<KeyDef>) => void }) {
@@ -570,12 +571,12 @@ function LoopTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
   return (
     <div className="tab-loop">
       <p className="note">
-        켜고 끄는 건 무대와 공연 중에 해요. 여기서는 얼마나 자주 울릴지만 정합니다.
+        {t('edit.loopNote')}
       </p>
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span aria-hidden>⏱️</span> 얼마나 자주
+          <span aria-hidden>⏱️</span> {t('edit.everyLabel')}
         </h3>
         <div className="chip-grid">
           {EVERY.map((e) => (
@@ -593,7 +594,7 @@ function LoopTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
-          <span aria-hidden>🚦</span> 언제 시작
+          <span aria-hidden>🚦</span> {t('edit.offsetLabel')}
         </h3>
         <div className="chip-grid">
           {OFFSET.map((o) => (

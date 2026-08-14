@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { t } from '../../i18n';
 import { findAsset, type AssetRef, type KeyIndex } from '../../work-model/types';
 import { EditSheet } from '../components/EditSheet';
 import { KeycapGrid, type GridHandle } from '../components/KeycapGrid';
@@ -45,13 +46,13 @@ export function CreateScreen() {
     <main className="screen create">
       <header className="bar">
         <button type="button" className="bar-back" onClick={() => nav('/')}>
-          ‹ 홈
+          ‹ {t('common.home')}
         </button>
-        <h1>키캡 꾸미기</h1>
+        <h1>{t('create.title')}</h1>
       </header>
 
       <p className="guide">
-        키캡을 누르면 소리가 나고 꾸미기가 열려요. 그냥 무대로 가도 괜찮아요.
+        {t('create.guide')}
       </p>
 
       <KeycapGrid
@@ -72,7 +73,7 @@ export function CreateScreen() {
           nav('/stage');
         }}
       >
-        무대로 가기 →
+        {t('create.toStage')}
       </button>
 
       {editing !== null && (

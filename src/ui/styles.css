@@ -617,6 +617,18 @@ button {
   line-height: 1.65;
   overflow-wrap: anywhere;
 }
+
+/*
+ * .seg의 flex-basis 문제(.seg.join-mode 참고) — .account-card도 세로 컨테이너라
+ * `flex: 1 1 200px`가 너비가 아니라 **높이** 200px로 읽힌다. 그대로 두면 언어
+ * 선택기만 카드 절반을 차지하는 거대한 알약이 된다.
+ */
+.seg.lang-seg {
+  flex: none;
+}
+.lang-seg .seg-btn {
+  flex: 1 1 0;
+}
 .account-connected {
   margin: 0;
   color: #62e6b6;

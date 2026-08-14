@@ -1,4 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { t } from '../../i18n';
 import type { KeyDef, KeyIndex } from '../../work-model/types';
 import { Keycap, type KeycapHandle } from './Keycap';
 
@@ -74,7 +75,7 @@ export const KeycapGrid = forwardRef<GridHandle, Props>(function KeycapGrid(
               <button
                 type="button"
                 className={`loop-toggle is-${loopStates[i]}`}
-                aria-label={`키캡 ${i + 1} 반복`}
+                aria-label={t('stageScreen.loopAria', { n: i + 1 })}
                 aria-pressed={loopStates[i] !== 'off'}
                 onClick={(e) => {
                   e.stopPropagation();

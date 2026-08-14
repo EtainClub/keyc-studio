@@ -6,6 +6,8 @@
  * 출처와 라이선스는 THIRD_PARTY_NOTICES.md에 기록한다.
  */
 
+import { t } from '../i18n';
+
 const FILES: Readonly<Record<string, string>> = {
   'realTactile9@1': 'keycap-tactile-9.mp3',
   'realTactile8@1': 'keycap-tactile-8.mp3',
@@ -25,8 +27,8 @@ export function recordedPresetUrl(id: string): string | undefined {
 
 export async function loadRecordedPreset(id: string): Promise<ArrayBuffer> {
   const url = recordedPresetUrl(id);
-  if (!url) throw new Error(`등록되지 않은 실제 타건음: ${id}`);
+  if (!url) throw new Error(t('engine.presetUnregistered', { id }));
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`실제 타건음을 불러오지 못했어요 (${response.status})`);
+  if (!response.ok) throw new Error(t('engine.presetLoadFailed', { status: response.status }));
   return response.arrayBuffer();
 }

@@ -9,6 +9,7 @@
  */
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { t } from '../i18n';
 import type { AssetRef, Work } from '../work-model/types';
 
 const DB_NAME = 'keycap-creator';
@@ -55,7 +56,7 @@ const OPEN_TIMEOUT_MS = 3000;
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new Error('저장소를 열지 못했어요 (시간 초과)')),
+      () => reject(new Error(t('db.openTimeout'))),
       ms,
     );
     p.then(

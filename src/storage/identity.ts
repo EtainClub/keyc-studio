@@ -11,6 +11,7 @@
  * Firebase 익명 인증을 만든다.
  */
 
+import { t } from '../i18n';
 import { generateNickname } from '../work-model/nickname';
 import { ensureSignedIn } from './firebase';
 
@@ -92,5 +93,5 @@ export async function acquireUid(): Promise<string> {
   const { user, error } = await ensureSignedIn();
   if (user) return user.uid;
   // 실패 원인을 그대로 올려 보낸다 — 공유 게이트가 읽을 수 있는 말로 바꾼다.
-  throw error ?? new Error('연결이 필요해요. 잠시 뒤 다시 시도해 주세요');
+  throw error ?? new Error(t('identity.needConnection'));
 }

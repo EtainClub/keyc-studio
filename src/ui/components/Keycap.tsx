@@ -16,6 +16,7 @@
  */
 
 import { forwardRef, useImperativeHandle, useRef, type CSSProperties } from 'react';
+import { t } from '../../i18n';
 import type { KeyDef, KeyIndex } from '../../work-model/types';
 import { FEELS, tryVibrate } from '../feel';
 import { useAssetUrl } from '../hooks';
@@ -121,7 +122,7 @@ export const Keycap = forwardRef<KeycapHandle, Props>(function Keycap(
       type="button"
       className={`keycap-slot ${muted ? 'is-muted' : ''}`}
       style={style}
-      aria-label={`키캡 ${keyDef.idx + 1}`}
+      aria-label={t('common.keycapAria', { n: keyDef.idx + 1 })}
       disabled={disabled}
       onPointerDown={press}
       onPointerUp={release}

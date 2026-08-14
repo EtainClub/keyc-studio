@@ -27,6 +27,7 @@ import {
 import { getFirestore, type Firestore } from 'firebase/firestore/lite';
 import { getFunctions, type Functions } from 'firebase/functions';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
+import { t } from '../i18n';
 
 /** 사용자가 한국에 있다. 서울 리전이 왕복 지연을 가장 줄인다. */
 export const REGION = 'asia-northeast3';
@@ -59,7 +60,7 @@ let functionsInstance: Functions | null = null;
 
 function ensureApp(): FirebaseApp {
   if (!isFirebaseConfigured) {
-    throw new Error('Firebase 설정이 없어요 (.env의 VITE_FIREBASE_* 확인)');
+    throw new Error(t('firebase.noConfig'));
   }
   if (!app) app = initializeApp(config);
   return app;
@@ -116,7 +117,7 @@ export function ensureSignedIn(): Promise<SignInResult> {
   if (!isFirebaseConfigured) {
     return Promise.resolve({
       user: null,
-      error: new Error('공유 설정이 아직 안 됐어요 (Firebase 설정 필요)'),
+      error: new Error(t('remote.notConfigured')),
     });
   }
   if (!signInPromise) {
@@ -189,7 +190,7 @@ export type GoogleLinkResult = { user: User; mergedExistingAccount: boolean };
 
 export async function connectGoogleAccount(options: { beforeAccountSwitch?: () => Promise<void> } = {}): Promise<GoogleLinkResult> {
   const signed = await ensureSignedIn();
-  if (!signed.user) throw signed.error ?? new Error('계정을 연결하지 못했어요');
+  if (!signed.user) throw signed.error ?? new Error(t('firebase.connectFailed'));
   if (signed.user.providerData.some((provider) => provider.providerId === 'google.com')) {
     return { user: signed.user, mergedExistingAccount: false };
   }

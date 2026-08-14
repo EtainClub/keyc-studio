@@ -22,6 +22,7 @@ import {
 } from '../../storage/groups';
 import type { GroupStageCursor, GroupStageItem, GroupSummary } from '../../storage/group-feed';
 import { PUBLIC_ORIGIN } from '../../storage/firebase';
+import { num, t } from '../../i18n';
 import { useAppState } from '../state';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 
@@ -37,9 +38,9 @@ const SEARCH_DEBOUNCE_MS = 400;
  * 실제로 하는 일을 정확히 설명한다.
  */
 const SORTS: { id: GroupStageSort; label: string }[] = [
-  { id: 'unheard', label: '덜 들린 순' },
-  { id: 'latest', label: '최신순' },
-  { id: 'popular', label: '많이 들은 순' },
+  { id: 'unheard', label: t('feed.sort.unheard') },
+  { id: 'latest', label: t('feed.sort.latest') },
+  { id: 'popular', label: t('feed.sort.popular') },
 ];
 
 /**
@@ -125,7 +126,7 @@ export function GroupStageScreen({
         // groups.ts의 callable들은 이미 사람이 읽을 수 있는 한국어 메시지를 던진다
         // (requireUid/withTimeout 참고) — remote.ts의 explainFirebaseError처럼
         // 다시 번역할 필요가 없다.
-        setError(cause instanceof Error ? cause.message : '그룹 스테이지를 불러오지 못했어요');
+        setError(cause instanceof Error ? cause.message : t('group.loadFailed'));
         setCursor(null);
       } finally {
         loadingRef.current = false;
@@ -187,7 +188,7 @@ export function GroupStageScreen({
     try {
       setInviteCode(await fetchGroupInviteCode(groupId));
     } catch (cause) {
-      setInviteError(cause instanceof Error ? cause.message : '초대 코드를 불러오지 못했어요.');
+      setInviteError(cause instanceof Error ? cause.message : t('group.inviteLoadFailed'));
     } finally {
       setLoadingCode(false);
     }
@@ -213,7 +214,7 @@ export function GroupStageScreen({
       await deleteGroup(groupId);
       onDeleted();
     } catch (cause) {
-      setDeleteError(cause instanceof Error ? cause.message : '그룹을 삭제하지 못했어요.');
+      setDeleteError(cause instanceof Error ? cause.message : t('group.deleteFailed'));
       setDeleting(false);
     }
     // 성공했을 때는 deleting을 되돌리지 않는다 — 이 컴포넌트가 곧 사라지므로,
@@ -228,28 +229,28 @@ export function GroupStageScreen({
       <header className="feed-head group-stage-head">
         <div>
           <p className="feed-kicker">GROUP STAGE</p>
-          <h1>{group?.name || '그룹 스테이지'}</h1>
+          <h1>{group?.name || t('group.title')}</h1>
           {/* 진행률은 화면이 조용히 갱신되는 자리라 스크린리더에도 알린다. */}
           <p className="group-stage-progress" role="status" aria-live="polite">
             {/* 전체가 앞, 들은 수가 뒤다 — "12개 중 7개 들었어요". 순서가 바뀌면 뜻이 뒤집힌다. */}
-            {group ? `${group.entryCount.toLocaleString('ko-KR')}개 중 ${listenedCount.toLocaleString('ko-KR')}개 들었어요` : ''}
+            {group ? t('group.progress', { total: num(group.entryCount), listened: num(listenedCount) }) : ''}
           </p>
         </div>
         <div className="group-stage-actions">
           {/* 이미 이 그룹에 들어와 있어도 다른 그룹(코드로 새로 입장할 그룹 포함)으로
               옮겨갈 방법이 있어야 한다 — 이 화면 안에는 그럴 길이 없었다. */}
           <button type="button" className="chip" onClick={onSwitchGroup}>
-            다른 그룹
+            {t('group.switch')}
           </button>
           {group?.role === 'owner' && (
             <div className="group-invite">
               {inviteCode ? (
                 <>
-                  <p className="group-invite-code" aria-label={`입장 코드 ${inviteCode}`}>
+                  <p className="group-invite-code" aria-label={t('group.inviteCodeAria', { code: inviteCode })}>
                     {formatGroupCode(inviteCode)}
                   </p>
                   <button type="button" className="chip" onClick={() => void copyInviteCode()}>
-                    {codeCopied ? '복사했어요 ✓' : '코드 복사하기'}
+                    {codeCopied ? t('group.copied') : t('group.copyCode')}
                   </button>
                 </>
               ) : (
@@ -259,7 +260,7 @@ export function GroupStageScreen({
                   onClick={() => void loadInviteCode()}
                   disabled={loadingCode}
                 >
-                  {loadingCode ? '불러오는 중…' : '초대 코드 보기'}
+                  {loadingCode ? t('group.loadingCode') : t('group.showCode')}
                 </button>
               )}
               {inviteError && (
@@ -280,21 +281,21 @@ export function GroupStageScreen({
                 setConfirmingDelete(true);
               }}
             >
-              그룹 삭제
+              {t('group.delete')}
             </button>
           )}
         </div>
       </header>
 
       {confirmingDelete && (
-        <section className="group-delete-confirm" role="alertdialog" aria-label="그룹 삭제 확인">
-          <h2>‘{group?.name || '이 그룹'}’을 삭제할까요?</h2>
+        <section className="group-delete-confirm" role="alertdialog" aria-label={t('group.deleteConfirmAria')}>
+          <h2>{t('group.deleteTitle', { name: group?.name || t('group.thisGroup') })}</h2>
           <p>
-            참가자 {group?.memberCount.toLocaleString('ko-KR') ?? 0}명과 입장 코드, 이 그룹에 쌓인
-            리플레이·청취 기록이 모두 사라져요. <strong>되돌릴 수 없어요.</strong>
+            {t('group.deleteBody', { members: num(group?.memberCount ?? 0) })}{' '}
+            <strong>{t('group.deleteIrreversible')}</strong>
           </p>
           {/* 가장 흔한 걱정을 먼저 지운다 — 내 작품까지 지워지는 줄 알면 아무도 못 누른다. */}
-          <p className="note">올라온 작품 자체는 지워지지 않아요. 이 그룹에서만 내려가요.</p>
+          <p className="note">{t('group.deleteNote')}</p>
           {deleteError && (
             <p className="warn" role="alert">
               {deleteError}
@@ -307,7 +308,7 @@ export function GroupStageScreen({
               disabled={deleting}
               onClick={() => void removeGroup()}
             >
-              {deleting ? '삭제하는 중…' : '정말 삭제할게요'}
+              {deleting ? t('group.deleting') : t('group.deleteConfirm')}
             </button>
             <button
               type="button"
@@ -315,7 +316,7 @@ export function GroupStageScreen({
               disabled={deleting}
               onClick={() => setConfirmingDelete(false)}
             >
-              그대로 둘게요
+              {t('group.deleteCancel')}
             </button>
           </div>
         </section>
@@ -323,13 +324,13 @@ export function GroupStageScreen({
 
       <section className="feed-tools">
         <label className="feed-search">
-          <span className="visually-hidden">그룹 공연 찾기</span>
+          <span className="visually-hidden">{t('group.searchLabel')}</span>
           <span className="feed-search-icon" aria-hidden="true">🔍</span>
           <input
             type="search"
             name="group-stage-search"
             autoComplete="off"
-            placeholder="제목·힌트·별명으로 찾기…"
+            placeholder={t('feed.searchPlaceholder')}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
@@ -337,7 +338,7 @@ export function GroupStageScreen({
             <button
               type="button"
               className="feed-search-clear"
-              aria-label="검색어 지우기"
+              aria-label={t('feed.clearSearch')}
               onClick={() => setSearchInput('')}
             >
               ✕
@@ -345,7 +346,7 @@ export function GroupStageScreen({
           )}
         </label>
 
-        <div className="seg feed-sort" role="group" aria-label="정렬 기준">
+        <div className="seg feed-sort" role="group" aria-label={t('feed.sortAria')}>
           {SORTS.map((s) => (
             <button
               key={s.id}
@@ -362,9 +363,11 @@ export function GroupStageScreen({
 
       <p className="feed-status" role="status" aria-live="polite">
         {items === null
-          ? '그룹 스테이지를 불러오는 중…'
+          ? t('group.loading')
           : filtered
-            ? `${items.length}개 찾았어요${cursor ? ' (더 있어요)' : ''}`
+            ? (cursor
+              ? t('feed.foundCountMore', { n: items.length })
+              : t('feed.foundCount', { n: items.length }))
             : ''}
       </p>
 
@@ -375,16 +378,16 @@ export function GroupStageScreen({
           </span>
           <h2>
             {error
-              ? '스테이지를 불러오지 못했어요'
+              ? t('feed.loadFailed')
               : filtered
-                ? '찾는 공연이 없어요'
-                : '아직 올라온 공연이 없어요'}
+                ? t('feed.noMatch')
+                : t('group.empty')}
           </h2>
           <p>
             {error ||
               (filtered
-                ? '다른 말로 찾아보거나 조건을 지워 보세요.'
-                : '누군가 이 그룹에 작품을 제출하면 여기 모여요.')}
+                ? t('feed.noMatchHelp')
+                : t('group.emptyHelp'))}
           </p>
           {error ? (
             <button
@@ -392,20 +395,20 @@ export function GroupStageScreen({
               className="chip primary wide"
               onClick={() => void load({ cursor: null, append: false })}
             >
-              다시 불러오기
+              {t('feed.reload')}
             </button>
           ) : filtered ? (
             <button type="button" className="chip primary wide" onClick={clearSearch}>
-              조건 지우기
+              {t('feed.clearFilters')}
             </button>
           ) : null}
         </section>
       ) : null}
 
       {items && items.length > 0 ? (
-        <section className="feed-list" aria-label="그룹 스테이지 작품">
+        <section className="feed-list" aria-label={t('group.listAria')}>
           {items.map((item) => {
-            const title = item.title || '이름 없는 작품';
+            const title = item.title || t('common.untitled');
             return (
               <article
                 className={`feed-card${item.listened ? ' feed-listened' : ''}`}
@@ -430,8 +433,8 @@ export function GroupStageScreen({
                     )}
                   </div>
                   {/* 공개 피드와 구분되는 지점 — 그룹 밖 사람은 이 카드를 볼 수 없다. */}
-                  <span className="feed-badge">우리 그룹만</span>
-                  <span className="feed-duration">{Math.round(item.durationMs / 1000)}초</span>
+                    <span className="feed-badge">{t('group.badgeGroupOnly')}</span>
+                    <span className="feed-duration">{t('feed.duration', { seconds: Math.round(item.durationMs / 1000) })}</span>
                 </div>
                 <div className="feed-card-body">
                   <div className="feed-card-copy">
@@ -442,26 +445,26 @@ export function GroupStageScreen({
                     <h2>{title}</h2>
                     {(item.mine || item.listened) && (
                       <div className="feed-tags">
-                        {item.mine && <span className="feed-mine-badge">내 공연</span>}
+                        {item.mine && <span className="feed-mine-badge">{t('group.badgeMine')}</span>}
                         {item.listened && (
-                          <span className="feed-listened-badge" aria-hidden="true">✓ 들었어요</span>
+                          <span className="feed-listened-badge" aria-hidden="true">{t('group.badgeListened')}</span>
                         )}
                       </div>
                     )}
                     {item.hint ? <p className="feed-hint">{item.hint}</p> : null}
                     <p className="feed-replay-count">
                       <span aria-hidden="true">▶</span>
-                      리플레이 {item.replayCount.toLocaleString('ko-KR')}회 · {item.uniqueListeners.toLocaleString('ko-KR')}명이 들었어요
+                      {t('group.stats', { replays: num(item.replayCount), listeners: num(item.uniqueListeners) })}
                     </p>
                   </div>
                   <button
                     type="button"
                     className="feed-replay"
-                    aria-label={`${title} 리플레이${item.listened ? ' (이미 들었어요)' : ''}`}
+                    aria-label={item.listened ? t('group.replayAriaListened', { title }) : t('feed.replayAria', { title })}
                     onClick={() => replay(item.id)}
                   >
                     <span aria-hidden="true">▶</span>
-                    리플레이
+                    {t('feed.replay')}
                   </button>
                 </div>
               </article>
@@ -478,7 +481,7 @@ export function GroupStageScreen({
             disabled={loadingMore}
             onClick={() => void load({ cursor, append: true })}
           >
-            {loadingMore ? '불러오는 중…' : '더 보기'}
+            {loadingMore ? t('feed.loadingMore') : t('feed.more')}
           </button>
         </div>
       )}

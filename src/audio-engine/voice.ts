@@ -10,15 +10,16 @@
  * "목소리를 바꿔서 올려요" 정도의 사실 서술만 한다.
  */
 
+import { t } from '../i18n';
 import { encodeWav, TARGET_SAMPLE_RATE } from './wav';
 
 export type VoiceMode = 'asIs' | 'robot' | 'preset' | 'silent';
 
 export const VOICE_MODES: { id: VoiceMode; label: string; detail: string }[] = [
-  { id: 'asIs', label: '그대로', detail: '녹음한 목소리를 그대로 올려요' },
-  { id: 'robot', label: '로봇 목소리로', detail: '목소리를 바꿔서 올려요' },
-  { id: 'preset', label: '기본 소리로', detail: '내 목소리 대신 준비된 소리를 써요' },
-  { id: 'silent', label: '소리 없이', detail: '녹음한 소리는 올리지 않아요' },
+  { id: 'asIs', label: t('voice.asIs.label'), detail: t('voice.asIs.detail') },
+  { id: 'robot', label: t('voice.robot.label'), detail: t('voice.robot.detail') },
+  { id: 'preset', label: t('voice.preset.label'), detail: t('voice.preset.detail') },
+  { id: 'silent', label: t('voice.silent.label'), detail: t('voice.silent.detail') },
 ];
 
 function offlineCtor(): typeof OfflineAudioContext | null {
@@ -35,7 +36,7 @@ function offlineCtor(): typeof OfflineAudioContext | null {
  */
 export async function toRobotWav(wav: ArrayBuffer): Promise<Blob> {
   const Ctor = offlineCtor();
-  if (!Ctor) throw new Error('이 브라우저에서는 목소리를 바꿀 수 없어요');
+  if (!Ctor) throw new Error(t('voice.unsupported'));
 
   // 디코드용으로만 잠깐 쓰는 컨텍스트.
   const probe = new Ctor(1, 1, TARGET_SAMPLE_RATE);

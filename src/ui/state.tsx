@@ -16,6 +16,7 @@ import {
   type ReactNode,
 } from 'react';
 import { KeycapEngine } from '../audio-engine/engine';
+import { t } from '../i18n';
 import {
   loadCloudProfile,
   renamePublishedCreator,
@@ -66,7 +67,7 @@ type AppState = {
   /** work를 주면 그것을, 안 주면 현재 draft를 저장한다. */
   saveDraft: (opts?: { thumb?: boolean; work?: Work }) => Promise<void>;
   updateCreatorProfile: (profile: CreatorProfile) => Promise<void>;
-  connectGoogle: () => Promise<void>;
+  connectGoogle: (opts?: { publishStageAvatar?: boolean }) => Promise<void>;
   clearDraft: () => void;
 };
 
@@ -255,14 +256,30 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setSyncRevision((value) => value + 1);
   }, []);
 
-  const connectGoogle = useCallback(async () => {
-    if (!isFirebaseConfigured) throw new Error('Firebase 설정이 필요해요');
+  /**
+   * @param opts.publishStageAvatar 연결이 끝나면 공개 아바타도 올려달라는 뜻.
+   *   프로필 화면이 이 값을 넘긴다 — updateCreatorProfile은 syncPublicAvatar를
+   *   먼저 부르고 그 함수가 비익명 계정을 요구하므로, 연결 **전에** 공개를 켠 채로
+   *   저장하면 "연결하려면 저장해야 하고 저장하려면 연결돼 있어야 한다"는 고리에
+   *   갇힌다. 그래서 공개는 여기까지 미루고, 하이드레이션이 끝나 클라우드 프로필이
+   *   반영된 profileRef 위에 얹는다.
+   */
+  const connectGoogle = useCallback(async (opts: { publishStageAvatar?: boolean } = {}) => {
+    if (!isFirebaseConfigured) throw new Error(t('firebase.required'));
     setAccount({ kind: 'syncing', email: null });
     try {
       const result = await connectGoogleAccount({ beforeAccountSwitch: removePublicAvatar });
       await hydratePermanentAccount(result.user);
-      if (result.mergedExistingAccount && profileRef.current.stageAvatarEnabled) {
-        await syncPublicAvatar(profileRef.current);
+      // 계정을 갈아탔으면 옛 계정의 공개 아바타는 beforeAccountSwitch에서 이미
+      // 내려갔다 — 켜져 있던 사람에겐 새 계정으로 다시 올려줘야 한다.
+      const republishAfterSwitch = result.mergedExistingAccount && profileRef.current.stageAvatarEnabled;
+      if (opts.publishStageAvatar || republishAfterSwitch) {
+        const next = normalizeProfile({ ...profileRef.current, stageAvatarEnabled: true });
+        await syncPublicAvatar(next);
+        const saved = saveCreatorProfile(next);
+        profileRef.current = saved;
+        setProfile(saved);
+        await saveCloudProfile(result.user.uid, saved);
       }
     } catch (error) {
       const user = auth().currentUser;

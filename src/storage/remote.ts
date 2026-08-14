@@ -19,6 +19,7 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes } from 'firebase/storage';
 import { applyVoiceMode, type VoiceMode } from '../audio-engine/voice';
+import { t } from '../i18n';
 import { normalizeWork, validateWork } from '../work-model/validate';
 import { parseWork } from '../work-model/serialize';
 import { photoArtKeyNumbers, type AssetRef, type Work } from '../work-model/types';
@@ -48,7 +49,7 @@ const WRITE_TIMEOUT_MS = 15000;
 
 function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`서버가 응답하지 않아요 (${what})`)), ms);
+    const timer = setTimeout(() => reject(new Error(t('remote.timeout', { what }))), ms);
     p.then(
       (v) => {
         clearTimeout(timer);
@@ -85,7 +86,7 @@ export type FeedQuery = {
 
 export async function fetchPublicFeed(query: FeedQuery = {}): Promise<PublicFeedPage> {
   if (!isFirebaseConfigured) {
-    throw new Error('키크 스테이지 설정이 아직 안 됐어요 (Firebase 설정 필요)');
+    throw new Error(t('remote.stageNotConfigured'));
   }
   const callable = httpsCallable(functions(), 'listPublicFeed');
   const response = await withTimeout(
@@ -96,7 +97,7 @@ export async function fetchPublicFeed(query: FeedQuery = {}): Promise<PublicFeed
       cursor: query.cursor ?? null,
     }),
     WRITE_TIMEOUT_MS,
-    '키크 스테이지 불러오기',
+    t('remote.op.feed'),
   );
   return parsePublicFeedPage(response.data);
 }
@@ -118,7 +119,7 @@ export type ShareOptions = {
 
 async function uploadPath(path: string, blob: Blob, max: number): Promise<void> {
   if (blob.size > max) {
-    throw new Error(`파일이 너무 커요 (${Math.round(blob.size / 1024)}KB)`);
+    throw new Error(t('remote.fileTooBig', { kb: Math.round(blob.size / 1024) }));
   }
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -132,7 +133,7 @@ async function uploadPath(path: string, blob: Blob, max: number): Promise<void> 
       await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
     }
   }
-  throw lastError instanceof Error ? lastError : new Error('업로드에 실패했어요');
+  throw lastError instanceof Error ? lastError : new Error(t('remote.uploadFailed'));
 }
 
 /**
@@ -147,30 +148,30 @@ export function explainFirebaseError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
 
   if (code.includes('configuration-not-found') || msg.includes('CONFIGURATION_NOT_FOUND')) {
-    return '공유 기능이 아직 준비되지 않았어요 (익명 로그인 미설정)';
+    return t('remote.err.anonDisabled');
   }
   if (code.includes('permission-denied') || msg.includes('PERMISSION_DENIED')) {
-    return '공유 권한이 없어요 (보안 규칙 배포 필요)';
+    return t('remote.err.permission');
   }
   if (code.includes('unavailable') || code.includes('storage/unknown')) {
-    return '서버에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요';
+    return t('remote.err.network');
   }
   if (code.includes('functions/not-found')) {
-    return '키크 스테이지 서버가 아직 준비되지 않았어요 (Functions 배포 필요)';
+    return t('remote.err.functions');
   }
   if (code.includes('failed-precondition')) {
-    return '키크 스테이지를 준비하는 중이에요 (Firestore 인덱스 배포 필요)';
+    return t('remote.err.index');
   }
   if (code.includes('storage/unauthorized')) {
-    return '파일을 올릴 권한이 없어요 (Storage 규칙 배포 필요)';
+    return t('remote.err.storageRules');
   }
   if (code.includes('storage/retry-limit-exceeded') || code.includes('storage/bucket-not-found')) {
-    return '저장 공간이 준비되지 않았어요 (Storage 버킷 필요)';
+    return t('remote.err.storageBucket');
   }
   if (msg.includes('has not been used in project') || msg.includes('is disabled')) {
-    return '서버 기능이 아직 켜지지 않았어요 (Firebase 콘솔 설정 필요)';
+    return t('remote.err.consoleSetup');
   }
-  return msg || '공유하지 못했어요';
+  return msg || t('remote.err.generic');
 }
 
 export type PublishResult = {
@@ -191,27 +192,27 @@ export type PublishResult = {
 function explainGroupSkipReason(reason: string): string {
   switch (reason) {
     case 'group-full':
-      return '그룹에 자리가 다 찼어요';
+      return t('remote.group.full');
     case 'not-member':
-      return '그룹 참가자가 아니에요';
+      return t('remote.group.notMember');
     case 'admins-only':
-      return '운영진만 올릴 수 있는 그룹이에요';
+      return t('remote.group.adminOnly');
     case 'too-many-groups':
-      return '작품 하나는 그룹 3개까지만 올릴 수 있어요';
+      return t('remote.group.limit');
     default:
-      return '그룹에 올리지 못했어요';
+      return t('remote.group.failed');
   }
 }
 
 export async function publishWork(input: Work, options: ShareOptions): Promise<PublishResult> {
   if (!isFirebaseConfigured) {
-    throw new Error('공유 설정이 아직 안 됐어요 (Firebase 설정 필요)');
+    throw new Error(t('remote.notConfigured'));
   }
 
   const { onProgress } = options;
 
   // 1. 여기서 처음으로 계정이 생긴다.
-  onProgress?.('연결하는 중…');
+  onProgress?.(t('remote.step.connecting'));
   const uid = await acquireUid();
 
   /*
@@ -227,8 +228,7 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
   const photoKeys = photoArtKeyNumbers(input);
   if (photoKeys.length && !isAdminUser()) {
     throw new Error(
-      `사진으로 만든 그림이 있어서 공유할 수 없어요 (키캡 ${photoKeys.join(', ')}번). ` +
-        '직접 그린 그림으로 바꾸면 공유할 수 있어요.',
+      t('remote.photoBlocked', { keys: photoKeys.join(', ') }),
     );
   }
 
@@ -237,7 +237,7 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
   if (errors.length) throw new Error(errors[0].message);
 
   // 2. 소유권 먼저. 이 문서가 있어야 Storage 쓰기 규칙이 통과한다.
-  onProgress?.('작품 자리를 만드는 중…');
+  onProgress?.(t('remote.step.creating'));
   await withTimeout(
     /*
      * merge를 쓰는 이유: 이 문서에는 클라이언트가 모르는 서버 전용 필드가 있다.
@@ -247,7 +247,7 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
      */
     setDoc(doc(firestore(), 'works', work.id), toPortableWork(work), { merge: true }),
     WRITE_TIMEOUT_MS,
-    '작품 자리 만들기',
+    t('remote.op.createWork'),
   );
 
   // 3. 자산 업로드. 목소리 처리 모드가 여기서 적용된다.
@@ -255,7 +255,7 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
   const dropped = new Set<string>();
 
   for (const asset of work.assets) {
-    onProgress?.(asset.kind === 'art' ? '그림을 올리는 중…' : '소리를 올리는 중…');
+    onProgress?.(asset.kind === 'art' ? t('remote.step.uploadArt') : t('remote.step.uploadSound'));
     const blob = await getAssetBlob(asset.localKey ?? localKeyOf(work.id, asset.id));
     if (!blob) {
       dropped.add(asset.id);
@@ -280,12 +280,12 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
   work = applyDroppedAssets({ ...work, assets: uploaded }, dropped);
 
   // 4. 썸네일
-  onProgress?.('미리보기를 만드는 중…');
+  onProgress?.(t('remote.step.thumb'));
   const thumb = await renderShareThumb(work);
   await uploadPath(thumbPath(work.id), thumb, MAX_ART_BYTES);
 
   // 5. 이제서야 링크가 열린다.
-  onProgress?.('마무리하는 중…');
+  onProgress?.(t('remote.step.finishing'));
   const groupIds = options.groupIds ?? [];
   /*
    * 그룹이 하나라도 있으면 expiresAt은 무조건 null이다.
@@ -311,7 +311,7 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
       expiresAt,
     }),
     WRITE_TIMEOUT_MS,
-    '링크 열기',
+    t('remote.op.openLink'),
   );
 
   const record = await getWorkRecord(work.id);
@@ -330,7 +330,7 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
    * 담아 돌려줘서 화면이 "링크는 됐지만 그룹은 안 됐다"는 사실을 숨기지 않게 한다.
    */
   if (groupIds.length) {
-    onProgress?.('그룹에 올리는 중…');
+    onProgress?.(t('remote.step.group'));
     try {
       const { submitted, skipped } = await submitToGroups(work.id, groupIds);
       result.submittedGroups = submitted;
@@ -378,7 +378,7 @@ export async function fetchWork(id: string): Promise<Work | null> {
     const snap = await withTimeout(
       getDoc(doc(firestore(), 'works', id)),
       WRITE_TIMEOUT_MS,
-      '작품 불러오기',
+    t('remote.op.fetchWork'),
     );
     if (snap.exists()) {
       const remote = parseWork(snap.data());
@@ -400,7 +400,7 @@ export async function unshareWork(workId: string): Promise<void> {
   // 문서와 Storage 자산은 반드시 서버에서 함께 지운다. Function 호출이 실패했을 때
   // 문서만 지우면 공유 링크는 깨지고 목소리·그림 파일은 고아로 남는다.
   const fn = httpsCallable(functions(), 'unshareWork');
-  await withTimeout(fn({ workId }), WRITE_TIMEOUT_MS, '공유 멈추기');
+  await withTimeout(fn({ workId }), WRITE_TIMEOUT_MS, t('remote.op.unshare'));
   const record = await getWorkRecord(workId);
   if (record) {
     await putWorkRecord({
@@ -446,7 +446,7 @@ export async function recordPlay(
   reporting.add(key);
   try {
     const { user, error } = await ensureSignedIn();
-    if (!user) throw error ?? new Error('재생 집계를 위한 로그인에 실패했어요');
+    if (!user) throw error ?? new Error(t('remote.playSigninFailed'));
     const fn = httpsCallable(functions(), 'recordPlay');
     const response = await fn({ workId, presses, groupId, completed });
     // 서버가 반영한 뒤에만 완료 처리한다. 실패한 호출은 같은 분 안에도 다시 시도할 수 있다.

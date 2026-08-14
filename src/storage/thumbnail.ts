@@ -6,6 +6,7 @@
  * 공유 전환율이 여기서 갈리므로 og 쪽은 1200×630 규격을 지킨다.
  */
 
+import { t } from '../i18n';
 import type { Work } from '../work-model/types';
 import { resolveImageUrl } from './assets';
 
@@ -148,7 +149,7 @@ function canvasToBlob(
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('썸네일을 만들지 못했어요'))),
+      (b) => (b ? resolve(b) : reject(new Error(t('thumb.failed')))),
       type,
       quality,
     );
@@ -183,10 +184,10 @@ export async function renderShareThumb(work: Work): Promise<Blob> {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 66px system-ui, -apple-system, sans-serif';
-  ctx.fillText(work.title || '이름 없는 작품', OG_W / 2, 128, 1000);
+  ctx.fillText(work.title || t('common.untitled'), OG_W / 2, 128, 1000);
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.font = '36px system-ui, -apple-system, sans-serif';
-  ctx.fillText(work.hint || '눌러서 들어보세요', OG_W / 2, 188, 1000);
+  ctx.fillText(work.hint || t('thumb.defaultHint'), OG_W / 2, 188, 1000);
 
   const cap = 190;
   const gap = 28;
@@ -195,7 +196,7 @@ export async function renderShareThumb(work: Work): Promise<Blob> {
 
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.font = '30px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`${work.authorNick} 만듦`, OG_W / 2, 552, 800);
+  ctx.fillText(t('view.by', { nick: work.authorNick }), OG_W / 2, 552, 800);
 
   return toJpegUnder(canvas, MAX_THUMB_BYTES);
 }

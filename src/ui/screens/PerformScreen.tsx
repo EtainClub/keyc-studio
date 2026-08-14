@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BEATS_PER_BAR, barMs, beatMs, durationForTempo } from '../../work-model/timing';
+import { t } from '../../i18n';
 import type { KeyIndex } from '../../work-model/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { KeycapGrid, type GridHandle, type LoopState } from '../components/KeycapGrid';
@@ -84,7 +85,7 @@ export function PerformScreen() {
         const result = engine.selfCheck();
         if (!result.ok) {
           console.warn('[selfcheck] 리플레이 불일치', result);
-          setCheck('리플레이가 원본과 다를 수 있어요');
+          setCheck(t('perform.replayMismatch'));
         } else {
           setCheck(null);
         }
@@ -142,9 +143,9 @@ export function PerformScreen() {
           onClick={() => nav('/stage')}
           disabled={phase === 'live' || phase === 'paused' || phase === 'countdown'}
         >
-          ‹ 무대
+          {t('perform.backToStage')}
         </button>
-        <h1>공연</h1>
+        <h1>{t('perform.title')}</h1>
       </header>
 
       {/* 마디 진행 표시 */}
@@ -185,7 +186,7 @@ export function PerformScreen() {
       {phase === 'ready' && (
         <button type="button" className="record-cta" onClick={start}>
           <span className="record-dot" />
-          공연 시작
+          {t('perform.start')}
         </button>
       )}
 
@@ -193,51 +194,54 @@ export function PerformScreen() {
 
       {(phase === 'live' || phase === 'paused') && (
         <p className="live-hint">
-          {phase === 'paused' ? '잠시 멈췄어요' : '누르고 싶은 대로 눌러요!'}
+          {phase === 'paused' ? t('perform.paused') : t('perform.live')}
           <span className="press-count">
-            {Math.max(0, Math.ceil((duration - elapsed) / 1000))}초 남음 · {presses}번 눌렀어요
+            {t('perform.counter', {
+              seconds: Math.max(0, Math.ceil((duration - elapsed) / 1000)),
+              presses,
+            })}
           </span>
         </p>
       )}
 
       {(phase === 'live' || phase === 'paused') && (
-        <div className="performance-controls" aria-label="공연 재생 제어">
+        <div className="performance-controls" aria-label={t('perform.controlsAria')}>
           <button type="button" className="chip performance-pause" onClick={togglePause}>
-            {phase === 'paused' ? '▶ 계속하기' : 'Ⅱ 일시정지'}
+            {phase === 'paused' ? t('perform.resume') : t('perform.pause')}
           </button>
           <button
             type="button"
             className="chip performance-stop"
             onClick={() => setConfirmCancel(true)}
           >
-            ■ 공연 중단
+            {t('perform.stop')}
           </button>
         </div>
       )}
 
       {phase === 'done' && (
         <div className="done-row">
-          <p className="done-msg">공연 끝! {presses}번 눌렀어요 🎉</p>
+          <p className="done-msg">{t('perform.done', { presses })}</p>
           {check && <p className="warn">{check}</p>}
           <button type="button" className="chip" onClick={() => nav('/card?replay=1')}>
-            ▶ 방금 공연 다시 보기
+            {t('perform.watchAgain')}
           </button>
           {/* 15초 한 번에 만족스러운 결과가 나올 확률은 낮다. 재시도 비용을 0으로. */}
           <button type="button" className="chip" onClick={retry}>
-            ↻ 다시 공연하기
+            {t('perform.again')}
           </button>
           <button type="button" className="big-cta" onClick={() => nav('/card')}>
-            ✓ 이 공연으로 완성
+            {t('perform.finish')}
           </button>
         </div>
       )}
 
       {confirmCancel && (
         <ConfirmDialog
-          title="공연을 중단할까요?"
-          detail="지금까지 누른 건 저장되지 않아요. 처음부터 다시 시작하게 돼요."
-          confirmLabel="중단하기"
-          cancelLabel="계속 공연하기"
+          title={t('perform.cancelTitle')}
+          detail={t('perform.cancelDetail')}
+          confirmLabel={t('perform.cancelConfirm')}
+          cancelLabel={t('perform.cancelKeep')}
           onConfirm={cancelPerformance}
           onCancel={() => setConfirmCancel(false)}
         />
