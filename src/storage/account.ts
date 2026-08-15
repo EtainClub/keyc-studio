@@ -5,6 +5,7 @@ import { parseWork } from '../work-model/serialize';
 import type { AssetRef } from '../work-model/types';
 import { toPortableWork } from './portable-work';
 import {
+  deleteWorkRecord,
   getAssetBlob,
   getWorkRecord,
   listWorkRecords,
@@ -28,6 +29,18 @@ function profileRef(uid: string) {
 
 function workRef(uid: string, workId: string) {
   return doc(firestore(), 'users', uid, 'works', workId);
+}
+
+/**
+ * 지웠다는 사실을 남기는 자리. 내용은 시각 하나뿐이다.
+ *
+ * 백업 문서를 지우는 것만으로는 삭제가 지켜지지 않는다 — 삭제가 반쯤 실패하거나
+ * 다른 기기가 아직 들고 있다가 도로 올리면, 동기화는 그것을 "클라우드에만 있는
+ * 새 작품"으로 보고 되살린다. 무엇이 없는지로는 지운 것과 아직 안 올라온 것을
+ * 구별할 수 없다. 그래서 있음으로 기록한다.
+ */
+function tombstoneRef(uid: string, workId: string) {
+  return doc(firestore(), 'users', uid, 'deletedWorks', workId);
 }
 
 export async function loadCloudProfile(uid: string): Promise<CreatorProfile | null> {
@@ -153,9 +166,17 @@ async function restoreWorkRecord(record: CloudRecord): Promise<void> {
 export type AccountSyncSummary = { uploaded: number; restored: number };
 
 export async function syncAccountWorks(uid: string): Promise<AccountSyncSummary> {
-  const [localRecords, cloudSnapshot] = await Promise.all([
+  const [localRecords, cloudSnapshot, tombstoneSnapshot] = await Promise.all([
     listWorkRecords(),
     getDocs(collection(firestore(), 'users', uid, 'works')),
+    /*
+     * 묘비 목록. 못 읽어도 동기화 전체를 죽이지 않는다 — deletedWorks 규칙이
+     * 아직 배포되지 않았으면 거부되는데, 그걸로 백업·복원까지 멎으면 안 된다.
+     */
+    getDocs(collection(firestore(), 'users', uid, 'deletedWorks')).catch((error) => {
+      console.warn('[account] 삭제 표시를 읽지 못했어요', error);
+      return null;
+    }),
   ]);
   const localById = new Map(localRecords.map((record) => [record.work.id, record]));
   const cloudById = new Map<string, CloudRecord>();
@@ -163,10 +184,31 @@ export async function syncAccountWorks(uid: string): Promise<AccountSyncSummary>
     const record = cloudRecordOf(snapshot.data());
     if (record) cloudById.set(record.work.id, record);
   }
+  const deleted = new Set(tombstoneSnapshot?.docs.map((snapshot) => snapshot.id) ?? []);
+
+  /*
+   * 지운 작품 먼저 치운다. 올리기·내려받기보다 앞서야 한다 —
+   * 뒤에 두면 이번 판에서 한 번 되살아났다가 다음 판에 사라진다.
+   *
+   * 묘비는 기기 사이에도 퍼진다. 다른 기기에서 지웠으면 이 기기의 사본도 따라
+   * 사라지는 게 맞다. 그게 "지웠다"의 뜻이다.
+   */
+  for (const workId of deleted) {
+    if (localById.has(workId)) {
+      await deleteWorkRecord(workId).catch(() => {});
+      localById.delete(workId);
+    }
+    if (cloudById.has(workId)) {
+      // 예전 코드가 남긴 고아 문서. 이게 있는 한 매번 되살아난다.
+      await deleteDoc(workRef(uid, workId)).catch(() => {});
+      cloudById.delete(workId);
+    }
+  }
 
   let uploaded = 0;
   let restored = 0;
   for (const record of localRecords) {
+    if (deleted.has(record.work.id)) continue;
     const cloud = cloudById.get(record.work.id);
     if (!cloud || record.updatedAt >= cloud.updatedAt) {
       await backupWorkRecord(record, uid);
@@ -257,6 +299,18 @@ export async function deleteAccountBackup(record: WorkRecord): Promise<void> {
     .map((asset) => asset.remotePath)
     .filter((path): path is string => Boolean(path));
 
+  /*
+   * 묘비가 **가장 먼저**다. 이 뒤의 어느 단계가 실패해도 동기화는 이 작품을
+   * 되살리지 않는다. 순서를 뒤집으면 문서만 지워지고 묘비가 없는 창이 열리고,
+   * 하필 그 사이에 다른 기기가 백업을 올리면 삭제가 통째로 무효가 된다.
+   *
+   * 다만 **최선 노력**이다. deletedWorks 규칙이 아직 배포되지 않은 앱에서는 이
+   * 쓰기가 거부되는데, 그것 때문에 지우기 자체가 막히면 안 된다. 묘비가 없으면
+   * 예전만큼만 동작하고(문서를 지우는 것으로 끝), 있으면 확실해진다.
+   */
+  await setDoc(tombstoneRef(user.uid, record.work.id), { deletedAt: Date.now() }).catch(
+    (error) => console.warn('[account] 삭제 표시를 남기지 못했어요', record.work.id, error),
+  );
   await deleteDoc(workRef(user.uid, record.work.id));
   await Promise.allSettled(paths.map((path) => deleteObject(ref(storage(), path))));
 }

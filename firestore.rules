@@ -44,6 +44,23 @@ service cloud.firestore {
       }
 
       /*
+       * 지운 작품의 묘비.
+       *
+       * 백업 문서를 지우는 것만으로는 부족하다. 삭제가 반쯤 실패하거나, 다른 기기가
+       * 아직 그 작품을 들고 있다가 도로 올리면, 동기화가 "클라우드에만 있는 작품"으로
+       * 보고 되살린다. **지웠다는 사실 자체**를 남겨야 그 판단을 뒤집을 수 있다.
+       *
+       * 내용은 시각 하나뿐이다. 작품 내용은 여기 남지 않는다.
+       */
+      match /deletedWorks/{workId} {
+        allow get, list, delete: if request.auth != null && request.auth.uid == uid;
+        allow create, update: if request.auth != null
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['deletedAt'])
+          && request.resource.data.deletedAt is number;
+      }
+
+      /*
        * 내가 속한 그룹의 미러.
        *
        * 진짜 멤버십은 groups/{gid}/members/{uid}에 있고 Functions만 쓴다. 여기 사본을
