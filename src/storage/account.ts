@@ -65,12 +65,19 @@ export async function backupWorkRecord(record: WorkRecord, uid?: string): Promis
 
   const previous = await getDoc(workRef(ownerUid, record.work.id));
   const previousRecord = previous.exists() ? cloudRecordOf(previous.data()) : null;
-  const previousHashes = new Map(previousRecord?.work.assets.map((asset) => [asset.id, asset.hash]));
+  /** 지난 백업에서 **실제로 올라가 있는** 자산의 해시. 경로가 없는 것은 안 올라간 것이다. */
+  const storedHashes = new Map(
+    previousRecord?.work.assets
+      .filter((asset) => asset.remotePath)
+      .map((asset) => [asset.id, asset.hash]),
+  );
   const assets: AssetRef[] = [];
 
   for (const asset of record.work.assets) {
     const remotePath = backupAssetPath(ownerUid, record.work.id, asset.kind, asset.id);
-    if (previousHashes.get(asset.id) !== asset.hash) {
+    let stored = storedHashes.get(asset.id) === asset.hash;
+
+    if (!stored) {
       const blob = await sourceBlob(record, asset);
       if (blob) {
         await uploadBytes(ref(storage(), remotePath), blob, {
@@ -78,9 +85,21 @@ export async function backupWorkRecord(record: WorkRecord, uid?: string): Promis
           cacheControl: 'private, max-age=31536000, immutable',
           customMetadata: { hash: asset.hash },
         });
+        stored = true;
       }
     }
-    assets.push({ ...asset, localKey: undefined, remotePath });
+
+    /*
+     * **올라간 것에만 경로를 적는다.**
+     *
+     * 예전에는 blob을 못 찾아 업로드를 건너뛰고도 remotePath를 적었다. 그러면
+     * 클라우드 문서가 없는 파일을 가리키게 되고, 그 거짓말이 두 군데서 터진다:
+     *   - 복원할 때 getBytes가 실패해 그림이 영영 사라진다
+     *   - 지울 때 없는 파일을 지우려다 404가 뜬다
+     * 경로가 없으면 "이 기기에만 있는 자산"이라는 사실 그대로가 되고,
+     * 나중에 blob을 찾을 수 있게 되면 그때 올라간다.
+     */
+    assets.push({ ...asset, localKey: undefined, remotePath: stored ? remotePath : undefined });
   }
 
   // IndexedDB 전용 localKey와 선택 필드의 undefined를 Firestore에 보내지 않는다.
@@ -96,20 +115,27 @@ async function restoreWorkRecord(record: CloudRecord): Promise<void> {
   const assets: AssetRef[] = [];
   for (const asset of record.work.assets) {
     let localKey: string | undefined;
-    if (asset.remotePath) {
+    let remotePath = asset.remotePath;
+    if (remotePath) {
       try {
         const max = asset.kind === 'art' ? 200 * 1024 : 150 * 1024;
-        const bytes = await getBytes(ref(storage(), asset.remotePath), max);
+        const bytes = await getBytes(ref(storage(), remotePath), max);
         localKey = await putAssetBlob(
           record.work.id,
           asset.id,
           new Blob([bytes], { type: asset.mimeType }),
         );
       } catch (error) {
+        /*
+         * 파일이 없다. 예전 백업이 올리지도 않은 자산에 경로를 적어 둔 흔적이다.
+         * 그 거짓말을 로컬로 옮겨 적지 않는다 — 남겨 두면 이 기기에서도 계속
+         * 없는 파일을 받으러 가고, 지울 때 404를 낸다.
+         */
         console.warn('[account] 백업 자산을 내려받지 못했어요', asset.id, error);
+        remotePath = undefined;
       }
     }
-    assets.push({ ...asset, localKey });
+    assets.push({ ...asset, localKey, remotePath });
   }
   /*
    * 썸네일은 로컬 전용이라 클라우드 문서에 없다(WorkRecord.thumb 참고).
@@ -209,14 +235,28 @@ export function cancelWorkBackup(workId: string): void {
   }
 }
 
+/**
+ * 계정 백업에서 작품 하나를 지운다.
+ *
+ * 지울 파일 목록은 **클라우드 문서에서 읽는다.** 로컬 레코드로 경로를 되짚으면
+ * 백업에 올라간 적 없는 자산까지 지우려 들어 404가 쏟아진다 — 그 요청들은
+ * allSettled가 삼키지만 콘솔에는 그대로 남아, 멀쩡히 지워진 삭제가 실패한 것처럼
+ * 보인다. 게다가 로컬 자산의 remotePath는 **공개 공유 경로**라 백업 경로와 다르다.
+ *
+ * 문서를 먼저 지운다. 파일 삭제가 실패해 고아 파일이 남는 편이, 문서가 남아
+ * 다음 동기화 때 작품이 통째로 되살아나는 것보다 낫다.
+ */
 export async function deleteAccountBackup(record: WorkRecord): Promise<void> {
   if (!isFirebaseConfigured) return;
   const user = auth().currentUser;
   if (!isPermanentUser(user)) return;
+
+  const snapshot = await getDoc(workRef(user.uid, record.work.id));
+  const cloud = snapshot.exists() ? cloudRecordOf(snapshot.data()) : null;
+  const paths = (cloud?.work.assets ?? [])
+    .map((asset) => asset.remotePath)
+    .filter((path): path is string => Boolean(path));
+
   await deleteDoc(workRef(user.uid, record.work.id));
-  await Promise.allSettled(
-    record.work.assets.map((asset) =>
-      deleteObject(ref(storage(), backupAssetPath(user.uid, record.work.id, asset.kind, asset.id))),
-    ),
-  );
+  await Promise.allSettled(paths.map((path) => deleteObject(ref(storage(), path))));
 }
