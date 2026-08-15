@@ -12,6 +12,9 @@ import {
   KEY_COUNT,
   REPLAY_EVENTS_MAX,
   SCHEMA_VERSION,
+  SECRETS_MAX,
+  SECRET_COUNT_MAX,
+  SECRET_COUNT_MIN,
   TITLE_MAX,
   WORK_ID_LENGTH,
   type KeyDef,
@@ -26,6 +29,12 @@ export function clampPitch(v: number): number {
 
 export function clampGain(v: number): number {
   return Math.min(1, Math.max(0, v));
+}
+
+/** 비밀을 여는 누름 횟수. 아이가 고르는 값이라 오류로 막지 않고 범위 안으로 당긴다. */
+export function clampSecretCount(v: number): number {
+  if (!Number.isFinite(v)) return SECRET_COUNT_MIN;
+  return Math.min(SECRET_COUNT_MAX, Math.max(SECRET_COUNT_MIN, Math.round(v)));
 }
 
 /** 자소 단위가 아니라 코드포인트 기준으로 자른다(이모지 깨짐 방지). */
@@ -99,6 +108,24 @@ export function validateWork(work: Work): ValidationError[] {
     }
   });
 
+  if (work.secrets.length > SECRETS_MAX) {
+    errors.push({ field: 'secrets', message: t('validate.secretsTooMany', { max: SECRETS_MAX }) });
+  }
+
+  work.secrets.forEach((s, i) => {
+    if (s.trigger.count < SECRET_COUNT_MIN || s.trigger.count > SECRET_COUNT_MAX) {
+      errors.push({ field: `secrets[${i}].trigger.count`, message: t('validate.secretCount') });
+    }
+    /*
+     * 자산을 가리키는데 그 자산이 없으면 **눌러도 아무 일이 없는 비밀**이 된다.
+     * 감상자에게는 "비밀 1개 있어요"라고 표시되므로, 있지도 않은 것을 영원히 찾는다.
+     * 키의 소리·그림 누락과 같은 무게로 막는다.
+     */
+    if (s.reveal.kind !== 'led' && !work.assets.some((a) => a.id === s.reveal.assetId)) {
+      errors.push({ field: `secrets[${i}].reveal.assetId`, message: t('validate.secretMissing') });
+    }
+  });
+
   return errors;
 }
 
@@ -109,20 +136,40 @@ export function normalizeWork(work: Work): Work {
     durationMs: durationForTempo(work.tempo),
     events: capEvents(work.replay.events),
   };
-  return {
+  const secrets = work.secrets.slice(0, SECRETS_MAX).map((s) => ({
+    ...s,
+    trigger: { ...s.trigger, count: clampSecretCount(s.trigger.count) },
+  }));
+  const trimmed: Work = {
     ...work,
     title: trimToLength(work.title.trim(), TITLE_MAX),
     hint: trimToLength(work.hint.trim(), HINT_MAX),
     keys: work.keys.map((k) => normalizeKey(k)) as Work['keys'],
     replay,
-    // 참조되지 않는 자산은 버린다 — 안 그러면 안 쓰는 녹음이 계속 업로드된다.
-    assets: work.assets.filter((a) => isAssetReferenced(work, a.id)),
+    secrets,
+  };
+  return {
+    ...trimmed,
+    /*
+     * 참조되지 않는 자산은 버린다 — 안 그러면 안 쓰는 녹음이 계속 업로드된다.
+     * 원본이 아니라 **잘라낸 뒤의 작품**을 기준으로 본다. 상한을 넘겨 떨어져 나간
+     * 비밀이 쓰던 자산까지 남으면 아무도 안 쓰는 파일이 계속 따라다닌다.
+     */
+    assets: trimmed.assets.filter((a) => isAssetReferenced(trimmed, a.id)),
   };
 }
 
+/**
+ * 이 자산을 쓰는 데가 한 군데라도 있는가.
+ *
+ * **비밀이 쓰는 자산도 반드시 여기 포함되어야 한다.** normalizeWork가 이 판정으로
+ * assets를 걸러내므로, 빠뜨리면 비밀에만 붙어 있는 그림·소리가 업로드 직전에
+ * 조용히 삭제된다. 그러면 눌러도 아무 일이 없는 비밀이 남는다.
+ */
 export function isAssetReferenced(work: Work, assetId: string): boolean {
-  return work.keys.some(
-    (k) => k.sound.assetId === assetId || k.appearance.artAssetId === assetId,
+  return (
+    work.keys.some((k) => k.sound.assetId === assetId || k.appearance.artAssetId === assetId) ||
+    work.secrets.some((s) => s.reveal.assetId === assetId)
   );
 }
 

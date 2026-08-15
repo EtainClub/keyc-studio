@@ -14,6 +14,7 @@ import {
   ENGINE_VERSION,
   PRESET_VERSION,
   SCHEMA_VERSION,
+  SECRET_ID_LENGTH,
   WORK_ID_LENGTH,
   tempoOf,
   type Haptic,
@@ -28,6 +29,7 @@ import type { PresetId } from './presets';
 const ALPHABET = '346789ABCDEFGHJKLMNPQRTUVWXYabcdefghijkmnpqrtuvwxy';
 const workId = customAlphabet(ALPHABET, WORK_ID_LENGTH);
 const assetId = customAlphabet(ALPHABET, ASSET_ID_LENGTH);
+const secretId = customAlphabet(ALPHABET, SECRET_ID_LENGTH);
 
 export const DEFAULT_COLORS = ['#FF6B8A', '#FFC53D', '#4ED9A4', '#7AA5FF'] as const;
 
@@ -46,6 +48,10 @@ export function newWorkId(): string {
 
 export function newAssetId(): string {
   return assetId();
+}
+
+export function newSecretId(): string {
+  return secretId();
 }
 
 export function createDefaultKey(idx: KeyIndex): KeyDef {

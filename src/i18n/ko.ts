@@ -155,6 +155,41 @@ export const ko = {
   'motion.pop': '뿅',
   'motion.melt': '녹기',
 
+  /* ── 비밀 반응 ───────────────────────────────── */
+  /* 정답은 절대 감상자에게 보여주지 않는다. 개수만 알려준다. */
+  'secret.entry': '비밀 숨기기',
+  'secret.title': '비밀 숨기기',
+  'secret.aria': '비밀 숨기기',
+  'secret.countBadge': '{n}개',
+  'secret.empty': '아직 비밀이 없어요. 하나 숨겨 볼까요?',
+  'secret.add': '＋ 비밀 만들기',
+  'secret.full': '비밀은 {max}개까지 숨길 수 있어요',
+  'secret.rowSummary': '키캡 {key}을 {count}번',
+  'secret.rowAria': '비밀 {n} 고치기',
+  'secret.remove': '지우기',
+  'secret.removeAria': '비밀 {n} 지우기',
+  'secret.backToList': '‹ 비밀 목록',
+  'secret.whichKey': '어느 키캡을 누를까요',
+  'secret.keyAria': '키캡 {n}',
+  'secret.howMany': '몇 번 누르면 나타날까요',
+  'secret.times': '{n}번',
+  'secret.whatHappens': '무엇이 나타날까요',
+  'secret.reveal.art': '숨은 그림',
+  'secret.reveal.sound': '특별한 소리',
+  'secret.reveal.led': '빛 폭발',
+  'secret.drawHint': '여기 그린 그림이 비밀이 열릴 때 나타나요.',
+  'secret.recordHint': '여기 녹음한 소리가 비밀이 열릴 때 들려요.',
+  'secret.needArt': '그림을 그려야 이 비밀이 완성돼요',
+  'secret.needSound': '소리를 녹음해야 이 비밀이 완성돼요',
+  'secret.tryHint': '닫고 그 키캡을 눌러 보면 바로 시험해 볼 수 있어요.',
+  'secret.found': '비밀을 찾았어요!',
+  /* 감상자에게 보이는 것. 개수만이다 — 어느 키인지도, 몇 번인지도 알려주지 않는다. */
+  'secret.hidden': '이 작품엔 비밀이 {n}개 숨어 있어요. 찾아보세요!',
+  'secret.progress': '비밀 {found} / {total} 찾았어요',
+  'secret.allFound': '비밀을 전부 찾았어요! 🎉',
+  'secret.cardCount': '비밀 {n}개를 숨겼어요',
+  'secret.cardIncomplete': '{n}개는 아직 그림이나 소리가 없어요 — 이대로면 아무도 못 열어요',
+
   /* ── LED ─────────────────────────────────────── */
   'led.none': '없음',
   'led.flash': '반짝',
@@ -198,6 +233,9 @@ export const ko = {
   'validate.noSound': '소리가 없어요',
   'validate.soundMissing': '소리 파일을 찾을 수 없어요',
   'validate.artMissing': '그림을 찾을 수 없어요',
+  'validate.secretsTooMany': '비밀은 {max}개까지 숨길 수 있어요',
+  'validate.secretCount': '비밀을 여는 횟수가 범위를 벗어났어요',
+  'validate.secretMissing': '비밀에 넣은 그림이나 소리를 찾을 수 없어요',
 
   /* ── 편집 시트 ───────────────────────────────── */
   'edit.aria': '키캡 {n} 꾸미기',

@@ -20,6 +20,11 @@ import { fetchWork, recordPlay, shareUrl } from '../../storage/remote';
 import { registerAssets } from '../../storage/assets';
 import type { Work } from '../../work-model/types';
 import { KeycapGrid, type GridHandle } from '../components/KeycapGrid';
+import {
+  SecretRevealLayer,
+  secretHandlerFor,
+  type SecretRevealHandle,
+} from '../components/SecretRevealLayer';
 import { useResumeOnVisible } from '../hooks';
 import { useAppState } from '../state';
 
@@ -31,10 +36,13 @@ export function ViewScreen() {
   const [searchParams] = useSearchParams();
   const { engine } = useAppState();
   const gridRef = useRef<GridHandle>(null);
+  const revealRef = useRef<SecretRevealHandle>(null);
   const [work, setWork] = useState<Work | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [progress, setProgress] = useState(0);
   const [presses, setPresses] = useState(0);
+  /** 이번 "직접 눌러보기"에서 찾아낸 비밀 수. 눌러보기를 다시 시작하면 0부터다. */
+  const [found, setFound] = useState(0);
 
   /**
    * 그룹 리플레이 링크(`/w/:id?g=...`)에서 왔는지. ref로 들고 있는 이유: 이 값을
@@ -85,7 +93,10 @@ export function ViewScreen() {
     async (w: Work) => {
       await engine.unlock();
       setPhase('free');
+      // 찾은 개수도 처음부터다. startFree가 엔진 쪽 진행 상태를 되돌리므로 화면도 맞춘다.
+      setFound(0);
       gridRef.current?.clearTraces();
+      revealRef.current?.clear();
       engine.startFree(w);
     },
     [engine],
@@ -108,6 +119,16 @@ export function ViewScreen() {
     let alive = true;
     if (!id) return;
     engine.setVisualHandler((e) => gridRef.current?.fire(e));
+    /*
+     * 비밀 목록은 여기서 넘기지 않는다 — startFree가 work.secrets로 채운다.
+     * 감상 화면에서 비밀이 열리는 곳은 "직접 눌러보기" 하나뿐이라, 다시 보기를
+     * 보는 동안에는 엔진에 비밀이 아예 없는 상태가 맞다.
+     */
+    const reveal = secretHandlerFor(engine, revealRef);
+    engine.setSecretHandler((secret) => {
+      reveal(secret);
+      setFound((n) => n + 1);
+    });
 
     (async () => {
       const w = await fetchWork(id).catch(() => null);
@@ -163,6 +184,23 @@ export function ViewScreen() {
         <h1>{work.title || t('common.untitled')}</h1>
         {work.hint && <p className="hint">{work.hint}</p>}
         <p className="nick">{t('view.by', { nick: work.authorNick })}</p>
+
+        {/*
+          * 감상자에게는 **개수만** 알려준다. 어느 키인지도, 몇 번 눌러야 하는지도
+          * 보여주지 않는다 — 그걸 알려주는 순간 찾는 재미가 통째로 사라진다.
+          * 눌러보는 중에는 몇 개 남았는지로 바뀐다. 남은 수가 안 보이면 언제
+          * 그만둬야 할지 몰라 그냥 나가버린다.
+          */}
+        {work.secrets.length > 0 && (
+          <p className="secret-hint">
+            <span aria-hidden>🤫</span>{' '}
+            {phase !== 'free'
+              ? t('secret.hidden', { n: work.secrets.length })
+              : found >= work.secrets.length
+                ? t('secret.allFound')
+                : t('secret.progress', { found, total: work.secrets.length })}
+          </p>
+        )}
       </header>
 
       {/*
@@ -259,6 +297,9 @@ export function ViewScreen() {
           </button>
         </div>
       )}
+
+      {/* 무대에서 아이가 시험한 것과 똑같은 연출이다. */}
+      <SecretRevealLayer ref={revealRef} secrets={work.secrets} />
     </main>
   );
 }

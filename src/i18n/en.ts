@@ -160,7 +160,43 @@ export const en = {
   'motion.pop': 'Pop',
   'motion.melt': 'Melt',
 
-  /* ── LED ─────────────────────────────────────── */
+  /* ── Secrets ─────────────────────────────────── */
+  /* Never show the answer to a viewer. Only the count. */
+  'secret.entry': 'Hide a secret',
+  'secret.title': 'Hide a secret',
+  'secret.aria': 'Hide a secret',
+  'secret.countBadge': '{n}',
+  'secret.empty': 'No secrets yet. Want to hide one?',
+  'secret.add': '＋ Make a secret',
+  'secret.full': 'You can hide up to {max} secrets',
+  'secret.rowSummary': 'Press keycap {key} {count} times',
+  'secret.rowAria': 'Edit secret {n}',
+  'secret.remove': 'Remove',
+  'secret.removeAria': 'Remove secret {n}',
+  'secret.backToList': '‹ All secrets',
+  'secret.whichKey': 'Which keycap?',
+  'secret.keyAria': 'Keycap {n}',
+  'secret.howMany': 'How many presses?',
+  'secret.times': '{n}',
+  'secret.whatHappens': 'What shows up?',
+  'secret.reveal.art': 'Hidden drawing',
+  'secret.reveal.sound': 'Special sound',
+  'secret.reveal.led': 'Light burst',
+  'secret.drawHint': 'Whatever you draw here appears when the secret opens.',
+  'secret.recordHint': 'Whatever you record here plays when the secret opens.',
+  'secret.needArt': 'Draw something to finish this secret',
+  'secret.needSound': 'Record something to finish this secret',
+  'secret.tryHint': 'Close this and press that keycap to try it right away.',
+  'secret.found': 'You found a secret!',
+  /* Shown to viewers. The count only — never which key, never how many presses. */
+  /* 영어에는 복수형 규칙이 없다 — 개수를 문장 뒤로 빼서 "1 secret(s)"를 피한다. */
+  'secret.hidden': 'Secrets hidden in here: {n}. Go find them!',
+  'secret.progress': 'Secrets found: {found} of {total}',
+  'secret.allFound': 'You found every secret! 🎉',
+  'secret.cardCount': 'Secrets hidden: {n}',
+  'secret.cardIncomplete': "Still missing a drawing or sound: {n}. Nobody can open those.",
+
+  /* ── LED ──────────────────────────────────── */
   'led.none': 'None',
   'led.flash': 'Flash',
   'led.breath': 'Breathe',
@@ -203,6 +239,9 @@ export const en = {
   'validate.noSound': 'This keycap has no sound',
   'validate.soundMissing': 'That sound file is missing',
   'validate.artMissing': 'That drawing is missing',
+  'validate.secretsTooMany': 'You can hide up to {max} secrets',
+  'validate.secretCount': 'That number of presses is out of range',
+  'validate.secretMissing': "The secret's drawing or sound is missing",
 
   /* ── Edit sheet ──────────────────────────────── */
   'edit.aria': 'Decorate keycap {n}',

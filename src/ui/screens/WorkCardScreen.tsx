@@ -66,6 +66,11 @@ export function WorkCardScreen() {
     engine.playReplay(draft, { onEnd: () => setReplaying(false) });
   }
 
+  /** 그림·소리가 아직 안 붙은 비밀. 이대로 나가면 열리지 않는 비밀이 된다. */
+  const incompleteSecrets = draft.secrets.filter(
+    (s) => s.reveal.kind !== 'led' && !draft.assets.some((a) => a.id === s.reveal.assetId),
+  ).length;
+
   const copy = async () => {
     const link = url ?? shareUrl(draft.id);
     try {
@@ -136,6 +141,23 @@ export function WorkCardScreen() {
         {t('card.author', { nick: draft.authorNick })}
         {bytes !== null && t('card.size', { kb: Math.round(bytes / 1024) })}
       </p>
+
+      {/*
+        * 숨긴 비밀 개수. 이 숫자가 감상자에게 그대로 나가는 값이라 공유 전에
+        * 한 번은 보여야 한다.
+        *
+        * 그림·소리가 비어 있는 비밀은 따로 경고한다. 그대로 내보내면 감상자는
+        * "비밀 2개"를 보고 없는 것 하나를 영원히 찾는다 — 공유 게이트(validateWork)도
+        * 막지만, 막히고 나서 이유를 여기서 처음 보는 것보다 먼저 아는 편이 낫다.
+        */}
+      {draft.secrets.length > 0 && (
+        <p className={incompleteSecrets > 0 ? 'warn' : 'note'}>
+          <span aria-hidden>🤫</span>{' '}
+          {incompleteSecrets > 0
+            ? t('secret.cardIncomplete', { n: incompleteSecrets })
+            : t('secret.cardCount', { n: draft.secrets.length })}
+        </p>
+      )}
 
       {!url && draft.visibility === 'local' && (
         <button

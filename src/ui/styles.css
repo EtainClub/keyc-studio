@@ -1716,6 +1716,263 @@ button {
   }
 }
 
+/* ── 비밀 반응 ─────────────────────────────────── */
+
+/*
+ * 무대의 "비밀 숨기기" 진입점.
+ *
+ * 큰 CTA(공연하러 가기)와 경쟁하지 않게 톤을 낮춘다 — 비밀은 건너뛰어도 되는
+ * 단계다. 하지만 개수 배지는 눈에 띄어야 한다. 그 숫자가 작품 카드에 그대로
+ * 나가는 값이라, 여기서 못 보고 지나치면 나중에 놀란다.
+ */
+.secret-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.14);
+  font-size: 16px;
+  font-weight: 700;
+}
+.secret-entry-label {
+  flex: 1;
+  text-align: left;
+}
+.secret-entry-count {
+  min-width: 30px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #241a44;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+/* ── 비밀 목록 ─────────────────────────────────── */
+
+.secret-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.secret-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.secret-row-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.12);
+  text-align: left;
+}
+
+/* 어느 키캡의 비밀인지 색으로 먼저 알린다 — 번호보다 색이 빨리 읽힌다. */
+.secret-dot {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.5);
+}
+
+.secret-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.secret-row-when {
+  font-size: 15px;
+  font-weight: 700;
+}
+.secret-row-what {
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+
+/*
+ * 미완성 표식. 그림이나 소리를 아직 안 넣은 비밀이다.
+ * 이대로 공유하면 감상자에게는 "비밀 1개"로 세어지는데 눌러도 아무 일이 없다.
+ */
+.secret-warn {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 900;
+}
+
+.secret-remove {
+  flex-shrink: 0;
+  color: var(--fg-dim);
+}
+
+.secret-add {
+  min-height: 56px;
+}
+
+.secret-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/*
+ * 감상 화면의 "비밀 N개" 줄.
+ *
+ * 제목·힌트보다 눈에 띄어야 한다 — 이 줄이 감상자를 "직접 눌러보기"로 데려가는
+ * 유일한 미끼다. 그렇다고 제목을 이기면 안 되므로 크기 대신 테두리로 세운다.
+ */
+.secret-hint {
+  margin: 10px 0 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 212, 0, 0.12);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 212, 0, 0.45);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ── 비밀이 열리는 순간 ────────────────────────── */
+
+/*
+ * 화면 한가운데에서 터진다. 손가락은 통과시킨다 — 연출이 도는 동안에도
+ * 계속 누를 수 있어야 한다. 남은 비밀이 더 있을 수 있다.
+ *
+ * z-index는 편집 시트(20)보다 위다. 비밀은 시트가 닫힌 뒤에만 열리지만,
+ * 열리는 순간만큼은 무엇에도 가려지면 안 된다 — 그게 이 기능의 전부다.
+ */
+.secret-reveal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+/* 결과 종류와 무관하게 먼저 터지는 빛. "찾았다"가 내용보다 먼저 와야 한다. */
+.secret-burst {
+  position: absolute;
+  width: min(90vw, 420px);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 212, 0, 0.85) 0%,
+    rgba(255, 212, 0, 0.35) 38%,
+    rgba(255, 212, 0, 0) 70%
+  );
+  animation: secret-burst 2400ms ease-out forwards;
+}
+
+/* 그림과 문구는 한 덩어리로 화면 한가운데에 선다. */
+.secret-reveal-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.secret-art {
+  width: min(62vw, 260px);
+  height: auto;
+  filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.55));
+  animation: secret-pop 2400ms cubic-bezier(0.2, 1.5, 0.35, 1) forwards;
+}
+
+/*
+ * 문구는 화면 어디에 떠도 읽혀야 한다. 연출은 페이지 내용 위 아무 데나 얹히므로
+ * 그림자만으로는 부족하다 — 노란 버튼 위에 흰 글씨가 얹히면 사라진다.
+ */
+.secret-found {
+  margin: 0;
+  padding: 7px 18px;
+  border-radius: 999px;
+  background: rgba(12, 8, 26, 0.72);
+  font-size: 20px;
+  font-weight: 900;
+  animation: secret-pop 2400ms ease-out forwards;
+}
+
+@keyframes secret-burst {
+  0% {
+    opacity: 0;
+    scale: 0.2;
+  }
+  12% {
+    opacity: 1;
+    scale: 1.05;
+  }
+  70% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.3;
+  }
+}
+
+@keyframes secret-pop {
+  0% {
+    opacity: 0;
+    scale: 0.4;
+  }
+  14% {
+    opacity: 1;
+    scale: 1;
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 0.94;
+  }
+}
+
+/*
+ * 여기서도 연출을 끄지는 않는다 — 비밀을 찾은 순간이 안 보이면 기능이 없는 것과 같다.
+ * 대신 확대·축소를 빼고 밝기만 바꾼다.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .secret-burst,
+  .secret-art,
+  .secret-found {
+    animation-name: secret-fade;
+    scale: 1;
+  }
+}
+
+@keyframes secret-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  10%,
+  80% {
+    opacity: 1;
+  }
+}
+
 /*
  * 흔적을 아예 끄지는 않는다 — 그건 아이가 고른 설정을 무시하는 것이다.
  * 대신 확대·축소를 빼고 밝기만 바꾼다. animation 자체를 none으로 두면

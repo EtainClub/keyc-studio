@@ -167,11 +167,28 @@ export type Replay = {
  */
 export type SecretTrigger = { kind: 'pressCount'; key: KeyIndex; count: number };
 
+export type SecretReveal = { kind: 'art' | 'sound' | 'led'; assetId?: string };
+
 export type Secret = {
   id: string;
   trigger: SecretTrigger;
-  reveal: { kind: 'art' | 'sound' | 'led'; assetId?: string };
+  reveal: SecretReveal;
 };
+
+/** 작품 하나에 숨길 수 있는 비밀 개수. Firestore 보안 규칙과 같은 값이다. */
+export const SECRETS_MAX = 3;
+
+/**
+ * 비밀을 여는 누름 횟수의 범위.
+ *
+ * 3번보다 적으면 그냥 눌러보다 우연히 열려 "숨겨졌다"는 느낌이 안 남고,
+ * 10번을 넘으면 힌트 없이는 아무도 못 찾는다.
+ */
+export const SECRET_COUNT_MIN = 3;
+export const SECRET_COUNT_MAX = 10;
+
+/** 비밀 id. 한 작품 안에서만 구별되면 되므로 짧다. */
+export const SECRET_ID_LENGTH = 6;
 
 /* ── 템포 ────────────────────────────────────────── */
 

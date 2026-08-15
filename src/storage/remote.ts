@@ -304,6 +304,12 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
     updateDoc(doc(firestore(), 'works', work.id), {
       assets: portablePublished.assets,
       keys: portablePublished.keys,
+      /*
+       * 비밀도 여기서 다시 쓴다. 2번 단계에서 올린 문서에는 **자산이 빠지기 전의**
+       * 비밀이 들어 있다 — applyDroppedAssets가 그 뒤에 돌기 때문이다.
+       * 빼먹으면 원격 문서에만 열리지 않는 비밀이 남는다.
+       */
+      secrets: portablePublished.secrets,
       visibility: 'link',
       // 공개 피드에 노출할지는 게이트 화면에서 고른 대로다. 그룹 전용으로
       // 올린 작품까지 무조건 공개 스테이지에 뜨던 게 이 필드를 하드코딩했던 문제였다.
@@ -363,7 +369,20 @@ function applyDroppedAssets(work: Work, dropped: Set<string>): Work {
     }
     return k;
   }) as Work['keys'];
-  return { ...work, keys };
+
+  /*
+   * 자산이 빠진 비밀은 **지운다**. 키처럼 프리셋으로 되돌릴 수가 없다 —
+   * 비밀의 알맹이가 그 그림이거나 그 소리이기 때문이다.
+   *
+   * 남겨 두면 감상 화면에 "비밀 1개 있어요"가 뜨는데 아무리 눌러도 안 열린다.
+   * 아이가 목소리를 안 올리기로 고른 순간 이 경로가 열리므로 드문 일이 아니다.
+   * 개수에서 빠지면 애초에 찾지 않는다.
+   */
+  const secrets = work.secrets.filter(
+    (s) => s.reveal.kind === 'led' || !s.reveal.assetId || !dropped.has(s.reveal.assetId),
+  );
+
+  return { ...work, keys, secrets };
 }
 
 /**

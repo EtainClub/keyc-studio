@@ -12,6 +12,7 @@
  */
 
 import { expandReplay, hashNotes, type Note } from '../work-model/replay';
+import { SecretTracker } from '../work-model/secret-trigger';
 import { durationForTempo } from '../work-model/timing';
 import { newSeed } from '../work-model/rng';
 import { playbackPresetId } from '../work-model/presets';
@@ -21,6 +22,7 @@ import type {
   Replay,
   ReplayEvent,
   ReplayEventType,
+  Secret,
   Tempo,
   Work,
 } from '../work-model/types';
@@ -71,6 +73,13 @@ export class KeycapEngine {
    * 음수 공간(loopEventIndex: -1부터 수백대)과 섞이지 않게 멀리 떨어뜨려 둔다.
    */
   private freeVisualIndex = -1_000_000;
+
+  /* ── 비밀 반응 ────────────────────────────────── */
+
+  private secrets: Secret[] = [];
+  /** 언제 열리는가의 판정. 순수 상태 기계라 따로 시험한다(secret-trigger.ts). */
+  private secretTracker = new SecretTracker();
+  private secretHandler: (secret: Secret) => void = () => {};
 
   /** 라이브 중 실제로 발화한 노트. 셀프체크에서 재계산 결과와 대조한다. */
   private firedLog: Note[] = [];
@@ -128,6 +137,66 @@ export class KeycapEngine {
     this.visualHandler = fn;
   }
 
+  /** 비밀이 열린 순간 호출된다. 무엇을 보여줄지는 화면이 정한다. */
+  setSecretHandler(fn: (secret: Secret) => void): void {
+    this.secretHandler = fn;
+  }
+
+  /**
+   * 이 화면에서 열릴 수 있는 비밀.
+   *
+   * 세션(startFree 등)과 따로 두는 이유: **무대 화면에는 세션이 없다**(mode 'idle').
+   * 아이가 비밀을 만들자마자 눌러서 시험해 볼 수 있어야 하는데 그 경로는
+   * startFree를 거치지 않는다. 그래서 화면이 직접 넘긴다.
+   */
+  setSecrets(secrets: readonly Secret[]): void {
+    this.secrets = [...secrets];
+    this.resetSecretProgress();
+
+    /*
+     * 비밀 소리는 어느 키에도 안 붙어 있어 prepare()의 preload 대상이 아니다.
+     * 미리 안 받아두면 비밀이 열리는 바로 그 순간에 소리가 없다 — 발견의 순간에
+     * 아무 일도 안 일어나는 것이 이 기능의 최악이다.
+     */
+    const soundKeys = this.secrets
+      .filter((s) => s.reveal.kind === 'sound' && s.reveal.assetId)
+      .map((s) => assetSoundKey(s.reveal.assetId!));
+    if (soundKeys.length) {
+      void this.bank
+        .preload(soundKeys)
+        .catch((cause) => console.warn('[audio] 비밀 소리를 미리 받지 못했어요:', cause));
+    }
+  }
+
+  /** 이번 세션에서 감상자가 찾아낸 비밀 개수. */
+  get foundSecretCount(): number {
+    return this.secretTracker.foundCount;
+  }
+
+  private resetSecretProgress(): void {
+    this.secretTracker.reset(this.secrets);
+  }
+
+  /**
+   * 비밀에 붙은 소리를 낸다.
+   *
+   * 키 소리와 달리 높낮이·크기 설정이 없다 — 아이가 "특별한 소리"로 넣은 것이므로
+   * 녹음 그대로 들려준다.
+   */
+  revealSound(assetId: string): void {
+    const soundKey = assetSoundKey(assetId);
+    const plain = { sound: { assetId, presetId: null, pitch: 1, gain: 1 } };
+    const buf = this.bank.get(soundKey);
+    if (buf) {
+      this.playBuffer(buf, plain);
+      return;
+    }
+    void this.bank
+      .load(soundKey)
+      .then((loaded) => this.playBuffer(loaded, plain))
+      .catch((cause) => console.warn('[audio] 비밀 소리를 불러오지 못했어요:', soundKey, cause));
+  }
+
   setAssetResolver(resolver: AssetResolver): void {
     this.bank.setResolver(resolver);
   }
@@ -170,6 +239,20 @@ export class KeycapEngine {
       seed: this.seed,
     });
 
+    /*
+     * 비밀은 **직접 누를 때만** 열린다.
+     *
+     * 'replay'에서 빼는 이유: 다시 보기는 만든 아이가 녹화한 공연이다. 거기서
+     * 비밀이 저절로 터지면 감상자가 찾을 것이 남지 않는다.
+     * 'live'에서 빼는 이유: 녹화 중에 화면을 덮는 연출이 끼어들면 공연을 망친다.
+     *
+     * 그래서 남는 것은 무대에서 시험해 보는 순간('idle')과 직접 눌러보기('free')다.
+     * 둘 다 저장되지 않으므로 리플레이 결정론과도 무관하다.
+     */
+    if (this.mode !== 'replay' && this.mode !== 'live') {
+      for (const secret of this.secretTracker.press(idx)) this.secretHandler(secret);
+    }
+
     // 셀프체크가 비교할 "실제로 울린 것"에 이 탭도 포함되어야 한다.
     // 스케줄러를 거치지 않는다고 빼면, 재계산 결과와 영원히 불일치한다.
     if (this.recording && at >= 0) {
@@ -200,7 +283,13 @@ export class KeycapEngine {
       .catch((cause) => console.warn('[audio] 미리듣기를 불러오지 못했어요:', soundKey, cause));
   }
 
-  previewBuffer(key: KeyDef, buf: AudioBuffer): void {
+  /**
+   * 이미 디코드된 버퍼를 그대로 미리 들려준다.
+   *
+   * KeyDef 전체가 아니라 sound만 받는다 — 비밀 소리는 어느 키에도 안 붙어 있어서
+   * 넘길 KeyDef가 없다. 여기서 쓰는 건 높낮이와 크기뿐이다.
+   */
+  previewBuffer(key: Pick<KeyDef, 'sound'>, buf: AudioBuffer): void {
     this.playBuffer(buf, key);
   }
 
@@ -308,6 +397,8 @@ export class KeycapEngine {
       loop: { ...k.loop, enabled: false },
     })) as KeyDef[];
     this.beginSession('free', keys, work.tempo, newSeed(), [], Infinity);
+    // 감상자가 찾아낼 비밀. beginSession 뒤라야 진행 상태가 0에서 시작한다.
+    this.setSecrets(work.secrets);
   }
 
   private beginSession(
@@ -328,6 +419,13 @@ export class KeycapEngine {
     this.mode = mode;
     this.sessionPaused = false;
     this.sessionHandlers = {};
+    /*
+     * 세션이 바뀌면 비밀도 처음부터다. 지난 세션에서 세어 둔 누름 횟수가 남아
+     * 있으면 새 감상자가 한 번만 눌러도 비밀이 열린다.
+     * startFree만 곧바로 setSecrets로 다시 채운다 — 나머지 모드는 비어 있는 게 맞다.
+     */
+    this.secrets = [];
+    this.resetSecretProgress();
     this.scheduler.start({
       startTime: this.ctx.currentTime + 0.1,
       notes: this.computeNotes(),
@@ -445,6 +543,13 @@ export class KeycapEngine {
     this.sessionPaused = false;
     this.sessionHandlers = {};
     this.mode = 'idle';
+    /*
+     * 비밀도 여기서 내려놓는다. 엔진은 앱 전체에 하나뿐이라, 감상 화면을 떠난 뒤에도
+     * 남아 있으면 **다른 작품을 만들다가 남의 비밀이 터진다.** 화면을 옮기면
+     * 그 화면이 자기 비밀을 다시 넘긴다.
+     */
+    this.secrets = [];
+    this.resetSecretProgress();
     this.stopTimers();
   }
 

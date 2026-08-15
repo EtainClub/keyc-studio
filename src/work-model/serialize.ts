@@ -10,16 +10,19 @@ import { t } from '../i18n';
 import { createDefaultKey } from './defaults';
 import { newSeed } from './rng';
 import { durationForTempo } from './timing';
+import { clampSecretCount } from './validate';
 import {
   ENGINE_VERSION,
   PRESET_VERSION,
   SCHEMA_VERSION,
+  SECRETS_MAX,
   TEMPO_BPM,
   type AssetRef,
   type KeyDef,
   type KeyIndex,
   type Replay,
   type ReplayEvent,
+  type Secret,
   type Tempo,
   type TempoPreset,
   type Work,
@@ -38,6 +41,7 @@ const MATERIALS = [
 ] as const;
 const TRACES = ['none', 'catPaw@1', 'star@1', 'flower@1'] as const;
 const EVENT_TYPES = ['keyDown', 'keyUp', 'loopOn', 'loopOff'] as const;
+const SECRET_REVEALS = ['art', 'sound', 'led'] as const;
 
 function pick<T extends readonly string[]>(
   allowed: T,
@@ -76,9 +80,56 @@ export function parseWork(raw: unknown): Work | null {
     keys,
     assets: coerceAssets(src.assets),
     replay: coerceReplay(src.replay, tempo),
-    secrets: [],
+    secrets: coerceSecrets(src.secrets),
     visibility: src.visibility === 'link' ? 'link' : 'local',
   };
+}
+
+/**
+ * 비밀은 남이 만든 문서에서 온다. 조건도 결과도 화이트리스트로 좁힌다.
+ *
+ * **모르는 조건은 통째로 버린다.** 열 방법이 없는 비밀을 살려 두면 감상 화면의
+ * "비밀 N개"에는 잡히면서 아무리 눌러도 안 열린다 — 감상자는 없는 것을 영원히 찾는다.
+ * 버리면 개수부터 줄어드니 애초에 찾지 않는다.
+ *
+ * reveal이 가리키는 자산이 실제로 있는지는 여기서 보지 않는다. 그건 assets를
+ * 다 읽은 뒤에야 알 수 있고, 판단은 validateWork와 업로드 쪽 몫이다.
+ */
+function coerceSecrets(raw: unknown): Secret[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Secret[] = [];
+  const seen = new Set<string>();
+
+  for (const item of raw) {
+    if (out.length >= SECRETS_MAX) break;
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const trigger = (o.trigger ?? {}) as Record<string, unknown>;
+    const reveal = (o.reveal ?? {}) as Record<string, unknown>;
+
+    if (trigger.kind !== 'pressCount') continue;
+    if (typeof trigger.key !== 'number' || trigger.key < 0 || trigger.key > 3) continue;
+    if (typeof trigger.count !== 'number') continue;
+
+    // id가 겹치면 "이 비밀을 찾았는가"를 추적할 수 없다. 뒤엣것을 버린다.
+    const id = typeof o.id === 'string' && o.id ? o.id : `s${out.length}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    out.push({
+      id,
+      trigger: {
+        kind: 'pressCount',
+        key: Math.trunc(trigger.key) as KeyIndex,
+        count: clampSecretCount(trigger.count),
+      },
+      reveal: {
+        kind: pick(SECRET_REVEALS, reveal.kind, 'led'),
+        assetId: typeof reveal.assetId === 'string' ? reveal.assetId : undefined,
+      },
+    });
+  }
+  return out;
 }
 
 function coerceTempo(raw: unknown): Tempo {

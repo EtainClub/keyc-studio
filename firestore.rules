@@ -87,6 +87,13 @@ service cloud.firestore {
         && request.resource.data.schemaVersion == 2
         && request.resource.data.keys.size() == 4
         && request.resource.data.replay.events.size() <= 600
+        /*
+         * 비밀 개수. types.ts의 SECRETS_MAX와 같은 값이다.
+         *
+         * get()을 쓰는 이유: v1.5 이전에 올라간 문서에는 이 필드가 아예 없고,
+         * 그런 작품도 다시 공유할 수 있어야 한다.
+         */
+        && request.resource.data.get('secrets', []).size() <= 3
         && request.resource.data.authorNick.size() <= 20
         && request.resource.data.title.size() <= 20
         && request.resource.data.hint.size() <= 40
@@ -109,6 +116,7 @@ service cloud.firestore {
         && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.keys.size() == 4
         && request.resource.data.replay.events.size() <= 600
+        && request.resource.data.get('secrets', []).size() <= 3
         && request.resource.data.authorNick.size() <= 20
         && request.resource.data.title.size() <= 20
         && request.resource.data.hint.size() <= 40
