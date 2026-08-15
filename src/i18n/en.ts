@@ -46,6 +46,7 @@ export const en = {
   'home.deleteAria': 'Delete {title}',
   'home.deleteTitle': 'Delete “{title}”?',
   'home.deleteDetail': 'The drawings and recordings go with it. This cannot be undone.',
+  'home.deleteFailed': "Can't delete right now. Check your connection and try again.",
 
   /* ── Create ──────────────────────────────────── */
   'create.title': 'Decorate keycaps',

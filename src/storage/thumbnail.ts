@@ -7,8 +7,9 @@
  */
 
 import { t } from '../i18n';
-import type { Work } from '../work-model/types';
+import { findAsset, type Work } from '../work-model/types';
 import { resolveImageUrl } from './assets';
+import { getAssetBlob, localKeyOf } from './db';
 
 /** Storage 규칙의 그림 상한과 같은 값. */
 const MAX_THUMB_BYTES = 200 * 1024;
@@ -16,17 +17,36 @@ const MAX_THUMB_BYTES = 200 * 1024;
 const OG_W = 1200;
 const OG_H = 630;
 
-async function loadArt(path: string | null): Promise<HTMLImageElement | null> {
-  if (!path) return null;
+function decode(url: string, revoke: boolean): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const done = (value: HTMLImageElement | null) => {
+      if (revoke) URL.revokeObjectURL(url);
+      resolve(value);
+    };
+    img.onload = () => done(img);
+    img.onerror = () => done(null);
+    img.src = url;
+  });
+}
+
+/**
+ * 키캡 그림 한 장.
+ *
+ * **작품을 함께 받는다.** 예전에는 assetId만 받아 resolveImageUrl에 넘겼는데,
+ * 그 함수는 "지금 화면이 열어 둔 작품"의 전역 레지스트리를 본다. 그래서 홈 목록처럼
+ * 편집 중이 아닌 작품의 썸네일을 만들려 하면 자산을 못 찾아 **빈 카드**가 나왔다.
+ * 썸네일은 특정 작품의 것이므로, 그 작품의 IndexedDB 키로 직접 찾는 길을 먼저 둔다.
+ * 레지스트리 경로는 원격 자산(남의 작품)을 위해 남겨 둔다.
+ */
+async function loadArt(work: Work, assetId: string | null): Promise<HTMLImageElement | null> {
+  if (!assetId) return null;
   try {
-    const url = await resolveImageUrl(path);
-    return await new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = () => resolve(null);
-      img.src = url;
-    });
+    const asset = findAsset(work, assetId);
+    const local = await getAssetBlob(asset?.localKey ?? localKeyOf(work.id, assetId));
+    if (local) return await decode(URL.createObjectURL(local), true);
+    return await decode(await resolveImageUrl(assetId), false);
   } catch {
     return null;
   }
@@ -168,7 +188,7 @@ async function toJpegUnder(canvas: HTMLCanvasElement, maxBytes: number): Promise
 
 /** 공유용 1200×630 JPEG. og:image 규격이자 업로드 상한 안. */
 export async function renderShareThumb(work: Work): Promise<Blob> {
-  const arts = await Promise.all(work.keys.map((k) => loadArt(k.appearance.artAssetId)));
+  const arts = await Promise.all(work.keys.map((k) => loadArt(work, k.appearance.artAssetId)));
   const canvas = document.createElement('canvas');
   canvas.width = OG_W;
   canvas.height = OG_H;
@@ -206,7 +226,7 @@ export async function renderShareThumb(work: Work): Promise<Blob> {
  * 키캡 한 줄이 들어가야 하므로 정사각이 아니라 가로로 긴 카드다.
  */
 export async function renderListThumb(work: Work, width = 320): Promise<Blob> {
-  const arts = await Promise.all(work.keys.map((k) => loadArt(k.appearance.artAssetId)));
+  const arts = await Promise.all(work.keys.map((k) => loadArt(work, k.appearance.artAssetId)));
   const height = Math.round(width * 0.625);
   const canvas = document.createElement('canvas');
   canvas.width = width;

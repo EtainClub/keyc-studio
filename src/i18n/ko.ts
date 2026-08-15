@@ -43,6 +43,7 @@ export const ko = {
   'home.deleteAria': '{title} 지우기',
   'home.deleteTitle': "'{title}'을 지울까요?",
   'home.deleteDetail': '그린 그림과 녹음한 소리도 함께 사라져요. 되돌릴 수 없어요.',
+  'home.deleteFailed': '지금은 지울 수 없어요. 인터넷을 확인하고 다시 해 주세요.',
 
   /* ── 만들기 ──────────────────────────────────── */
   'create.title': '키캡 꾸미기',

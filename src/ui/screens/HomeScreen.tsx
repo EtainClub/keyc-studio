@@ -9,8 +9,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { t } from '../../i18n';
-import { deleteAccountBackup } from '../../storage/account';
-import { deleteWorkRecord, listWorkRecords, type WorkRecord } from '../../storage/db';
+import { cancelWorkBackup, deleteAccountBackup } from '../../storage/account';
+import {
+  deleteWorkRecord,
+  getWorkRecord,
+  listWorkRecords,
+  putWorkRecord,
+  type WorkRecord,
+} from '../../storage/db';
+import { renderListThumb } from '../../storage/thumbnail';
 import { missionOfDay } from '../../work-model/missions';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { WorkThumbnail } from '../components/WorkThumbnail';
@@ -25,6 +32,8 @@ export function HomeScreen() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   /** 지우기를 누른 작품. 확인 창이 뜨는 동안 무엇을 지우는지 들고 있는다. */
   const [pendingDelete, setPendingDelete] = useState<WorkRecord | null>(null);
+  /** 계정 백업을 못 지웠을 때. 로컬만 지우면 나중에 혼자 돌아오므로 알려야 한다. */
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const mission = missionOfDay();
 
@@ -33,6 +42,40 @@ export function HomeScreen() {
   }, []);
 
   useEffect(refresh, [refresh, syncRevision]);
+
+  /**
+   * 썸네일이 없는 작품에 뒤늦게 하나 만들어 준다.
+   *
+   * 썸네일은 `saveDraft({thumb: true})`를 지나야 생긴다. 그런데 그 지점은 몇 군데뿐이라
+   * **만들다 만 작품**은 썸네일 없이 남고, **계정에서 복원한 작품**은 아예 못 받는다
+   * (썸네일은 로컬 전용이라 클라우드 문서에 없다). 둘 다 홈에서 빈 카드로 보인다.
+   *
+   * 여기서 만들어 저장해 두면 다음부터는 곧바로 뜬다. 한 작품당 한 번뿐인 비용이다.
+   */
+  useEffect(() => {
+    let alive = true;
+    const missing = records.filter((r) => !r.thumb);
+    if (missing.length === 0) return;
+
+    (async () => {
+      for (const record of missing) {
+        const thumb = await renderListThumb(record.work).catch(() => undefined);
+        if (!alive || !thumb) continue;
+        // 만드는 사이에 지워졌을 수 있다. 없어진 작품을 되살려 쓰지 않는다.
+        const current = await getWorkRecord(record.work.id).catch(() => undefined);
+        if (!alive || !current) continue;
+        await putWorkRecord({ ...current, thumb }).catch(() => {});
+        if (!alive) return;
+        setRecords((prev) =>
+          prev.map((r) => (r.work.id === record.work.id ? { ...r, thumb } : r)),
+        );
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [records]);
 
   useEffect(() => {
     if (!profileMenuOpen) return;
@@ -71,9 +114,32 @@ export function HomeScreen() {
     nav('/create');
   };
 
+  /**
+   * 작품 지우기 — 로컬과 계정 백업 **둘 다** 지워야 진짜 지워진다.
+   *
+   * 하나라도 남으면 다음 동기화가 되살린다: 클라우드 문서가 남아 있으면
+   * syncAccountWorks가 로컬로 복원하고, 예약된 백업 타이머가 살아 있으면
+   * 방금 지운 작품을 클라우드에 다시 올린다. 그래서 순서가 이렇다.
+   *
+   *   ① 예약된 백업 취소 — 안 그러면 1.8초 뒤에 되살아난다
+   *   ② 클라우드 백업 삭제 — 로컬보다 먼저다. 로컬을 먼저 지우면 그 사이에 도는
+   *      동기화가 "클라우드에만 있는 작품"으로 보고 도로 내려받는다
+   *   ③ 로컬 삭제
+   *
+   * ②가 실패하면 로컬도 지우지 않는다. 반쪽만 지우면 지운 줄 알았던 작품이
+   * 나중에 혼자 돌아오는데, 그게 그냥 실패하는 것보다 나쁘다.
+   */
   const remove = async (record: WorkRecord) => {
     setPendingDelete(null);
-    await deleteAccountBackup(record);
+    setDeleteError(null);
+    cancelWorkBackup(record.work.id);
+    try {
+      await deleteAccountBackup(record);
+    } catch (e) {
+      console.warn('[home] 계정 백업을 지우지 못했어요', record.work.id, e);
+      setDeleteError(t('home.deleteFailed'));
+      return;
+    }
     await deleteWorkRecord(record.work.id);
     refresh();
   };
@@ -144,6 +210,7 @@ export function HomeScreen() {
 
       <section className="my-works">
         <h2>{t('home.myWorks')}</h2>
+        {deleteError && <p className="warn">{deleteError}</p>}
         {records.length === 0 ? (
           <p className="empty">{t('home.empty')}</p>
         ) : (

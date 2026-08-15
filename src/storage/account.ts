@@ -6,6 +6,7 @@ import type { AssetRef } from '../work-model/types';
 import { toPortableWork } from './portable-work';
 import {
   getAssetBlob,
+  getWorkRecord,
   listWorkRecords,
   localKeyOf,
   putAssetBlob,
@@ -110,7 +111,17 @@ async function restoreWorkRecord(record: CloudRecord): Promise<void> {
     }
     assets.push({ ...asset, localKey });
   }
-  await putWorkRecord({ ...record, work: { ...record.work, assets } });
+  /*
+   * 썸네일은 로컬 전용이라 클라우드 문서에 없다(WorkRecord.thumb 참고).
+   * 그냥 덮어쓰면 이미 만들어 둔 썸네일이 날아가고 홈 목록이 빈 카드가 된다.
+   * 있으면 지키고, 없으면 홈이 나중에 다시 만든다.
+   */
+  const existing = await getWorkRecord(record.work.id).catch(() => undefined);
+  await putWorkRecord({
+    ...record,
+    work: { ...record.work, assets },
+    thumb: existing?.thumb,
+  });
 }
 
 export type AccountSyncSummary = { uploaded: number; restored: number };
@@ -167,11 +178,35 @@ export function scheduleWorkBackup(record: WorkRecord): void {
   if (existing !== undefined) clearTimeout(existing);
   const timer = window.setTimeout(() => {
     backupTimers.delete(record.work.id);
-    void backupWorkRecord(record, user.uid).catch((error) =>
+    void (async () => {
+      /*
+       * 백업 직전에 **아직 로컬에 있는지** 다시 본다.
+       *
+       * 예약과 실행 사이에 1.8초가 있고, 그 사이에 아이가 작품을 지울 수 있다.
+       * 그러면 이 타이머가 방금 지운 작품을 클라우드에 되살리고, 다음 동기화가
+       * 그것을 로컬로 되돌린다 — 지웠는데 새로고침하면 다시 나타나는 증상이
+       * 정확히 이 경로였다.
+       *
+       * 로그인 직후 hydratePermanentAccount가 모든 로컬 작품을 한꺼번에 예약하므로
+       * 이 창은 생각보다 자주 열린다.
+       */
+      const still = await getWorkRecord(record.work.id).catch(() => undefined);
+      if (!still) return;
+      await backupWorkRecord(record, user.uid);
+    })().catch((error) =>
       console.warn('[account] 작품 백업에 실패했어요', record.work.id, error),
     );
   }, 1800);
   backupTimers.set(record.work.id, timer);
+}
+
+/** 예약된 백업을 취소한다. 지우기처럼 백업이 무의미해진 순간에 부른다. */
+export function cancelWorkBackup(workId: string): void {
+  const timer = backupTimers.get(workId);
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    backupTimers.delete(workId);
+  }
 }
 
 export async function deleteAccountBackup(record: WorkRecord): Promise<void> {
