@@ -161,6 +161,11 @@ export const ko = {
   'led.breath': '숨쉬기',
   'led.rainbow': '무지개',
 
+  /* ── 흔적 ────────────────────────────────────── */
+  /* `trace.*`는 사진 선 따기가 이미 쓰고 있다. 누를 때 남는 흔적은 `trail.*`. */
+  'trail.none': '없음',
+  'trail.catPaw': '고양이 발자국',
+
   /* ── 프리셋 소리 ─────────────────────────────── */
   'preset.realTactile9': '타건 A',
   'preset.realTactile8': '타건 B',
@@ -231,6 +236,10 @@ export const ko = {
   'edit.gainLabel': '소리 크기',
   'edit.motionLabel': '어떻게 움직일까요',
   'edit.ledLabel': '빛',
+  'edit.traceLabel': '흔적',
+  'edit.traceNote': '누를 때마다 화면에 발자국이 남았다가 천천히 사라져요.',
+  'edit.traceColorsAria': '흔적 색',
+  'edit.traceColorAria': '흔적 색 {label}',
   'edit.feelNote': '눌러보면 느낌이 달라요. 눌리는 깊이와 튕기는 정도가 바뀝니다.',
   'edit.feelLabel': '어떤 느낌으로 눌릴까요',
   'edit.every.1': '아주 자주',

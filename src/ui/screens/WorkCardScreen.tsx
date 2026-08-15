@@ -41,7 +41,7 @@ export function WorkCardScreen() {
       nav('/', { replace: true });
       return;
     }
-    engine.setVisualHandler((e) => gridRef.current?.fire(e.key, e.source));
+    engine.setVisualHandler((e) => gridRef.current?.fire(e));
     void engine.prepare(draft.keys);
     workBytes(draft.id).then(setBytes).catch(() => setBytes(null));
     return () => engine.stop();
@@ -62,6 +62,7 @@ export function WorkCardScreen() {
     if (!draft) return;
     await engine.unlock();
     setReplaying(true);
+    gridRef.current?.clearTraces();
     engine.playReplay(draft, { onEnd: () => setReplaying(false) });
   }
 

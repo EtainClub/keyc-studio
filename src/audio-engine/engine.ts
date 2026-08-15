@@ -61,6 +61,17 @@ export class KeycapEngine {
   private recording = false;
   private durationMs = Infinity;
 
+  /**
+   * 기록되지 않는 탭(만들기·무대·직접 눌러보기)의 시각 효과용 인덱스.
+   *
+   * record()는 이때 -1을 돌려준다. 그 값을 그대로 VisualEvent에 실으면
+   * 난수가 (seed, -1, purpose) 하나로 고정되어 흔적이 매번 같은 자리에 겹친다.
+   *
+   * 저장되지 않는 세션이므로 결정론을 지킬 대상이 아니다. 다만 루프가 쓰는
+   * 음수 공간(loopEventIndex: -1부터 수백대)과 섞이지 않게 멀리 떨어뜨려 둔다.
+   */
+  private freeVisualIndex = -1_000_000;
+
   /** 라이브 중 실제로 발화한 노트. 셀프체크에서 재계산 결과와 대조한다. */
   private firedLog: Note[] = [];
 
@@ -155,7 +166,7 @@ export class KeycapEngine {
       key: idx,
       time: this.ctx.currentTime,
       source: 'tap',
-      eventIndex: at,
+      eventIndex: at >= 0 ? at : this.freeVisualIndex--,
       seed: this.seed,
     });
 

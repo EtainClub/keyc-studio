@@ -166,6 +166,11 @@ export const en = {
   'led.breath': 'Breathe',
   'led.rainbow': 'Rainbow',
 
+  /* ── Trails ──────────────────────────────────── */
+  /* `trace.*` is taken by photo line-tracing. Press-time trails use `trail.*`. */
+  'trail.none': 'None',
+  'trail.catPaw': 'Cat paws',
+
   /* ── Preset sounds ───────────────────────────── */
   'preset.realTactile9': 'Typing A',
   'preset.realTactile8': 'Typing B',
@@ -236,6 +241,10 @@ export const en = {
   'edit.gainLabel': 'Volume',
   'edit.motionLabel': 'How should it move?',
   'edit.ledLabel': 'Light',
+  'edit.traceLabel': 'Trail',
+  'edit.traceNote': 'Every press leaves paw prints on the screen, then they fade away.',
+  'edit.traceColorsAria': 'Trail colour',
+  'edit.traceColorAria': 'Trail colour {label}',
   'edit.feelNote': 'Press to try each one. The depth and the bounce back change.',
   'edit.feelLabel': 'How should it feel to press?',
   'edit.every.1': 'Very often',

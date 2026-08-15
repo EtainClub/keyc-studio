@@ -65,6 +65,8 @@ export function ViewScreen() {
       void recordPlay(w.id, 0, { groupId: groupIdRef.current });
       setProgress(0);
       setPhase('replay');
+      // 다시 보기는 처음부터다. 지난 재생의 발자국이 남아 있으면 같은 작품이 다른 그림으로 시작한다.
+      gridRef.current?.clearTraces();
       engine.playReplay(w, {
         onProgress: setProgress,
         onEnd: () => {
@@ -83,6 +85,7 @@ export function ViewScreen() {
     async (w: Work) => {
       await engine.unlock();
       setPhase('free');
+      gridRef.current?.clearTraces();
       engine.startFree(w);
     },
     [engine],
@@ -104,7 +107,7 @@ export function ViewScreen() {
   useEffect(() => {
     let alive = true;
     if (!id) return;
-    engine.setVisualHandler((e) => gridRef.current?.fire(e.key, e.source));
+    engine.setVisualHandler((e) => gridRef.current?.fire(e));
 
     (async () => {
       const w = await fetchWork(id).catch(() => null);

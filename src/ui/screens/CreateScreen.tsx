@@ -27,7 +27,7 @@ export function CreateScreen() {
       nav('/', { replace: true });
       return;
     }
-    engine.setVisualHandler((e) => gridRef.current?.fire(e.key, e.source));
+    engine.setVisualHandler((e) => gridRef.current?.fire(e));
     void engine.prepare(draft.keys);
   }, [draft, engine, nav]);
 
@@ -87,6 +87,14 @@ export function CreateScreen() {
             findAsset(draft, draft.keys[editing].appearance.artAssetId)?.source === 'photo'
           }
           onClose={() => {
+            /*
+             * 시트가 닫히는 순간 흔적을 한 번 찍어 준다.
+             *
+             * 이 화면에서 키캡을 누르면 흔적이 찍히는 동시에 편집 시트가 열려
+             * 그 위를 덮는다. 그래서 아이는 방금 고른 발자국을 무대까지 가야
+             * 처음 본다 — 고르고도 아무 일이 없으니 안 골라진 줄 안다.
+             */
+            gridRef.current?.previewTrace(editing);
             setEditing(null);
             void saveDraft({ thumb: true });
           }}

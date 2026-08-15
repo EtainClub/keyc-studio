@@ -32,6 +32,7 @@ import { hashBlob, putAssetBlob } from '../../storage/db';
 import { isAdminEmail } from '../../storage/firebase';
 import { t } from '../../i18n';
 import { FEELS, HAPTIC_ORDER, LEDS, MOTIONS } from '../feel';
+import { TRACES, TRACE_COLORS } from '../trace';
 import { useAssetUrl, useModalShell } from '../hooks';
 import { useAppState } from '../state';
 import { CuteFace } from './Keycap';
@@ -475,6 +476,48 @@ function MotionTab({
             </button>
           ))}
         </div>
+      </section>
+
+      {/*
+       * 흔적은 키캡이 아니라 **화면**에 남는 것이라 위의 데모 상자에서 보여줄 수 없다.
+       * 시트를 닫고 한 번 누르는 게 유일한 미리보기다 — 그걸 note가 대신 설명한다.
+       */}
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
+          <span aria-hidden>🐾</span> {t('edit.traceLabel')}
+        </h3>
+        <div className="chip-grid">
+          {TRACES.map((tr) => (
+            <button
+              key={tr.id}
+              type="button"
+              className={`chip ${keyDef.trace.type === tr.id ? 'on' : ''}`}
+              onClick={() => onPatch({ trace: { ...keyDef.trace, type: tr.id } })}
+            >
+              <span aria-hidden>{tr.emoji}</span> {tr.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 흔적을 끄면 색은 고를 이유가 없다. 쓸모없는 선택지를 치우면 그만큼 쉬워진다. */}
+        {keyDef.trace.type !== 'none' && (
+          <>
+            <div className="cap-colors" role="group" aria-label={t('edit.traceColorsAria')}>
+              {TRACE_COLORS.map(({ c, label }) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`cap-swatch ${keyDef.trace.color === c ? 'on' : ''}`}
+                  style={{ background: c }}
+                  aria-label={t('edit.traceColorAria', { label })}
+                  aria-pressed={keyDef.trace.color === c}
+                  onClick={() => onPatch({ trace: { ...keyDef.trace, color: c } })}
+                />
+              ))}
+            </div>
+            <p className="note">{t('edit.traceNote')}</p>
+          </>
+        )}
       </section>
     </div>
   );

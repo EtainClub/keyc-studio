@@ -42,7 +42,7 @@ export function PerformScreen() {
       nav('/', { replace: true });
       return;
     }
-    engine.setVisualHandler((e) => gridRef.current?.fire(e.key, e.source));
+    engine.setVisualHandler((e) => gridRef.current?.fire(e));
     void engine.prepare(draft.keys);
     return () => engine.stop();
   }, [draft, engine, nav]);
@@ -71,6 +71,8 @@ export function PerformScreen() {
       await sleep(beatMs(bpm));
     }
     setPresses(0);
+    // 직전 연습에서 남은 발자국을 지우고 시작한다 — 공연은 빈 화면에서 시작해야 한다.
+    gridRef.current?.clearTraces();
     setElapsed(0);
     setPhase('live');
     setLoopStates(draft.keys.map((k) => (k.loop.enabled ? 'on' : 'off')) as LoopState[]);
@@ -111,6 +113,7 @@ export function PerformScreen() {
 
   const retry = () => {
     engine.stop();
+    gridRef.current?.clearTraces();
     setPhase('ready');
     setElapsed(0);
     setCheck(null);
@@ -127,6 +130,7 @@ export function PerformScreen() {
   const cancelPerformance = () => {
     setConfirmCancel(false);
     engine.stop();
+    gridRef.current?.clearTraces();
     setPhase('ready');
     setElapsed(0);
     setPresses(0);

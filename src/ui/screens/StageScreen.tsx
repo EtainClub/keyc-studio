@@ -41,7 +41,7 @@ export function StageScreen() {
       nav('/', { replace: true });
       return;
     }
-    engine.setVisualHandler((e) => gridRef.current?.fire(e.key, e.source));
+    engine.setVisualHandler((e) => gridRef.current?.fire(e));
     void engine.prepare(draft.keys);
     return () => engine.stop();
   }, [draft, engine, nav]);

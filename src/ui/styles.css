@@ -1617,6 +1617,128 @@ button {
   }
 }
 
+/* ── 흔적 ──────────────────────────────────────── */
+
+/*
+ * 누를 때 화면에 남는 스탬프가 사는 곳.
+ *
+ * 화면 전체를 덮는 고정 레이어지만 손가락은 통째로 통과시킨다
+ * (pointer-events: none) — 발자국이 키캡을 가려도 누르는 데 지장이 없어야 한다.
+ *
+ * z-index는 편집 시트(20)와 바텀 내비(15)보다 **아래**다.
+ * 발자국이 버튼을 덮는 순간 그건 재미가 아니라 고장이다.
+ */
+.trace-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/*
+ * left/top은 스탬프의 **중심**이다(TraceLayer가 %로 넣는다).
+ * translate로 절반을 되돌려 중심을 맞추고, rotate/scale은 개별 변환 속성으로
+ * 따로 준다 — transform 한 줄에 몰아넣으면 인라인 각도와 키프레임 확대가
+ * 서로를 덮어써서 둘 중 하나가 사라진다.
+ */
+.trace-stamp {
+  position: absolute;
+  translate: -50% -50%;
+  opacity: 0;
+  animation: trace-pop 4200ms ease-out forwards;
+  will-change: opacity, scale;
+}
+
+/*
+ * 고양이 발자국 — 젤리 모양.
+ *
+ * 참고한 것은 흙에 찍힌 진짜 발자국이 아니라 **고양이 발바닥 젤리**다.
+ * 그래서 좌우 대칭이고, 발바닥이 갈라진 덩어리가 아니라 **꼭짓점이 위를 향한
+ * 둥근 삼각형**이다. 아이가 아는 그 모양이라 작게 줄여도 바로 읽힌다.
+ *
+ * 모양은 SVG 실루엣, 색은 `background-color: currentColor`를 마스크로 오려 낸다.
+ * SVG를 `background-image`로 깔지 않는 이유가 이것이다 — data URI 안의 색은
+ * currentColor를 못 따라가서 아이가 고른 색이 죽는다. 마스크는 모양만 정하고
+ * 색은 바깥에 남는다.
+ *
+ * radial-gradient 다섯 겹으로 그리던 옛 방식은 걷어냈다. 같은 크기의 타원을
+ * 늘어놓으면 발자국이 아니라 도형 다섯 개로 읽혔다. 젤리의 둥근 삼각형 발바닥은
+ * 타원으로는 아예 못 만든다.
+ */
+.trace-cat-paw {
+  background-color: currentColor;
+  /*
+   * 젤리의 광택. 왼쪽 위에 밝은 면, 오른쪽 아래에 그늘 — 이 두 겹이
+   * 납작한 실루엣에 두께를 준다. 마스크가 발 모양 밖을 잘라내므로
+   * 빛도 발 안에서만 돈다.
+   */
+  background-image:
+    radial-gradient(70% 55% at 36% 20%, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0) 66%),
+    radial-gradient(75% 55% at 62% 92%, rgba(0, 0, 0, 0.26), rgba(0, 0, 0, 0) 66%);
+
+  -webkit-mask-image: var(--paw);
+  mask-image: var(--paw);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  --paw: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cellipse cx='17' cy='47' rx='11' ry='14' transform='rotate(-28 17 47)'/%3E%3Cellipse cx='38' cy='26' rx='11' ry='14.5' transform='rotate(-10 38 26)'/%3E%3Cellipse cx='62' cy='26' rx='11' ry='14.5' transform='rotate(10 62 26)'/%3E%3Cellipse cx='83' cy='47' rx='11' ry='14' transform='rotate(28 83 47)'/%3E%3Cpath d='M50 46C58 46 69 61 77 73C82 81 79 90 71 91C64 92 57 89 50 89C43 89 36 92 29 91C21 90 18 81 23 73C31 61 42 46 50 46Z'/%3E%3C/svg%3E");
+}
+
+/*
+ * 찍히고 → 머물고 → 사라진다. 전체 길이는 trace.ts의 STAMP_LIFE_MS와 같아야 한다.
+ *
+ * 머무는 동안의 불투명도 0.72는 두 요구의 접점이다: 어두운 보라 배경 위에서
+ * 발자국이 **보여야** 하고(0.55에서는 거의 안 보였다), 그러면서도 뒤의 글씨가
+ * 계속 읽혀야 한다.
+ */
+@keyframes trace-pop {
+  0% {
+    opacity: 0;
+    scale: 0.45;
+  }
+  6% {
+    opacity: 0.8;
+    scale: 1.12;
+  }
+  14% {
+    opacity: 0.72;
+    scale: 1;
+  }
+  78% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.06;
+  }
+}
+
+/*
+ * 흔적을 아예 끄지는 않는다 — 그건 아이가 고른 설정을 무시하는 것이다.
+ * 대신 확대·축소를 빼고 밝기만 바꾼다. animation 자체를 none으로 두면
+ * animationend가 오지 않아 TraceLayer가 노드를 못 뗀다.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .trace-stamp {
+    animation-name: trace-fade;
+    scale: 1;
+  }
+}
+
+@keyframes trace-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  4%,
+  86% {
+    opacity: 0.5;
+  }
+}
+
 /* ── 편집 시트 ─────────────────────────────────── */
 
 .sheet-backdrop {
