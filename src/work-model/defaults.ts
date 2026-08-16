@@ -73,7 +73,7 @@ export function createDefaultKey(idx: KeyIndex): KeyDef {
     led: 'flash@1',
     loop: { enabled: false, everyBeats: 2, offsetBeats: 0 },
     haptic: DEFAULT_HAPTICS[idx],
-    trace: { type: 'none', color: '#FFFFFF' },
+    trace: { type: 'none', color: '#FFFFFF', behavior: 'fade', assetId: null },
   };
 }
 

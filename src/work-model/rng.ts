@@ -28,6 +28,9 @@ export const PURPOSE = {
   angle: 3,
   hue: 4,
   variant: 5,
+  /** 이동형 흔적이 걸어가는 방향과 거리 (v2.5). */
+  driftAngle: 6,
+  driftDist: 7,
 } as const;
 
 export type Purpose = (typeof PURPOSE)[keyof typeof PURPOSE];

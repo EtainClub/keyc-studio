@@ -18,7 +18,7 @@ import {
   playbackPresetId,
   type PresetInfo,
 } from '../../work-model/presets';
-import { DEFAULT_COLORS, newAssetId } from '../../work-model/defaults';
+import { newAssetId } from '../../work-model/defaults';
 import type {
   AssetRef,
   EveryBeats,
@@ -32,7 +32,9 @@ import { hashBlob, putAssetBlob } from '../../storage/db';
 import { isAdminEmail } from '../../storage/firebase';
 import { t } from '../../i18n';
 import { FEELS, HAPTIC_ORDER, LEDS, MOTIONS } from '../feel';
-import { TRACES, TRACE_COLORS } from '../trace';
+import { MATERIALS, materialPatch } from '../material';
+import { PALETTE } from '../palette';
+import { TRACES, TRACE_BEHAVIORS } from '../trace';
 import { useAssetUrl, useModalShell } from '../hooks';
 import { useAppState } from '../state';
 import { CuteFace } from './Keycap';
@@ -49,15 +51,10 @@ const TABS: { id: TabId; label: string; emoji: string }[] = [
   { id: 'loop', label: t('edit.tab.loop'), emoji: '🔁' },
 ];
 
-/** 키캡 본체 색. 그림 색과 헷갈리지 않게 이 탭에서만 쓰는 별도 목록이다. */
-const CAP_COLORS: { c: string; label: string }[] = [
-  { c: DEFAULT_COLORS[0], label: t('edit.capColor.pink') },
-  { c: DEFAULT_COLORS[1], label: t('edit.capColor.yellow') },
-  { c: DEFAULT_COLORS[2], label: t('edit.capColor.green') },
-  { c: DEFAULT_COLORS[3], label: t('edit.capColor.blue') },
-  { c: '#FFFFFF', label: t('edit.capColor.white') },
-  { c: '#B98CFF', label: t('edit.capColor.purple') },
-];
+/*
+ * 키캡 본체 색과 흔적 색은 같은 목록(`ui/palette.ts`)이다. 이 파일에 따로 배열을
+ * 두고 있었는데, 그 상태로 흔적에만 색을 더하면 두 목록이 조용히 갈라진다.
+ */
 
 type Props = {
   workId: string;
@@ -91,20 +88,26 @@ export function EditSheet({
    * 그림은 "저장" 버튼 없이 자동으로 붙는다.
    * 아이가 열심히 그린 뒤 저장 버튼을 못 찾아 그림을 잃는 것이
    * 이 화면에서 가장 흔하고 가장 아픈 실패다.
+   *
+   * 그림판이 두 군데다 — 그림 탭의 키캡 그림과, 움직임 탭의 직접 그린 스탬프.
+   * 둘을 한 ref로 합치면 탭을 옮길 때 남의 캔버스를 내보내게 된다.
    */
   const saveArt = useRef<(() => Promise<void>) | null>(null);
+  const saveStamp = useRef<(() => Promise<void>) | null>(null);
 
-  const flushArt = async () => {
+  /** 지금 열려 있는 탭의 그림판만 내보낸다. 안 열린 탭의 클로저는 이미 낡았다. */
+  const flushCanvas = async () => {
     if (tab === 'art') await saveArt.current?.();
+    if (tab === 'motion') await saveStamp.current?.();
   };
 
   const close = async () => {
-    await flushArt();
+    await flushCanvas();
     onClose();
   };
 
   const goTab = async (next: TabId) => {
-    await flushArt();
+    await flushCanvas();
     setTab(next);
   };
 
@@ -161,7 +164,15 @@ export function EditSheet({
               onAddAsset={onAddAsset}
             />
           )}
-          {tab === 'motion' && <MotionTab keyDef={keyDef} onPatch={onPatch} />}
+          {tab === 'motion' && (
+            <MotionTab
+              workId={workId}
+              keyDef={keyDef}
+              onPatch={onPatch}
+              onAddAsset={onAddAsset}
+              saveRef={saveStamp}
+            />
+          )}
           {tab === 'feel' && <FeelTab keyDef={keyDef} onPatch={onPatch} />}
           {tab === 'loop' && <LoopTab keyDef={keyDef} onPatch={onPatch} />}
         </div>
@@ -232,7 +243,7 @@ function ArtTab({
           <span className="sheet-field-step" aria-hidden>1</span> {t('edit.step1')}
         </h3>
         <div className="cap-colors" role="group" aria-label={t('edit.capColorsAria')}>
-          {CAP_COLORS.map(({ c, label }) => (
+          {PALETTE.map(({ c, label }) => (
             <button
               key={c}
               type="button"
@@ -405,13 +416,22 @@ function SoundTab({
 /* ── 움직임 ───────────────────────────────────────────── */
 
 function MotionTab({
+  workId,
   keyDef,
   onPatch,
+  onAddAsset,
+  saveRef,
 }: {
+  workId: string;
   keyDef: KeyDef;
   onPatch: (p: Partial<KeyDef>) => void;
+  onAddAsset: (a: AssetRef) => void;
+  saveRef: RefObject<(() => Promise<void>) | null>;
 }) {
   const [demo, setDemo] = useState(0);
+  const bump = () => setDemo((d) => d + 1);
+  const patchTrace = (p: Partial<KeyDef['trace']>) => onPatch({ trace: { ...keyDef.trace, ...p } });
+
   return (
     <div className="tab-motion">
       <div className="demo-stage">
@@ -425,7 +445,7 @@ function MotionTab({
             <span className="housing-base" />
           </span>
           <span
-            className={`keycap motion-${keyDef.motion.split('@')[0]} led-${keyDef.led.split('@')[0]} is-firing`}
+            className={`keycap mat-${keyDef.material} motion-${keyDef.motion.split('@')[0]} led-${keyDef.led.split('@')[0]} is-firing`}
           >
             <span className="keycap-top">
               <CuteFace />
@@ -435,6 +455,35 @@ function MotionTab({
           </span>
         </span>
       </div>
+
+      {/*
+       * 재질이 맨 위인 것은 그것이 **나머지를 정하는 선택**이기 때문이다.
+       * 아래 칩들(움직임·빛)은 재질을 누르는 순간 함께 바뀌고, 아이는 그 변화를
+       * 같은 화면에서 본다 — 무엇이 묶여 있는지 설명 없이 알게 하는 유일한 방법이다.
+       */}
+      <section className="sheet-field">
+        <h3 className="sheet-field-head">
+          <span aria-hidden>🧊</span> {t('edit.materialLabel')}
+        </h3>
+        <div className="chip-grid">
+          {MATERIALS.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className={`chip ${keyDef.material === m.id ? 'on' : ''}`}
+              onClick={() => {
+                onPatch(materialPatch(keyDef, m.id));
+                bump();
+              }}
+            >
+              <span aria-hidden>{m.emoji}</span> {m.label}
+            </button>
+          ))}
+        </div>
+        <p className="note">
+          {keyDef.sound.assetId ? t('edit.materialNoteOwnSound') : t('edit.materialNote')}
+        </p>
+      </section>
 
       <section className="sheet-field">
         <h3 className="sheet-field-head">
@@ -448,7 +497,7 @@ function MotionTab({
               className={`chip ${keyDef.motion === m.id ? 'on' : ''}`}
               onClick={() => {
                 onPatch({ motion: m.id as Motion });
-                setDemo((d) => d + 1);
+                bump();
               }}
             >
               <span aria-hidden>{m.emoji}</span> {m.label}
@@ -469,7 +518,7 @@ function MotionTab({
               className={`chip ${keyDef.led === l.id ? 'on' : ''}`}
               onClick={() => {
                 onPatch({ led: l.id as Led });
-                setDemo((d) => d + 1);
+                bump();
               }}
             >
               <span aria-hidden>{l.emoji}</span> {l.label}
@@ -492,33 +541,124 @@ function MotionTab({
               key={tr.id}
               type="button"
               className={`chip ${keyDef.trace.type === tr.id ? 'on' : ''}`}
-              onClick={() => onPatch({ trace: { ...keyDef.trace, type: tr.id } })}
+              onClick={() => patchTrace({ type: tr.id })}
             >
               <span aria-hidden>{tr.emoji}</span> {tr.label}
             </button>
           ))}
         </div>
 
-        {/* 흔적을 끄면 색은 고를 이유가 없다. 쓸모없는 선택지를 치우면 그만큼 쉬워진다. */}
+        {/* 흔적을 끄면 나머지는 고를 이유가 없다. 쓸모없는 선택지를 치우면 그만큼 쉬워진다. */}
         {keyDef.trace.type !== 'none' && (
           <>
-            <div className="cap-colors" role="group" aria-label={t('edit.traceColorsAria')}>
-              {TRACE_COLORS.map(({ c, label }) => (
+            <h4 className="sheet-field-sub">{t('edit.traceBehaviorLabel')}</h4>
+            <div className="chip-grid">
+              {TRACE_BEHAVIORS.map((b) => (
                 <button
-                  key={c}
+                  key={b.id}
                   type="button"
-                  className={`cap-swatch ${keyDef.trace.color === c ? 'on' : ''}`}
-                  style={{ background: c }}
-                  aria-label={t('edit.traceColorAria', { label })}
-                  aria-pressed={keyDef.trace.color === c}
-                  onClick={() => onPatch({ trace: { ...keyDef.trace, color: c } })}
-                />
+                  className={`chip ${keyDef.trace.behavior === b.id ? 'on' : ''}`}
+                  onClick={() => patchTrace({ behavior: b.id })}
+                >
+                  <span aria-hidden>{b.emoji}</span> {b.label}
+                </button>
               ))}
             </div>
-            <p className="note">{t('edit.traceNote')}</p>
+
+            {/*
+             * 직접 그린 스탬프에는 색 고르기를 내놓지 않는다. 그림에 이미 아이가 고른
+             * 색이 들어 있는데 그 위에 한 색을 덮어씌우면 그린 것을 지우는 셈이 된다.
+             */}
+            {keyDef.trace.type === 'myStamp@1' ? (
+              <StampField
+                workId={workId}
+                keyDef={keyDef}
+                onPatch={onPatch}
+                onAddAsset={onAddAsset}
+                saveRef={saveRef}
+              />
+            ) : (
+              <div className="cap-colors" role="group" aria-label={t('edit.traceColorsAria')}>
+                {PALETTE.map(({ c, label }) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`cap-swatch ${keyDef.trace.color === c ? 'on' : ''}`}
+                    style={{ background: c }}
+                    aria-label={t('edit.traceColorAria', { label })}
+                    aria-pressed={keyDef.trace.color === c}
+                    onClick={() => patchTrace({ color: c })}
+                  />
+                ))}
+              </div>
+            )}
+
+            <p className="note">{t(`edit.traceNote.${keyDef.trace.behavior}`)}</p>
           </>
         )}
       </section>
+    </div>
+  );
+}
+
+/**
+ * 직접 그린 스탬프의 그림판.
+ *
+ * ArtTab과 같은 규칙으로 **저장 버튼 없이** 붙는다 — 탭을 옮기거나 시트를 닫을 때
+ * 부모가 saveRef를 호출한다. 아이가 열심히 그린 뒤 저장 버튼을 못 찾아 그림을
+ * 잃는 것이 이 화면에서 가장 흔하고 가장 아픈 실패이기 때문이다.
+ *
+ * 바탕색이 키캡 색이 아니라 무대 배경색인 이유: 이 그림은 키캡 위가 아니라
+ * **어두운 화면 위**에 찍힌다. 키캡 색을 깔아 두면 아이가 거기서는 잘 보이는 색으로
+ * 그려 놓고, 정작 무대에서는 아무것도 안 보이는 일이 생긴다.
+ */
+function StampField({
+  workId,
+  keyDef,
+  onPatch,
+  onAddAsset,
+  saveRef,
+}: {
+  workId: string;
+  keyDef: KeyDef;
+  onPatch: (p: Partial<KeyDef>) => void;
+  onAddAsset: (a: AssetRef) => void;
+  saveRef: RefObject<(() => Promise<void>) | null>;
+}) {
+  const canvasRef = useRef<DrawCanvasHandle>(null);
+  const existing = useAssetUrl(keyDef.trace.assetId);
+
+  // 매 렌더마다 최신 클로저로 갱신한다. 부모가 탭 전환·닫기 직전에 호출한다.
+  saveRef.current = async () => {
+    const result = await canvasRef.current?.export();
+    if (!result) {
+      // 전부 지웠으면 스탬프도 떼어낸다. 그림이 없으면 찍히지도 않는다.
+      if (keyDef.trace.assetId) {
+        invalidateAsset(keyDef.trace.assetId);
+        onPatch({ trace: { ...keyDef.trace, assetId: null } });
+      }
+      return;
+    }
+    // 같은 자리에 다시 그려도 새 id를 쓴다 — 캐시 무효화 실수를 원천 차단한다.
+    const id = newAssetId();
+    const localKey = await putAssetBlob(workId, id, result.blob);
+    onAddAsset({
+      id,
+      kind: 'art',
+      mimeType: 'image/png',
+      size: result.blob.size,
+      hash: await hashBlob(result.blob),
+      source: 'draw',
+      localKey,
+    });
+    onPatch({ trace: { ...keyDef.trace, assetId: id } });
+  };
+
+  return (
+    <div className="stamp-field">
+      <DrawCanvas ref={canvasRef} initialUrl={existing} capColor="#241a44" />
+      <p className="note">{t('edit.stampHint')}</p>
+      {!keyDef.trace.assetId && <p className="note warn">{t('edit.stampNeeded')}</p>}
     </div>
   );
 }
@@ -560,7 +700,7 @@ function FeelTab({ keyDef, onPatch }: { keyDef: KeyDef; onPatch: (p: Partial<Key
               </span>
               <span className="housing-base" />
             </span>
-            <span className="keycap">
+            <span className={`keycap mat-${keyDef.material}`}>
               <span className="keycap-top">
                 <CuteFace />
               </span>

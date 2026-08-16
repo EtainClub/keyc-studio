@@ -36,7 +36,18 @@ export const ASSET_ID_LENGTH = 8;
 export type KeyIndex = 0 | 1 | 2 | 3;
 
 export type Face = 'none' | 'happy' | 'cat' | 'monster';
-/** v1은 'plastic' 고정. 값 체계가 확정된 enum이라 미리 넣는 비용이 0이다. */
+/**
+ * 재질 8종.
+ *
+ * v2.5부터 재질은 외형만이 아니라 **소리·움직임·빛·느낌의 묶음**이다.
+ * 무엇을 함께 갈아끼우는지는 `ui/material.ts`의 `MATERIALS` 표에 있다 —
+ * 이 모듈은 화면도 오디오도 모르므로 여기에는 값 목록만 둔다.
+ *
+ * 여기서 정한 값은 키에 **그대로 저장된다**(motion/led/haptic이 함께 바뀐다).
+ * 재질에서 파생해 렌더 시점에 계산하지 않는 이유: 그러면 표를 한 번 손보는 순간
+ * 과거 작품 전체가 다르게 재생된다. 프리셋은 "고를 때 적용되는 것"이지
+ * "재생할 때 해석되는 것"이 아니다.
+ */
 export type Material =
   | 'plastic'
   | 'jelly'
@@ -57,7 +68,44 @@ export type Motion =
 
 export type Led = 'none' | 'flash@1' | 'breath@1' | 'rainbow@1';
 
-export type TraceType = 'none' | 'catPaw@1' | 'star@1' | 'flower@1';
+/**
+ * 흔적의 모양.
+ *
+ * 발자국이 넷인 것은 아이가 **누가 지나갔는지**를 고르게 하기 위해서다.
+ * 로드맵 2번이 흔적을 그림 그리기 도구로 본 이유가 그것이고, 거기에 예시로 적힌
+ * "고양이가 걸어간 길", "공룡 발자국이 동굴까지 이어짐"이 그대로 여기 있다.
+ *
+ * 뒤의 넷(별·꽃·불꽃·번개)은 지나간 자국이 아니라 **터진 흔적**이다. 키 하나에
+ * 성격을 입히는 쪽에 가깝고, 그래서 `grow`보다 `fade`·`walk`와 잘 맞는다.
+ *
+ * `myStamp@1`은 아이가 직접 그린 스탬프다 — 모양이 `trace.assetId`에 들어 있다.
+ *
+ * 값을 추가하면 `ui/trace.ts`의 `TRACE_SHAPE_CLASS`에도 반드시 넣어야 한다.
+ * 안 넣으면 목록에는 뜨는데 화면에는 아무것도 안 찍힌다(trace.test.ts가 잡는다).
+ */
+export type TraceType =
+  | 'none'
+  | 'catPaw@1'
+  | 'dogPaw@1'
+  | 'birdFoot@1'
+  | 'dinoFoot@1'
+  | 'star@1'
+  | 'flower@1'
+  | 'flame@1'
+  | 'bolt@1'
+  | 'myStamp@1';
+
+/**
+ * 찍힌 뒤에 무엇을 하는가 (v2.5).
+ *
+ * 'fade' — v1.6의 그것. 찍히고, 머물고, 사라진다.
+ * 'grow' — 성장형. 사라지지 않고 쌓인다. 15초 뒤 마지막 화면이 곧 아이가 그린 그림이다.
+ * 'walk' — 이동형. 찍힌 자리에서 제 방향으로 걸어가며 사라진다.
+ *
+ * 이동 방향까지 (seed, eventIndex)에서 유도한다. 여기가 흔들리면 같은 작품이
+ * 기기마다 다른 그림이 된다 — 흔적은 영상이 아니라 리플레이의 결과물이다.
+ */
+export type TraceBehavior = 'fade' | 'grow' | 'walk';
 
 export type Haptic = 'tok' | 'kkuk' | 'tongtong' | 'bureure' | 'kung' | 'dugeun';
 
@@ -133,8 +181,20 @@ export type KeyDef = {
    * 필드는 v1부터 저장한다 — 네이티브 전환 시 마이그레이션 없이 켜지게 하기 위함.
    */
   haptic: Haptic;
-  /** v1은 'none' 고정 */
-  trace: { type: TraceType; color: string };
+  /**
+   * 누를 때 화면에 남는 흔적. 기본은 'none'이다.
+   *
+   * `assetId`는 `type === 'myStamp@1'`일 때만 의미가 있다. 타입을 바꿔도 지우지
+   * 않는다 — 아이가 발자국을 잠깐 써 보고 돌아왔을 때 그린 그림이 그대로 있어야 한다.
+   * 대신 그 자산은 계속 참조된 것으로 친다(validate.ts의 isAssetReferenced).
+   */
+  trace: {
+    type: TraceType;
+    color: string;
+    behavior: TraceBehavior;
+    /** AssetRef.id. 직접 그린 스탬프의 그림. 안 그렸으면 null. */
+    assetId: string | null;
+  };
 };
 
 /* ── 리플레이 ────────────────────────────────────── */
@@ -158,16 +218,47 @@ export type Replay = {
   events: ReplayEvent[];
 };
 
-/* ── 비밀 반응 (v1.5) ────────────────────────────── */
+/* ── 비밀 반응 (v1.5, 순서 조건은 v2.6) ──────────── */
 
 /**
- * v1.5에서 pressCount 하나만 구현한다.
- * 유니온에 케이스를 나중에 추가하는 것은 파괴적 변경이 아니므로,
- * 지금 4종을 다 정의해 죽은 분기를 만들지 않는다.
+ * 비밀이 열리는 조건.
+ *
+ * v1.5는 `pressCount` 하나였다. `sequence`가 v2.6에서 붙었고, 둘의 차이는
+ * 개수가 아니라 **무엇을 숨기는가**다:
+ *   · pressCount — 키 하나를 계속 누르다 보면 열린다. 우연히 찾을 수 있다.
+ *   · sequence   — 네 키를 정해진 차례로 눌러야 열린다. 우연으로는 못 연다.
+ *
+ * 순서 조건이 있어야 로드맵 3번의 "정해진 순서대로 눌렀을 때"가 성립하고,
+ * 그때 비로소 작품이 **이야기를 가진다** — 등장인물 넷을 차례로 불러내는 것 같은.
+ *
+ * 유니온에 케이스를 더하는 것은 파괴적 변경이 아니다. 남은 두 종(길게 누르기,
+ * 두 키 동시 누르기)도 같은 방식으로 붙일 수 있다.
  */
-export type SecretTrigger = { kind: 'pressCount'; key: KeyIndex; count: number };
+export type SecretTrigger =
+  | { kind: 'pressCount'; key: KeyIndex; count: number }
+  | { kind: 'sequence'; keys: KeyIndex[] };
 
-export type SecretReveal = { kind: 'art' | 'sound' | 'led'; assetId?: string };
+/**
+ * 비밀이 열렸을 때 무엇이 나타나는가.
+ *
+ * `finale`은 자산이 없는 대신 **작품이 이미 가진 것을 한꺼번에 터뜨린다** —
+ * 화면이 어두워지고 키 넷의 소리·움직임·빛·흔적이 동시에 발화한다.
+ * 아이가 따로 그리거나 녹음할 것이 없는데도 가장 큰 연출이 나오는 이유가 이것이다.
+ */
+export type SecretRevealKind = 'art' | 'sound' | 'led' | 'finale';
+
+export type SecretReveal = { kind: SecretRevealKind; assetId?: string };
+
+/**
+ * 이 결과는 자산(그림·소리)이 있어야 열리는가.
+ *
+ * 한 군데에 모아 둔 이유: 이 판정이 파서·검증·업로드·편집 화면 네 군데에 흩어져
+ * 있었고, v1.5에서 그중 하나만 어긋나도 **"비밀 N개"라고 표시되는데 아무리 눌러도
+ * 안 열리는** 상태가 됐다. 결과 종류를 하나 더할 때 고칠 곳이 여기 하나여야 한다.
+ */
+export function revealNeedsAsset(kind: SecretRevealKind): boolean {
+  return kind === 'art' || kind === 'sound';
+}
 
 export type Secret = {
   id: string;
@@ -186,6 +277,16 @@ export const SECRETS_MAX = 3;
  */
 export const SECRET_COUNT_MIN = 3;
 export const SECRET_COUNT_MAX = 10;
+
+/**
+ * 순서 조건의 길이 범위.
+ *
+ * 2보다 짧으면 그냥 한 번 누르는 것이라 순서가 아니고, 6을 넘으면 힌트 없이
+ * 맞히는 것이 사실상 불가능하다. 키가 4개뿐이라 같은 키를 두 번 넣을 수 있고
+ * (탄지로 → 네즈코 → 탄지로), 그래서 상한이 키 개수보다 크다.
+ */
+export const SECRET_SEQUENCE_MIN = 2;
+export const SECRET_SEQUENCE_MAX = 6;
 
 /** 비밀 id. 한 작품 안에서만 구별되면 되므로 짧다. */
 export const SECRET_ID_LENGTH = 6;

@@ -19,6 +19,7 @@ import {
   SECRET_COUNT_MAX,
   SECRET_COUNT_MIN,
   type AssetRef,
+  type KeyIndex,
   type Secret,
   type Work,
 } from './types';
@@ -41,6 +42,11 @@ function workWith(secrets: Secret[], assets: AssetRef[] = []): Work {
   work.secrets = secrets;
   work.assets = assets;
   return work;
+}
+
+/** 누름 횟수 조건의 횟수. 다른 조건이면 undefined — 시험이 조용히 통과하지 않게. */
+function countOf(secret: Secret | undefined): number | undefined {
+  return secret?.trigger.kind === 'pressCount' ? secret.trigger.count : undefined;
 }
 
 describe('parseWork — 비밀 되살리기', () => {
@@ -81,8 +87,9 @@ describe('parseWork — 비밀 되살리기', () => {
       ],
     });
 
-    expect(parsed?.secrets[0].trigger.count).toBe(SECRET_COUNT_MIN);
-    expect(parsed?.secrets[1].trigger.count).toBe(SECRET_COUNT_MAX);
+    // 조건이 유니온이 된 뒤로는 종류를 좁혀야 count를 볼 수 있다.
+    expect(countOf(parsed?.secrets[0])).toBe(SECRET_COUNT_MIN);
+    expect(countOf(parsed?.secrets[1])).toBe(SECRET_COUNT_MAX);
   });
 
   it('개수 상한을 넘으면 앞에서부터만 남긴다', () => {
@@ -171,6 +178,72 @@ describe('validateWork — 열리지 않는 비밀 막기', () => {
     );
 
     expect(validateWork(work).map((e) => e.field)).toContain('secrets');
+  });
+});
+
+describe('순서 조건의 데이터 경로', () => {
+  const order = (keys: number[]) => ({
+    id: 'seq1',
+    trigger: { kind: 'sequence', keys },
+    reveal: { kind: 'finale' },
+  });
+
+  it('저장했다 읽으면 차례가 그대로 돌아온다', () => {
+    const work = workWith([
+      { id: 'seq1', trigger: { kind: 'sequence', keys: [0, 1, 2, 3] }, reveal: { kind: 'finale' } },
+    ]);
+
+    const parsed = parseWork(JSON.parse(serializeWork(work)));
+
+    expect(parsed?.secrets[0].trigger).toEqual({ kind: 'sequence', keys: [0, 1, 2, 3] });
+    expect(parsed?.secrets[0].reveal.kind).toBe('finale');
+  });
+
+  it('너무 짧거나 너무 긴 차례는 통째로 버린다', () => {
+    /*
+     * 살려 두면 "비밀 1개"로 표시되는데, 짧은 쪽은 첫 탭에 열리고 긴 쪽은 영영
+     * 안 열린다. 둘 다 감상자에게는 거짓말이다.
+     */
+    const parsed = parseWork({
+      ...workWith([]),
+      secrets: [order([0]), order([0, 1, 2, 3, 0, 1, 2])],
+    });
+
+    expect(parsed?.secrets).toEqual([]);
+  });
+
+  it('키 번호가 하나라도 이상하면 그 비밀을 버린다', () => {
+    // 조용히 빼면 아이가 정한 순서가 **다른 순서**가 된다.
+    const parsed = parseWork({ ...workWith([]), secrets: [order([0, 9, 2])] });
+
+    expect(parsed?.secrets).toEqual([]);
+  });
+
+  it('피날레는 자산이 없어도 완성된 비밀이다', () => {
+    const work = workWith([
+      { id: 'seq1', trigger: { kind: 'sequence', keys: [0, 1] }, reveal: { kind: 'finale' } },
+    ]);
+
+    expect(validateWork(work)).toEqual([]);
+  });
+
+  it('범위를 벗어난 차례는 공유 전에 막는다', () => {
+    // 파서를 거치지 않고 편집 화면에서 바로 온 값이라 여기서도 한 번 더 본다.
+    const work = workWith([
+      { id: 'seq1', trigger: { kind: 'sequence', keys: [0] }, reveal: { kind: 'finale' } },
+    ]);
+
+    expect(validateWork(work).map((e) => e.field)).toContain('secrets[0].trigger.keys');
+  });
+
+  it('normalizeWork가 차례를 건드리지 않는다', () => {
+    // 잘라 내면 아이가 정한 순서가 다른 순서가 된다. 당길 수 있는 값이 아니다.
+    const keys: KeyIndex[] = [0, 1, 2, 3, 0, 1];
+    const work = workWith([
+      { id: 'seq1', trigger: { kind: 'sequence', keys: [...keys] }, reveal: { kind: 'finale' } },
+    ]);
+
+    expect(normalizeWork(work).secrets[0].trigger).toEqual({ kind: 'sequence', keys });
   });
 });
 

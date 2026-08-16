@@ -22,7 +22,12 @@ import { applyVoiceMode, type VoiceMode } from '../audio-engine/voice';
 import { t } from '../i18n';
 import { normalizeWork, validateWork } from '../work-model/validate';
 import { parseWork } from '../work-model/serialize';
-import { photoArtKeyNumbers, type AssetRef, type Work } from '../work-model/types';
+import {
+  photoArtKeyNumbers,
+  revealNeedsAsset,
+  type AssetRef,
+  type Work,
+} from '../work-model/types';
 import { getAssetBlob, getWorkRecord, localKeyOf, putWorkRecord } from './db';
 import { ensureSignedIn, firestore, functions, isAdminUser, isFirebaseConfigured, storage } from './firebase';
 import { acquireUid } from './identity';
@@ -360,15 +365,32 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
 /** 올리지 않기로 한 소리를 참조하던 키를 프리셋으로 되돌린다. */
 function applyDroppedAssets(work: Work, dropped: Set<string>): Work {
   if (dropped.size === 0) return work;
-  const keys = work.keys.map((k) => {
-    if (k.sound.assetId && dropped.has(k.sound.assetId)) {
-      return { ...k, sound: { ...k.sound, assetId: null, presetId: k.sound.presetId ?? 'tok@1' } };
-    }
-    if (k.appearance.artAssetId && dropped.has(k.appearance.artAssetId)) {
-      return { ...k, appearance: { ...k.appearance, artAssetId: null } };
-    }
-    return k;
-  }) as Work['keys'];
+  const gone = (id: string | null) => !!id && dropped.has(id);
+
+  /*
+   * 세 자리를 **각각** 본다. 예전에는 자리마다 early return이라, 소리와 그림이
+   * 함께 빠진 키에서는 소리만 고쳐지고 그림은 없는 자산을 계속 가리켰다.
+   */
+  const keys = work.keys.map((k) => ({
+    ...k,
+    sound: gone(k.sound.assetId)
+      ? { ...k.sound, assetId: null, presetId: k.sound.presetId ?? 'tok@1' }
+      : k.sound,
+    appearance: gone(k.appearance.artAssetId)
+      ? { ...k.appearance, artAssetId: null }
+      : k.appearance,
+    /*
+     * 직접 그린 스탬프는 그림이 곧 흔적 그 자체다. 되돌릴 프리셋이 없으므로
+     * 흔적을 끈다 — 켜 두면 눌러도 아무것도 안 찍히는 설정만 남는다.
+     */
+    trace: gone(k.trace.assetId)
+      ? {
+          ...k.trace,
+          assetId: null,
+          type: k.trace.type === 'myStamp@1' ? ('none' as const) : k.trace.type,
+        }
+      : k.trace,
+  })) as Work['keys'];
 
   /*
    * 자산이 빠진 비밀은 **지운다**. 키처럼 프리셋으로 되돌릴 수가 없다 —
@@ -379,7 +401,8 @@ function applyDroppedAssets(work: Work, dropped: Set<string>): Work {
    * 개수에서 빠지면 애초에 찾지 않는다.
    */
   const secrets = work.secrets.filter(
-    (s) => s.reveal.kind === 'led' || !s.reveal.assetId || !dropped.has(s.reveal.assetId),
+    (s) =>
+      !revealNeedsAsset(s.reveal.kind) || !s.reveal.assetId || !dropped.has(s.reveal.assetId),
   );
 
   return { ...work, keys, secrets };

@@ -7,7 +7,15 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { isDrawable, traceSpot, TRACES } from './trace';
+import {
+  MAX_STAMPS,
+  STAMP_LIFE_MS,
+  TRACES,
+  TRACE_BEHAVIORS,
+  TRACE_SHAPE_CLASS,
+  isDrawable,
+  traceSpot,
+} from './trace';
 import type { KeyIndex } from '../work-model/types';
 
 const KEYS: KeyIndex[] = [0, 1, 2, 3];
@@ -63,6 +71,29 @@ describe('traceSpot', () => {
   });
 });
 
+describe('이동형 흔적의 방향 (v2.5)', () => {
+  it('걸어가는 거리도 (seed, eventIndex)에서 나온다 — 다시 봐도 같은 길이다', () => {
+    const a = traceSpot(555, 9, 1);
+    const b = traceSpot(555, 9, 1);
+    expect(a.driftXPx).toBe(b.driftXPx);
+    expect(a.driftYPx).toBe(b.driftYPx);
+  });
+
+  it('언제나 위로 걸어간다 — 아래로 가면 키캡 그림을 밟는다', () => {
+    for (const key of KEYS) {
+      for (let i = -50; i < 200; i++) {
+        expect(traceSpot(4242, i, key).driftYPx).toBeLessThan(0);
+      }
+    }
+  });
+
+  it('좌우 양쪽으로 모두 걸어간다 — 한쪽으로만 몰리면 흩어지지 않는다', () => {
+    const xs = Array.from({ length: 120 }, (_, i) => traceSpot(8080, i, 2).driftXPx);
+    expect(xs.some((x) => x < 0)).toBe(true);
+    expect(xs.some((x) => x > 0)).toBe(true);
+  });
+});
+
 describe('흔적 목록', () => {
   it('편집 시트에 내놓는 것은 전부 실제로 그릴 수 있는 것뿐이다', () => {
     for (const tr of TRACES) {
@@ -71,9 +102,54 @@ describe('흔적 목록', () => {
     }
   });
 
-  it('아직 구현하지 않은 v2.5 타입은 그리지 않는다', () => {
-    expect(isDrawable('star@1')).toBe(false);
-    expect(isDrawable('flower@1')).toBe(false);
+  it('흔적 없음은 아무것도 찍지 않는다', () => {
     expect(isDrawable('none')).toBe(false);
+  });
+
+  /*
+   * 목록과 모양 명부는 **정확히 같아야** 한다.
+   *
+   * 어긋나는 두 방향 모두 조용히 망가진다:
+   *   · 목록에만 있으면 → 아이가 고를 수 있는데 눌러도 아무것도 안 찍힌다
+   *   · 명부에만 있으면 → 그려 놓고 아무도 못 고르는 모양이 남는다
+   * 흔적이 여덟 가지로 늘어난 지금은 하나 빠뜨리기가 충분히 쉽다.
+   */
+  it('목록과 모양 명부가 정확히 일치한다', () => {
+    const listed = TRACES.map((tr) => tr.id).filter((id) => id !== 'none');
+    expect([...listed].sort()).toEqual(Object.keys(TRACE_SHAPE_CLASS).sort());
+  });
+
+  it('CSS 클래스 이름이 겹치지 않는다', () => {
+    // 둘이 같은 클래스를 쓰면 나중에 정의된 모양이 앞엣것을 덮어쓴다.
+    const classes = Object.values(TRACE_SHAPE_CLASS);
+    expect(new Set(classes).size).toBe(classes.length);
+  });
+
+  /*
+   * 이 둘은 v1.6에서 "타입에만 있고 못 그리던" 것이었다. v2.5에서 열렸다.
+   * 다시 닫히면 목록에는 남고 화면에는 안 나오는 상태가 되므로 여기서 잡는다.
+   */
+  it('v2.5에서 별과 꽃이 열렸다', () => {
+    expect(isDrawable('star@1')).toBe(true);
+    expect(isDrawable('flower@1')).toBe(true);
+  });
+
+  it('동물 발자국 네 종이 모두 그려진다', () => {
+    for (const id of ['catPaw@1', 'dogPaw@1', 'birdFoot@1', 'dinoFoot@1'] as const) {
+      expect(isDrawable(id)).toBe(true);
+    }
+  });
+
+  it('행동 세 가지는 상한과 길이를 모두 갖고 있다', () => {
+    // 하나라도 빠지면 그 행동으로 찍은 스탬프의 animation-duration이 undefined가 된다.
+    for (const b of TRACE_BEHAVIORS) {
+      expect(MAX_STAMPS[b.id]).toBeGreaterThan(0);
+      expect(STAMP_LIFE_MS[b.id]).toBeGreaterThan(0);
+    }
+  });
+
+  it('쌓이는 흔적의 상한이 사라지는 흔적보다 크다', () => {
+    // 성장형에서 밀도는 지저분함이 아니라 작품 그 자체다.
+    expect(MAX_STAMPS.grow).toBeGreaterThan(MAX_STAMPS.fade);
   });
 });

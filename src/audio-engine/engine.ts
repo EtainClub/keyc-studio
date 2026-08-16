@@ -197,6 +197,36 @@ export class KeycapEngine {
       .catch((cause) => console.warn('[audio] 비밀 소리를 불러오지 못했어요:', soundKey, cause));
   }
 
+  /**
+   * 피날레 — 키 넷이 **한꺼번에** 터진다.
+   *
+   * 아이가 따로 그리거나 녹음한 것이 없는데도 가장 큰 연출이 나오는 이유는,
+   * 이 결과가 **작품이 이미 가진 것을 모아 쏟기** 때문이다. 네 키의 소리·움직임·
+   * 빛·흔적이 각자 설정대로 동시에 발화한다. 아이가 키캡 넷을 꾸미는 데 쓴 시간이
+   * 그대로 마지막 장면이 된다.
+   *
+   * **기록하지 않는다.** `record()`를 부르지 않으므로 리플레이 이벤트가 늘지 않고,
+   * 애초에 이 함수는 비밀 처리 경로에서만 불린다 — 그 경로는 'replay'와 'live'에서
+   * 막혀 있다(press 참고). 그래서 리플레이 결정론과 무관하다.
+   *
+   * eventIndex를 키마다 따로 내려 받는 이유: 같은 값을 쓰면 네 흔적이 같은 난수를
+   * 뽑아 한 점에 포개진다. 넷이 동시에 터지는 것이 요점인데 하나로 보이면 안 된다.
+   */
+  revealFinale(): void {
+    for (const key of this.keys) {
+      if (!key) continue;
+      const buf = this.bank.get(soundKeyOf(key));
+      if (buf) this.playBuffer(buf, key);
+      this.visualHandler({
+        key: key.idx,
+        time: this.ctx.currentTime,
+        source: 'tap',
+        eventIndex: this.freeVisualIndex--,
+        seed: this.seed,
+      });
+    }
+  }
+
   setAssetResolver(resolver: AssetResolver): void {
     this.bank.setResolver(resolver);
   }

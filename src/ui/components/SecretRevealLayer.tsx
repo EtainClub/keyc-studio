@@ -92,20 +92,33 @@ export const SecretRevealLayer = forwardRef<SecretRevealHandle, Props>(
     if (!shown) return null;
 
     return (
-      <div className="secret-reveal-layer" key={nonce} aria-live="polite">
-        {/* 어떤 결과든 빛은 터진다. "찾았다"는 신호가 결과 종류보다 먼저 와야 한다. */}
-        <span className="secret-burst" aria-hidden />
+      <>
         {/*
-          * 그림과 문구를 한 덩어리로 묶어 화면 한가운데에 세운다. 각각을 화면
-          * 가장자리 기준으로 놓으면 화면마다 다른 버튼 위에 얹힌다.
-          */}
-        <div className="secret-reveal-body">
-          {shown.reveal.kind === 'art' && artUrl && (
-            <img className="secret-art" src={artUrl} alt="" draggable={false} />
-          )}
-          <p className="secret-found">{t('secret.found')}</p>
+         * 피날레의 어둠만 연출 레이어 **밖**에 있다.
+         *
+         * 무대 조명을 끄는 일이라 흔적(z-index 4)보다는 아래, 키캡보다는 위에
+         * 깔려야 한다. 연출 레이어(30) 안에 두면 같이 터지는 흔적까지 덮어
+         * 정작 보여주려던 것이 사라진다.
+         */}
+        {shown.reveal.kind === 'finale' && (
+          <div className="secret-dim" key={`dim-${nonce}`} aria-hidden />
+        )}
+
+        <div className="secret-reveal-layer" key={nonce} aria-live="polite">
+          {/* 어떤 결과든 빛은 터진다. "찾았다"는 신호가 결과 종류보다 먼저 와야 한다. */}
+          <span className="secret-burst" aria-hidden />
+          {/*
+           * 그림과 문구를 한 덩어리로 묶어 화면 한가운데에 세운다. 각각을 화면
+           * 가장자리 기준으로 놓으면 화면마다 다른 버튼 위에 얹힌다.
+           */}
+          <div className="secret-reveal-body">
+            {shown.reveal.kind === 'art' && artUrl && (
+              <img className="secret-art" src={artUrl} alt="" draggable={false} />
+            )}
+            <p className="secret-found">{t('secret.found')}</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   },
 );
@@ -123,6 +136,14 @@ export function secretHandlerFor(
   return (secret) => {
     if (secret.reveal.kind === 'sound' && secret.reveal.assetId) {
       engine.revealSound(secret.reveal.assetId);
+    }
+    /*
+     * 피날레는 소리와 화면이 **엔진 한쪽에서 같이** 나간다 — 키 넷의 소리를 내면서
+     * 같은 자리에서 시각 이벤트도 쏘기 때문이다. 여기서 레이어에 따로 알릴 것은
+     * 어둠뿐이고, 그건 아래 reveal()이 이미 한다.
+     */
+    if (secret.reveal.kind === 'finale') {
+      engine.revealFinale();
     }
     layer.current?.reveal(secret);
   };

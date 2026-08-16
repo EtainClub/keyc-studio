@@ -140,7 +140,7 @@ export const Keycap = forwardRef<KeycapHandle, Props>(function Keycap(
 
         <span
           ref={capRef}
-          className={`keycap motion-${keyDef.motion.split('@')[0]} led-${keyDef.led.split('@')[0]}`}
+          className={`keycap mat-${keyDef.material} motion-${keyDef.motion.split('@')[0]} led-${keyDef.led.split('@')[0]}`}
           data-source="tap"
         >
           <span className="keycap-top">

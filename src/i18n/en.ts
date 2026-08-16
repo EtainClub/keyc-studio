@@ -161,6 +161,17 @@ export const en = {
   'motion.pop': 'Pop',
   'motion.melt': 'Melt',
 
+  /* ── Material ────────────────────────────────── */
+  /* One material swaps sound, motion, light and feel together (ui/material.ts). */
+  'material.plastic': 'Plastic',
+  'material.jelly': 'Jelly',
+  'material.ice': 'Ice',
+  'material.metal': 'Metal',
+  'material.water': 'Water',
+  'material.cotton': 'Cotton',
+  'material.wood': 'Wood',
+  'material.sand': 'Sand',
+
   /* ── Secrets ─────────────────────────────────── */
   /* Never show the answer to a viewer. Only the count. */
   'secret.entry': 'Hide a secret',
@@ -171,18 +182,34 @@ export const en = {
   'secret.add': '＋ Make a secret',
   'secret.full': 'You can hide up to {max} secrets',
   'secret.rowSummary': 'Press keycap {key} {count} times',
+  'secret.rowSequence': 'Press {keys} in order',
   'secret.rowAria': 'Edit secret {n}',
   'secret.remove': 'Remove',
   'secret.removeAria': 'Remove secret {n}',
   'secret.backToList': '‹ All secrets',
+  'secret.whenLabel': 'When does it show up?',
+  'secret.trigger.pressCount': 'After several presses',
+  'secret.trigger.sequence': 'In the right order',
   'secret.whichKey': 'Which keycap?',
   'secret.keyAria': 'Keycap {n}',
   'secret.howMany': 'How many presses?',
   'secret.times': '{n}',
+  /* Building the order is the same act as opening it later. */
+  'secret.sequenceLabel': 'Build the order',
+  'secret.sequenceEmpty': 'Tap the keycaps below, one after another',
+  'secret.sequenceHint':
+    'The order you tap is the order that opens the secret. The same keycap can go in twice.',
+  'secret.sequenceAdd': 'Add to the order',
+  'secret.sequenceAddAria': 'Add keycap {n} to the order',
+  'secret.sequenceUndo': '↩ Undo last',
+  'secret.sequenceClear': 'Clear all',
+  'secret.sequenceTooShort': 'Add at least {min} to make an order',
+  'secret.sequenceFull': 'Up to {max} steps',
   'secret.whatHappens': 'What shows up?',
   'secret.reveal.art': 'Hidden drawing',
   'secret.reveal.sound': 'Special sound',
   'secret.reveal.led': 'Light burst',
+  'secret.reveal.finale': 'Finale',
   'secret.drawHint': 'Whatever you draw here appears when the secret opens.',
   'secret.recordHint': 'Whatever you record here plays when the secret opens.',
   'secret.needArt': 'Draw something to finish this secret',
@@ -207,6 +234,18 @@ export const en = {
   /* `trace.*` is taken by photo line-tracing. Press-time trails use `trail.*`. */
   'trail.none': 'None',
   'trail.catPaw': 'Cat paws',
+  'trail.dogPaw': 'Dog paws',
+  'trail.birdFoot': 'Bird tracks',
+  'trail.dinoFoot': 'Dino tracks',
+  'trail.star': 'Stars',
+  'trail.flower': 'Flowers',
+  'trail.flame': 'Flames',
+  'trail.bolt': 'Lightning',
+  'trail.myStamp': 'My own stamp',
+  /* No animation names, no seconds. Just what the child will see. */
+  'trail.behavior.fade': 'Fades away',
+  'trail.behavior.grow': 'Piles up',
+  'trail.behavior.walk': 'Walks off',
 
   /* ── Preset sounds ───────────────────────────── */
   'preset.realTactile9': 'Typing A',
@@ -240,8 +279,10 @@ export const en = {
   'validate.noSound': 'This keycap has no sound',
   'validate.soundMissing': 'That sound file is missing',
   'validate.artMissing': 'That drawing is missing',
+  'validate.stampMissing': 'The drawing for that trail is missing',
   'validate.secretsTooMany': 'You can hide up to {max} secrets',
   'validate.secretCount': 'That number of presses is out of range',
+  'validate.secretSequence': 'The order needs {min} to {max} steps',
   'validate.secretMissing': "The secret's drawing or sound is missing",
 
   /* ── Edit sheet ──────────────────────────────── */
@@ -259,6 +300,8 @@ export const en = {
   'edit.capColor.blue': 'Blue',
   'edit.capColor.white': 'White',
   'edit.capColor.purple': 'Purple',
+  'edit.capColor.orange': 'Orange',
+  'edit.capColor.red': 'Red',
   'edit.step1': 'Pick the keycap colour',
   'edit.capColorsAria': 'Keycap colour',
   'edit.capColorAria': 'Keycap colour {label}',
@@ -281,8 +324,18 @@ export const en = {
   'edit.gainLabel': 'Volume',
   'edit.motionLabel': 'How should it move?',
   'edit.ledLabel': 'Light',
+  'edit.materialLabel': 'What is it made of?',
+  'edit.materialNote': 'Picking a material changes the sound, motion, light and feel all at once.',
+  'edit.materialNoteOwnSound':
+    'Picking a material changes the motion, light and feel. Your own recording stays.',
   'edit.traceLabel': 'Trail',
-  'edit.traceNote': 'Every press leaves paw prints on the screen, then they fade away.',
+  'edit.traceBehaviorLabel': 'What does the trail do?',
+  'edit.traceNote.fade': 'Every press leaves a trail on the screen, then it fades away.',
+  'edit.traceNote.grow':
+    'Trails pile up as you press. Whatever is on screen after 15 seconds is your picture.',
+  'edit.traceNote.walk': 'Each trail walks off on its own from where it landed.',
+  'edit.stampHint': 'Whatever you draw here gets stamped on the screen on every press.',
+  'edit.stampNeeded': "You haven't drawn anything yet. Draw something to see the trail.",
   'edit.traceColorsAria': 'Trail colour',
   'edit.traceColorAria': 'Trail colour {label}',
   'edit.feelNote': 'Press to try each one. The depth and the bounce back change.',

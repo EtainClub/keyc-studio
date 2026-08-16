@@ -16,6 +16,8 @@ import {
   PRESET_VERSION,
   SCHEMA_VERSION,
   SECRETS_MAX,
+  SECRET_SEQUENCE_MAX,
+  SECRET_SEQUENCE_MIN,
   TEMPO_BPM,
   type AssetRef,
   type KeyDef,
@@ -23,6 +25,7 @@ import {
   type Replay,
   type ReplayEvent,
   type Secret,
+  type SecretTrigger,
   type Tempo,
   type TempoPreset,
   type Work,
@@ -39,9 +42,13 @@ const FACES = ['none', 'happy', 'cat', 'monster'] as const;
 const MATERIALS = [
   'plastic', 'jelly', 'ice', 'metal', 'water', 'cotton', 'wood', 'sand',
 ] as const;
-const TRACES = ['none', 'catPaw@1', 'star@1', 'flower@1'] as const;
+const TRACES = [
+  'none', 'catPaw@1', 'dogPaw@1', 'birdFoot@1', 'dinoFoot@1',
+  'star@1', 'flower@1', 'flame@1', 'bolt@1', 'myStamp@1',
+] as const;
+const TRACE_BEHAVIORS = ['fade', 'grow', 'walk'] as const;
 const EVENT_TYPES = ['keyDown', 'keyUp', 'loopOn', 'loopOff'] as const;
-const SECRET_REVEALS = ['art', 'sound', 'led'] as const;
+const SECRET_REVEALS = ['art', 'sound', 'led', 'finale'] as const;
 
 function pick<T extends readonly string[]>(
   allowed: T,
@@ -104,12 +111,10 @@ function coerceSecrets(raw: unknown): Secret[] {
     if (out.length >= SECRETS_MAX) break;
     if (!item || typeof item !== 'object') continue;
     const o = item as Record<string, unknown>;
-    const trigger = (o.trigger ?? {}) as Record<string, unknown>;
     const reveal = (o.reveal ?? {}) as Record<string, unknown>;
 
-    if (trigger.kind !== 'pressCount') continue;
-    if (typeof trigger.key !== 'number' || trigger.key < 0 || trigger.key > 3) continue;
-    if (typeof trigger.count !== 'number') continue;
+    const trigger = coerceTrigger(o.trigger);
+    if (!trigger) continue;
 
     // id가 겹치면 "이 비밀을 찾았는가"를 추적할 수 없다. 뒤엣것을 버린다.
     const id = typeof o.id === 'string' && o.id ? o.id : `s${out.length}`;
@@ -118,11 +123,7 @@ function coerceSecrets(raw: unknown): Secret[] {
 
     out.push({
       id,
-      trigger: {
-        kind: 'pressCount',
-        key: Math.trunc(trigger.key) as KeyIndex,
-        count: clampSecretCount(trigger.count),
-      },
+      trigger,
       reveal: {
         kind: pick(SECRET_REVEALS, reveal.kind, 'led'),
         assetId: typeof reveal.assetId === 'string' ? reveal.assetId : undefined,
@@ -130,6 +131,46 @@ function coerceSecrets(raw: unknown): Secret[] {
     });
   }
   return out;
+}
+
+/** 0~3 범위의 키 번호인가. 남의 문서에서 온 값이라 정수인지까지 본다. */
+function asKeyIndex(v: unknown): KeyIndex | null {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+  const n = Math.trunc(v);
+  return n >= 0 && n <= 3 ? (n as KeyIndex) : null;
+}
+
+/**
+ * 조건 하나를 좁힌다. 모르거나 망가진 조건이면 null — 부르는 쪽이 비밀째 버린다.
+ *
+ * 순서 조건에서 **길이를 반드시 검사해야 한다.** 빈 배열이 통과하면 SecretTracker의
+ * 대조가 아무 누름에나 맞아 첫 탭에 열리고, 너무 길면 아무도 못 연다. 둘 다 화면에는
+ * "비밀 1개"로 똑같이 보인다.
+ */
+function coerceTrigger(raw: unknown): SecretTrigger | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const t = raw as Record<string, unknown>;
+
+  if (t.kind === 'pressCount') {
+    const key = asKeyIndex(t.key);
+    if (key === null || typeof t.count !== 'number') return null;
+    return { kind: 'pressCount', key, count: clampSecretCount(t.count) };
+  }
+
+  if (t.kind === 'sequence') {
+    if (!Array.isArray(t.keys)) return null;
+    const keys: KeyIndex[] = [];
+    for (const k of t.keys) {
+      const key = asKeyIndex(k);
+      // 하나라도 알 수 없는 키면 순서가 통째로 어긋난다. 조용히 빼면 안 된다.
+      if (key === null) return null;
+      keys.push(key);
+    }
+    if (keys.length < SECRET_SEQUENCE_MIN || keys.length > SECRET_SEQUENCE_MAX) return null;
+    return { kind: 'sequence', keys };
+  }
+
+  return null;
 }
 
 function coerceTempo(raw: unknown): Tempo {
@@ -240,6 +281,9 @@ function coerceKey(raw: unknown, idx: KeyIndex): KeyDef {
     trace: {
       type: pick(TRACES, trace.type, 'none'),
       color: typeof trace.color === 'string' ? trace.color : '#FFFFFF',
+      // v2.5 이전 문서에는 없는 필드다. 없으면 v1.6이 하던 그대로 — 찍히고 사라진다.
+      behavior: pick(TRACE_BEHAVIORS, trace.behavior, 'fade'),
+      assetId: typeof trace.assetId === 'string' ? trace.assetId : null,
     },
   };
 }
@@ -319,7 +363,7 @@ export function migrateV1ToV2(v1: Record<string, unknown>): Record<string, unkno
         offsetBeats: oldLoop.offsetBeats,
       },
       haptic: k.haptic,
-      trace: { type: 'none', color: '#FFFFFF' },
+      trace: { type: 'none', color: '#FFFFFF', behavior: 'fade', assetId: null },
     };
   });
 

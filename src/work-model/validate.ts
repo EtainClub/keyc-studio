@@ -15,6 +15,9 @@ import {
   SECRETS_MAX,
   SECRET_COUNT_MAX,
   SECRET_COUNT_MIN,
+  SECRET_SEQUENCE_MAX,
+  SECRET_SEQUENCE_MIN,
+  revealNeedsAsset,
   TITLE_MAX,
   WORK_ID_LENGTH,
   type KeyDef,
@@ -106,6 +109,20 @@ export function validateWork(work: Work): ValidationError[] {
         message: t('validate.artMissing'),
       });
     }
+    /*
+     * 직접 그린 스탬프가 없는 그림을 가리키는 경우.
+     *
+     * "스탬프를 골라 놓고 아직 안 그린 것"은 여기서 막지 않는다 — 그건 그냥
+     * 아무것도 안 찍히는 것이고, 감상자에게 없는 것을 약속하지도 않는다.
+     * 하지만 **id는 있는데 자산이 없는 것**은 데이터가 깨진 것이라 그림·소리 누락과
+     * 같은 무게로 다룬다.
+     */
+    if (k.trace.assetId && !work.assets.some((a) => a.id === k.trace.assetId)) {
+      errors.push({
+        field: `keys[${i}].trace.assetId`,
+        message: t('validate.stampMissing'),
+      });
+    }
   });
 
   if (work.secrets.length > SECRETS_MAX) {
@@ -113,15 +130,32 @@ export function validateWork(work: Work): ValidationError[] {
   }
 
   work.secrets.forEach((s, i) => {
-    if (s.trigger.count < SECRET_COUNT_MIN || s.trigger.count > SECRET_COUNT_MAX) {
-      errors.push({ field: `secrets[${i}].trigger.count`, message: t('validate.secretCount') });
+    if (s.trigger.kind === 'pressCount') {
+      if (s.trigger.count < SECRET_COUNT_MIN || s.trigger.count > SECRET_COUNT_MAX) {
+        errors.push({ field: `secrets[${i}].trigger.count`, message: t('validate.secretCount') });
+      }
+    } else {
+      /*
+       * 순서가 너무 짧으면 우연히 열리고, 너무 길면 아무도 못 연다.
+       * 둘 다 "비밀 1개"로만 보이므로 여기서 막지 않으면 알 방법이 없다.
+       */
+      const len = s.trigger.keys.length;
+      if (len < SECRET_SEQUENCE_MIN || len > SECRET_SEQUENCE_MAX) {
+        errors.push({
+          field: `secrets[${i}].trigger.keys`,
+          message: t('validate.secretSequence', {
+            min: SECRET_SEQUENCE_MIN,
+            max: SECRET_SEQUENCE_MAX,
+          }),
+        });
+      }
     }
     /*
      * 자산을 가리키는데 그 자산이 없으면 **눌러도 아무 일이 없는 비밀**이 된다.
      * 감상자에게는 "비밀 1개 있어요"라고 표시되므로, 있지도 않은 것을 영원히 찾는다.
      * 키의 소리·그림 누락과 같은 무게로 막는다.
      */
-    if (s.reveal.kind !== 'led' && !work.assets.some((a) => a.id === s.reveal.assetId)) {
+    if (revealNeedsAsset(s.reveal.kind) && !work.assets.some((a) => a.id === s.reveal.assetId)) {
       errors.push({ field: `secrets[${i}].reveal.assetId`, message: t('validate.secretMissing') });
     }
   });
@@ -136,10 +170,16 @@ export function normalizeWork(work: Work): Work {
     durationMs: durationForTempo(work.tempo),
     events: capEvents(work.replay.events),
   };
-  const secrets = work.secrets.slice(0, SECRETS_MAX).map((s) => ({
-    ...s,
-    trigger: { ...s.trigger, count: clampSecretCount(s.trigger.count) },
-  }));
+  /*
+   * 누름 횟수만 범위 안으로 당긴다. 순서는 당길 수가 없다 — 잘라 내면 아이가 정한
+   * 순서가 다른 순서가 되고, 늘리면 없던 키를 지어내는 것이다. 범위를 벗어난 순서는
+   * validateWork가 오류로 잡아 공유를 막는 쪽이 맞다.
+   */
+  const secrets = work.secrets.slice(0, SECRETS_MAX).map((s) =>
+    s.trigger.kind === 'pressCount'
+      ? { ...s, trigger: { ...s.trigger, count: clampSecretCount(s.trigger.count) } }
+      : s,
+  );
   const trimmed: Work = {
     ...work,
     title: trimToLength(work.title.trim(), TITLE_MAX),
@@ -165,11 +205,19 @@ export function normalizeWork(work: Work): Work {
  * **비밀이 쓰는 자산도 반드시 여기 포함되어야 한다.** normalizeWork가 이 판정으로
  * assets를 걸러내므로, 빠뜨리면 비밀에만 붙어 있는 그림·소리가 업로드 직전에
  * 조용히 삭제된다. 그러면 눌러도 아무 일이 없는 비밀이 남는다.
+ *
+ * 직접 그린 스탬프(`trace.assetId`)도 같은 이유로 여기 있다. v1.5에서 비밀이
+ * 겪었던 것과 **한 글자도 다르지 않은 실패**다 — 화면에는 오류가 안 나고,
+ * 남의 기기에서만 흔적이 사라진다.
  */
 export function isAssetReferenced(work: Work, assetId: string): boolean {
   return (
-    work.keys.some((k) => k.sound.assetId === assetId || k.appearance.artAssetId === assetId) ||
-    work.secrets.some((s) => s.reveal.assetId === assetId)
+    work.keys.some(
+      (k) =>
+        k.sound.assetId === assetId ||
+        k.appearance.artAssetId === assetId ||
+        k.trace.assetId === assetId,
+    ) || work.secrets.some((s) => s.reveal.assetId === assetId)
   );
 }
 

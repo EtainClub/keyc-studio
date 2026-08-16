@@ -61,6 +61,16 @@ export const KeycapGrid = forwardRef<GridHandle, Props>(function KeycapGrid(
   const caps = useRef<(KeycapHandle | null)[]>([null, null, null, null]);
   const traceRef = useRef<TraceLayerHandle>(null);
 
+  /**
+   * 언제나 가장 최근의 keys.
+   *
+   * 미리보기가 한 프레임 뒤에 찍히기 때문에 필요하다(previewTrace 참고).
+   * 그때 클로저에 잡힌 keys는 이미 한 세대 낡아 있다 — 아이가 방금 고른 흔적이
+   * 아니라 고르기 전의 설정으로 찍히고, 그러면 미리보기가 거짓말을 한다.
+   */
+  const keysRef = useRef(keys);
+  keysRef.current = keys;
+
   useImperativeHandle(ref, () => ({
     fire(e) {
       caps.current[e.key]?.fire(e.source);
@@ -72,19 +82,32 @@ export const KeycapGrid = forwardRef<GridHandle, Props>(function KeycapGrid(
       traceRef.current?.clear();
     },
     previewTrace(k) {
-      const keyDef = keys.find((key) => key.idx === k);
-      if (!keyDef) return;
       // 미리보기는 작품에 남지 않는다. 그래서 결정론을 지킬 대상이 아니고,
       // 매번 다른 자리에 찍히도록 세는 값을 쓴다.
       previewCount += 1;
-      traceRef.current?.stamp(keyDef, { seed: PREVIEW_SEED, eventIndex: previewCount });
+      const at = previewCount;
+
+      /*
+       * 한 프레임 미룬다.
+       *
+       * 편집 시트는 방금 고친 설정을 부모 상태로 올린 **직후**에 닫힌다. 그 상태가
+       * 이 컴포넌트까지 내려오는 것은 다음 렌더이므로, 지금 바로 찍으면 고치기 전
+       * 설정으로 찍힌다. 미리보기는 급할 이유가 없는 유일한 흔적이라 기다려도 된다.
+       */
+      requestAnimationFrame(() => {
+        const keyDef = keysRef.current.find((key) => key.idx === k);
+        if (keyDef) {
+          traceRef.current?.previewStamp(keyDef, { seed: PREVIEW_SEED, eventIndex: at });
+        }
+      });
     },
   }));
 
   return (
     <>
       {/* 흔적은 상판 밖 화면 전체에 남는다. 상판 안에 두면 발자국이 캡 뒤로 잘린다. */}
-      <TraceLayer ref={traceRef} />
+      {/* keys를 넘기는 것은 직접 그린 스탬프의 그림을 미리 받아 두기 위해서다. */}
+      <TraceLayer ref={traceRef} keys={keys} />
       {/* 키캡 4개는 키보드 상판 위에 얹혀 있다 — 한 줄 배치와 함께 "키보드"를 완성한다. */}
       <div className="keyboard-plate">
         <div className="keycap-grid">
