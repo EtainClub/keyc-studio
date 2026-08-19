@@ -1,7 +1,7 @@
 {
   "name": "keycap-creator",
   "private": true,
-  "version": "0.7.4",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,7 +16,8 @@
     "emulators": "firebase emulators:start",
     "deploy:cors": "gcloud storage buckets update gs://keyc-studio.firebasestorage.app --cors-file=firebase-storage-cors.json",
     "deploy:functions:iam": "gcloud run services add-iam-policy-binding listpublicfeed --project=keyc-studio --region=asia-northeast3 --member=allUsers --role=roles/run.invoker --quiet && gcloud run services add-iam-policy-binding recordplay --project=keyc-studio --region=asia-northeast3 --member=allUsers --role=roles/run.invoker --quiet && gcloud run services add-iam-policy-binding unsharework --project=keyc-studio --region=asia-northeast3 --member=allUsers --role=roles/run.invoker --quiet",
-    "deploy": "npm run build && firebase deploy && npm run deploy:cors && npm run deploy:functions:iam"
+    "deploy:functions:signer": "SA=$(gcloud projects describe keyc-studio --format='value(projectNumber)')-compute@developer.gserviceaccount.com && gcloud iam service-accounts add-iam-policy-binding \"$SA\" --member=\"serviceAccount:$SA\" --role=roles/iam.serviceAccountTokenCreator --project=keyc-studio --quiet",
+    "deploy": "npm run build && firebase deploy && npm run deploy:cors && npm run deploy:functions:iam && npm run deploy:functions:signer"
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "^2.10.8",

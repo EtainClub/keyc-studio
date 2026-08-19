@@ -1,6 +1,7 @@
 /**
- * Cloud Functions — 여섯 개.
+ * Cloud Functions.
  *
+ * ── 공개 공유 ──
  *  shareMeta    /w/** rewrite, OG 태그 HTML 반환 (카카오톡은 JS를 실행하지 않는다)
  *  thumb        썸네일 바이트 직접 서빙 (og:image 대상 — 크롤러는 토큰 URL을 잘 못 따라간다)
  *  avatar       공개 동의된 크리에이터 아바타의 작은 JPEG 서빙
@@ -8,11 +9,21 @@
  *  recordPlay   재생/누름 집계, App Check + 중복 방지
  *  unshareWork  문서 삭제 + Storage 자산 실제 삭제
  *
+ * ── 그룹 스테이지 ──
+ *  createGroup · getGroupCode · joinGroup · listGroupStage ·
+ *  submitToGroup · withdrawEntry · deleteGroup
+ *
+ * ── 기기 복구 ──
+ *  issueRecoveryCode · getRecoveryStatus · redeemRecoveryCode
+ *  (redeemRecoveryCode만 로그인 없이 호출할 수 있다 — 새 기기에는 계정이 없다.
+ *   커스텀 토큰 서명 권한이 필요하다: roles/iam.serviceAccountTokenCreator)
+ *
  * Functions 배포에는 Blaze 요금제 등록(결제 계정 연결)이 필요하다.
  * 초기 사용량은 무료 할당량 안에서 운영될 가능성이 높지만, 등록 자체는 필수다.
  */
 
 import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
@@ -31,7 +42,7 @@ import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
  * 좁은 서브패스로 가져오면 그 체인 자체가 로드되지 않는다. 콜드 스타트도 빨라진다.
  */
 import { setGlobalOptions } from 'firebase-functions/v2/options';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 initializeApp();
 
@@ -852,15 +863,52 @@ function underJoinAttemptLimit(uid) {
 }
 
 /**
+ * 그룹 만들기 시도 제한 — uid당 10분에 3회.
+ *
+ * 예전에는 "Google 계정만 그룹을 만들 수 있다"가 이 자리를 대신했다. 그 조건이
+ * 사라졌으니(아래 createGroup 주석) 계정을 새로 파는 비용이 사실상 0이 됐고,
+ * 남는 방어는 소유 상한(GROUPS_PER_OWNER_MAX)뿐인데 그건 **한 uid 안에서만** 센다.
+ * joinAttempts와 같은 인스턴스 메모리라 완전하지 않은 것도 같다 — 스크립트를
+ * 막는 벽이 아니라, 실수와 연타로 빈 그룹이 쌓이는 것을 막는 턱이다.
+ */
+const createAttempts = new Map();
+const CREATE_ATTEMPT_WINDOW_MS = 10 * 60_000;
+const CREATE_ATTEMPT_MAX = 3;
+
+function underCreateAttemptLimit(uid) {
+  const now = Date.now();
+  const rec = createAttempts.get(uid);
+  if (!rec || now - rec.windowStart >= CREATE_ATTEMPT_WINDOW_MS) {
+    createAttempts.set(uid, { count: 1, windowStart: now });
+    if (createAttempts.size > 5000) createAttempts.clear();
+    return true;
+  }
+  if (rec.count >= CREATE_ATTEMPT_MAX) return false;
+  rec.count++;
+  return true;
+}
+
+/**
  * 그룹 만들기.
- * 비익명 계정만 만들 수 있다 — 초대 코드와 정원을 관리하는 주최자 자리가
- * 기기를 바꾸면 사라지는 익명 계정이면 그룹이 통째로 고아가 된다.
+ *
+ * ── 예전 판단을 뒤집은 부분 ──
+ * 전에는 **비익명(Google) 계정만** 만들 수 있었다. 이유는 "기기를 바꾸면 사라지는
+ * 익명 계정이 주최자면 그룹이 통째로 고아가 된다"였고, 그 걱정 자체는 옳았다.
+ * 다만 해법이 틀렸다: 로그인 방식을 막는 대신 **주최자 자리를 되찾을 길**을 내주면
+ * 같은 걱정이 풀린다. 그게 아래 issueRecoveryCode/redeemRecoveryCode다.
+ *
+ * 막아 두는 쪽의 대가는 컸다. 토스 미니앱 웹뷰에는 Google 로그인 팝업을 띄울
+ * 자리가 없고, 회식·워크숍처럼 "지금 이 자리에서 30초 안에 방을 열어야 하는"
+ * 상황에서 계정 연동 화면 하나가 사실상 기능 전체를 잠근다.
+ *
+ * 그래서 지금은 로그인만 있으면 된다. 대신 주최자에게는 복구 코드를 만들라고
+ * 화면에서 강하게 권한다(JoinGroupScreen).
  */
 export const createGroup = onCall(CALLABLE_OPTIONS, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
-  if (request.auth.token.firebase?.sign_in_provider === 'anonymous') {
-    throw new HttpsError('failed-precondition', '그룹을 만들려면 Google 계정으로 로그인해 주세요');
+  if (!underCreateAttemptLimit(uid)) {
+    throw new HttpsError('resource-exhausted', '그룹을 너무 자주 만들었어요. 잠시 후 다시 해주세요');
   }
 
   const name = String(request.data?.name || '').trim();
@@ -1478,4 +1526,192 @@ export const deleteGroup = onCall({ ...CALLABLE_OPTIONS, timeoutSeconds: 300 }, 
   await db.recursiveDelete(ref);
 
   return { ok: true, deletedMembers: memberUids.length, deletedEntries: workIds.length };
+});
+
+/* ── 익명 계정 복구 ─────────────────────────────────
+ *
+ * 익명 로그인은 **기기 안에만 있는 신원**이다. 브라우저 저장소를 지우거나 폰을
+ * 바꾸면 uid가 사라지고, 그 uid에 매달린 것들 — 클라우드 백업된 작품, 내가 만든
+ * 그룹의 주최자 자리, 그룹 안의 내 표 — 이 통째로 남의 것도 내 것도 아닌 상태가 된다.
+ *
+ * Google 연동이 그 답이었지만, 토스 미니앱 웹뷰처럼 팝업 로그인을 띄울 수 없는
+ * 자리에서는 답이 되지 못한다. 그래서 **복구 코드**를 둔다: 사람이 옮겨 적을 수
+ * 있는 16자를 발급하고, 그 코드를 제시하면 서버가 원래 uid로 커스텀 토큰을 끊어 준다.
+ *
+ * 지켜야 할 것 셋:
+ *   1. **코드 원문은 서버에 남기지 않는다.** 저장하는 건 SHA-256 해시뿐이다.
+ *      Firestore를 통째로 읽을 수 있는 사람도 남의 계정에 들어갈 수 없어야 한다.
+ *      대가는 "코드 다시 보여주기"가 원리적으로 불가능하다는 것이고, 그건 옳은 대가다.
+ *   2. 조회는 해시를 **문서 ID로** 써서 한 번의 get으로 끝낸다. 컬렉션을 훑으며
+ *      비교하면 복구가 계정 수에 비례해 느려지고 비싸진다.
+ *   3. 코드는 곧 계정 열쇠다. 30^16 ≈ 4.3×10^23(약 78비트)이라 대입은 비현실적이지만,
+ *      그래도 IP당 시도 횟수를 센다.
+ */
+
+/** 입장 코드와 같은 알파벳(CODE_ALPHABET)을 쓴다 — 헷갈리는 글자가 이미 빠져 있다. */
+const RECOVERY_CODE_LENGTH = 16;
+const RECOVERY_CODE = new RegExp(`^[${CODE_ALPHABET}]{${RECOVERY_CODE_LENGTH}}$`);
+
+const recoveryCodeRef = (hash) => db.doc(`recoveryCodes/${hash}`);
+/** uid → 지금 살아 있는 코드의 해시. 재발급 때 옛 코드를 확실히 죽이기 위한 역참조다. */
+const recoveryOwnerRef = (uid) => db.doc(`recoveryOwners/${uid}`);
+
+/**
+ * 해시에 고정 접두사를 붙인다.
+ *
+ * 이 값이 다른 곳(입장 코드 등)의 해시와 우연히 같은 함수를 공유하지 않게 하는
+ * 도메인 분리다. 코드 자체가 78비트 무작위라 별도의 salt는 필요 없다 —
+ * 사전 계산 공격의 대상이 되는 "사람이 고른 비밀번호"가 아니다.
+ */
+function hashRecoveryCode(code) {
+  return createHash('sha256').update(`keyc.recovery.v1:${code}`).digest('hex');
+}
+
+function randomRecoveryCode() {
+  const REJECT_AT = Math.floor(256 / CODE_ALPHABET.length) * CODE_ALPHABET.length; // 240
+  let code = '';
+  while (code.length < RECOVERY_CODE_LENGTH) {
+    const chunk = randomBytes(RECOVERY_CODE_LENGTH);
+    for (const b of chunk) {
+      if (code.length >= RECOVERY_CODE_LENGTH) break;
+      // 거부 샘플링 — 이유는 randomJoinCode의 주석과 같다.
+      if (b >= REJECT_AT) continue;
+      code += CODE_ALPHABET[b % CODE_ALPHABET.length];
+    }
+  }
+  return code;
+}
+
+/**
+ * 복구 코드 발급(과 재발급).
+ *
+ * 이미 코드가 있으면 **옛 코드를 죽이고** 새 코드를 준다. 한 계정에 열쇠가 여러 개
+ * 굴러다니면, 예전에 종이에 적어 어딘가 흘린 코드가 영원히 유효한 채로 남는다.
+ */
+export const issueRecoveryCode = onCall(CALLABLE_OPTIONS, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+
+  const code = randomRecoveryCode();
+  const hash = hashRecoveryCode(code);
+  const now = Date.now();
+
+  const ownerSnap = await recoveryOwnerRef(uid).get();
+  const previousHash = ownerSnap.exists ? ownerSnap.data().hash : null;
+
+  /*
+   * 새 코드를 **먼저** 심는다. 순서를 뒤집어 옛 코드부터 지우면, 그 사이에 쓰기가
+   * 실패했을 때 사용자는 "옛 코드도 새 코드도 없는" 상태로 떨어진다.
+   * 반대 순서의 최악은 옛 코드가 잠깐 더 사는 것뿐이다.
+   */
+  await recoveryCodeRef(hash).set({ uid, createdAt: now, lastUsedAt: null });
+  await recoveryOwnerRef(uid).set({ hash, createdAt: now });
+  if (typeof previousHash === 'string' && previousHash && previousHash !== hash) {
+    await recoveryCodeRef(previousHash).delete().catch(() => {});
+  }
+
+  return { code, createdAt: now, replacedPrevious: Boolean(previousHash) };
+});
+
+/**
+ * 내 계정에 복구 코드가 걸려 있는가.
+ *
+ * **코드 자체는 돌려주지 않는다** — 해시만 갖고 있으니 돌려줄 수도 없다.
+ * 화면은 "있음/없음"과 만든 날짜만 보여주고, 잃어버렸으면 재발급을 권한다.
+ */
+export const getRecoveryStatus = onCall(CALLABLE_OPTIONS, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+
+  const snap = await recoveryOwnerRef(uid).get();
+  if (!snap.exists) return { hasCode: false, createdAt: null };
+  const data = snap.data();
+  return {
+    hasCode: typeof data.hash === 'string' && Boolean(data.hash),
+    createdAt: Number(data.createdAt) || null,
+  };
+});
+
+/**
+ * 복구 시도 제한 — IP당 1분에 5회.
+ *
+ * uid로는 셀 수 없다. 이 함수는 **로그인하지 않은 사람도** 부를 수 있어야 한다
+ * (새 기기에서 아직 아무 계정도 없는 상태가 정확히 그 경우다).
+ */
+const redeemAttempts = new Map();
+const REDEEM_ATTEMPT_WINDOW_MS = 60_000;
+const REDEEM_ATTEMPT_MAX = 5;
+
+function underRedeemAttemptLimit(key) {
+  const now = Date.now();
+  const rec = redeemAttempts.get(key);
+  if (!rec || now - rec.windowStart >= REDEEM_ATTEMPT_WINDOW_MS) {
+    redeemAttempts.set(key, { count: 1, windowStart: now });
+    if (redeemAttempts.size > 5000) redeemAttempts.clear();
+    return true;
+  }
+  if (rec.count >= REDEEM_ATTEMPT_MAX) return false;
+  rec.count++;
+  return true;
+}
+
+/**
+ * 복구 코드 → 원래 uid의 커스텀 토큰.
+ *
+ * **인증을 요구하지 않는다.** 새 기기에서 부르는 함수라 요구할 것이 없다.
+ * 방어선은 코드 자체의 엔트로피(78비트)와 위의 시도 횟수 제한이다.
+ *
+ * 토큰 발급에는 서비스 계정 서명 권한이 필요하다(roles/iam.serviceAccountTokenCreator).
+ * 없으면 여기서 permission-denied가 나므로, 그 경우만 따로 알아볼 수 있는 말로 바꾼다 —
+ * 배포 설정 문제를 "복구에 실패했어요"로 뭉뚱그리면 원인을 영영 못 찾는다.
+ */
+export const redeemRecoveryCode = onCall(CALLABLE_OPTIONS, async (request) => {
+  const ip = String(request.rawRequest?.ip || 'unknown');
+  if (!underRedeemAttemptLimit(ip)) {
+    throw new HttpsError('resource-exhausted', '복구를 너무 여러 번 시도했어요. 잠시 후 다시 해주세요');
+  }
+
+  const code = String(request.data?.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!RECOVERY_CODE.test(code)) {
+    throw new HttpsError('invalid-argument', `복구 코드는 ${RECOVERY_CODE_LENGTH}자예요`);
+  }
+
+  const snap = await recoveryCodeRef(hashRecoveryCode(code)).get();
+  if (!snap.exists) {
+    throw new HttpsError('not-found', '그런 복구 코드가 없어요');
+  }
+  const uid = String(snap.data().uid || '');
+  if (!uid) {
+    throw new HttpsError('not-found', '그런 복구 코드가 없어요');
+  }
+
+  /*
+   * 계정이 아직 살아 있는지 본다. 지워진 uid로 토큰을 끊어 주면 로그인은 되지만
+   * 그 사용자의 문서·파일은 이미 없다 — "복구했는데 아무것도 없어요"가 된다.
+   * 그런 코드는 여기서 치운다.
+   */
+  try {
+    await getAuth().getUser(uid);
+  } catch (error) {
+    if (error?.code === 'auth/user-not-found') {
+      await snap.ref.delete().catch(() => {});
+      await recoveryOwnerRef(uid).delete().catch(() => {});
+      throw new HttpsError('not-found', '이 코드의 계정이 더 이상 없어요');
+    }
+    throw error;
+  }
+
+  let token;
+  try {
+    token = await getAuth().createCustomToken(uid);
+  } catch (error) {
+    console.error('[recovery] 커스텀 토큰을 만들지 못했어요', error);
+    throw new HttpsError(
+      'failed-precondition',
+      '복구 토큰을 만들지 못했어요. 서비스 계정에 토큰 생성 권한이 필요해요',
+    );
+  }
+
+  await snap.ref.set({ lastUsedAt: Date.now() }, { merge: true }).catch(() => {});
+  return { token };
 });

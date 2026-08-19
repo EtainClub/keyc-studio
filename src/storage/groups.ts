@@ -18,6 +18,7 @@ import { httpsCallable } from 'firebase/functions';
 import { t } from '../i18n';
 import { ensureSignedIn, firestore, functions, isFirebaseConfigured } from './firebase';
 import { acquireUid } from './identity';
+import { CALL_TIMEOUT_MS, withTimeout } from './with-timeout';
 import {
   parseGroupStagePage,
   type GroupRole,
@@ -38,38 +39,14 @@ export type GroupStageQuery = {
 const GROUP_ID = /^[A-Za-z0-9_-]{12}$/;
 
 export const GROUP_NAME_MAX = 30;
+/** 한 그룹의 정원. 서버가 판정하고(functions/index.js: GROUP_MEMBER_MAX) 여기서는 화면에만 쓴다. */
+export const GROUP_MEMBER_MAX = 100;
 /** 한 작품이 동시에 올라갈 수 있는 그룹 수. 서버도 같은 값으로 검사한다 — 여기 숫자만
  *  바꾼다고 상한이 바뀌지 않는다. UI가 미리 막아 헛수고를 줄이는 용도다. */
 export const MAX_GROUPS_PER_WORK = 3;
 
-/**
- * callable 호출 타임아웃.
- *
- * `remote.ts`가 이미 같은 목적의 `withTimeout`을 갖고 있지만 export하지 않는다.
- * 거기서 가져오려면 remote.ts를 새로 export하게 손대야 하는데, 그 파일은 지금
- * 다른 사람이 작업 중이라 건드릴 수 없다. 게다가 remote.ts는 work-model·storage 등
- * 그룹 기능과 무관한 무거운 의존성을 잔뜩 끌고 다녀서, 굳이 거기 얹느니 15줄짜리
- * 유틸을 이 파일 안에 그대로 복제하는 쪽이 결합을 늘리지 않는다.
- */
-const CALL_TIMEOUT_MS = 15000;
 /** 그룹 삭제만 예외. 하위 문서를 전부 지우고 오므로 15초로는 모자랄 수 있다. */
 const DELETE_TIMEOUT_MS = 60000;
-
-function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(t('remote.timeout', { what }))), ms);
-    p.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(timer);
-        reject(e);
-      },
-    );
-  });
-}
 
 function requireConfigured(): void {
   if (!isFirebaseConfigured) {
@@ -92,7 +69,13 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }
 
-/** 그룹 만들기. Google 계정에서만 된다(서버가 다시 검사한다) — 여기서는 로그인만 확보한다. */
+/**
+ * 그룹 만들기. 로그인만 있으면 된다 — 익명 계정도 주최자가 될 수 있다.
+ *
+ * 예전에는 Google 계정을 요구했다. 기기를 바꾸면 사라지는 익명 주최자가 그룹을
+ * 고아로 만든다는 걱정이었는데, 해법을 복구 코드(`recovery.ts`)로 옮겼다.
+ * 서버도 같은 판단이다(functions/index.js: createGroup).
+ */
 export async function createGroup(name: string): Promise<{ groupId: string; code: string; name: string }> {
   await requireUid();
   const callable = httpsCallable(functions(), 'createGroup');

@@ -4,12 +4,22 @@
  * 진입 경로가 둘이다: 초대 코드를 받고 온 사람(QR·딥링크가 `?code=`를 채워 준다)과
  * 새 그룹을 열려는 사람(`?new=1`로 들어온다). 한 화면 안에서 세그먼트로만 갈라두면
  * "코드가 있는데 왜 이름부터 물어보지" 같은 헷갈림이 없다.
+ *
+ * ── Google 계정 요구를 걷어냈다 ──
+ * 전에는 만들기 쪽에 계정 연결 관문이 하나 더 있었다. 그 관문 때문에 "지금 이
+ * 자리에서 방을 열어야 하는" 상황(워크숍·회식)에서 흐름이 통째로 끊겼고, 토스
+ * 미니앱 웹뷰에는 애초에 로그인 팝업을 띄울 자리가 없다.
+ *
+ * 대신 만들고 **난 뒤에** 복구 코드를 권한다. 관문을 앞에 두면 아무것도 못 하게
+ * 막는 벽이지만, 뒤에 두면 이미 만든 것을 지키는 제안이 된다. 걱정 자체는 그대로
+ * 남아 있다 — 익명 주최자가 기기를 잃으면 그 방은 주인이 없어진다.
  */
 
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { t } from '../../i18n';
 import { createGroup, formatGroupCode, GROUP_NAME_MAX, joinGroup, normalizeJoinCode } from '../../storage/groups';
+import { RecoveryCodeIssuer } from '../components/RecoveryCodeIssuer';
 import { useAppState } from '../state';
 
 type Mode = 'join' | 'create';
@@ -17,7 +27,7 @@ type Mode = 'join' | 'create';
 export function JoinGroupScreen() {
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
-  const { account, authReady, connectGoogle } = useAppState();
+  const { account, cloudBackup } = useAppState();
 
   const [mode, setMode] = useState<Mode>(searchParams.get('new') === '1' ? 'create' : 'join');
 
@@ -33,22 +43,15 @@ export function JoinGroupScreen() {
   const [createError, setCreateError] = useState('');
   const [created, setCreated] = useState<{ groupId: string; code: string; name: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [connecting, setConnecting] = useState(false);
 
   /**
-   * "이미 Google 계정이 붙어 있는가" — 'google'만 보면 안 된다.
+   * 주최자 자리가 이 기기 밖에도 남는가.
    *
-   * state.tsx의 watchUser는 비익명 사용자를 만나면 먼저 'syncing'으로 두고, 클라우드
-   * 프로필 내려받기·작품 동기화·이름 일괄 변경·백업 예약이 **전부 끝난 뒤에야**
-   * 'google'로 바꾼다. 그 사이(느린 망에서는 수 초, Firestore가 막히면 영영)에
-   * `kind !== 'google'`로 판정하면 이미 연결된 주최자에게 "Google 계정으로 로그인해야
-   * 해요"를 보여주고 그룹 만들기를 막는다.
-   *
-   * 'syncing'은 정의상 비익명 사용자에게만 붙는다(state.tsx: user.isAnonymous가
-   * false일 때만 hydratePermanentAccount로 간다). 서버 createGroup도 sign_in_provider가
-   * 'anonymous'가 아닌지만 보므로, 동기화가 끝나기 전에 만들어도 아무 문제가 없다.
+   * Google 계정은 그 자체로 남고, 익명 계정은 복구 코드를 만들어 둔 경우에만 남는다.
+   * 둘 다 아니면 방을 만든 직후에 복구 코드를 권한다 — 지금 이 순간이 "잃으면
+   * 곤란한 것"이 막 생긴 순간이라, 같은 말을 다른 어느 자리에서 하는 것보다 잘 통한다.
    */
-  const googleConnected = account.kind === 'google' || account.kind === 'syncing';
+  const ownerSeatIsPortable = account.kind === 'google' || account.kind === 'syncing' || cloudBackup;
 
   const goToStage = (groupId: string) => nav(`/feed?g=${groupId}`, { replace: true });
 
@@ -90,19 +93,6 @@ export function JoinGroupScreen() {
     }
   };
 
-  const connectForGroup = async () => {
-    if (connecting) return;
-    setConnecting(true);
-    setCreateError('');
-    try {
-      await connectGoogle();
-    } catch (cause) {
-      setCreateError(cause instanceof Error ? cause.message : t('join.connectFailed'));
-    } finally {
-      setConnecting(false);
-    }
-  };
-
   const copyCode = async () => {
     if (!created) return;
     try {
@@ -138,6 +128,17 @@ export function JoinGroupScreen() {
             {t('join.toStage')}
           </button>
         </section>
+
+        {/* 주최자 자리가 이 기기에만 있는 사람에게만 보인다. 이미 지켜져 있는
+            사람에게 같은 경고를 또 하면 다음부터는 아무도 안 읽는다. */}
+        {!ownerSeatIsPortable && (
+          <section className="account-card owner-guard">
+            <p className="feed-kicker">{t('recovery.kicker')}</p>
+            <h2>{t('join.keepOwnerTitle')}</h2>
+            <p className="note">{t('join.keepOwnerBody')}</p>
+            <RecoveryCodeIssuer cta={t('join.keepOwnerCta')} />
+          </section>
+        )}
       </main>
     );
   }
@@ -206,63 +207,33 @@ export function JoinGroupScreen() {
         </section>
       ) : (
         <section className="join-group-panel">
-          {!authReady ? (
-            // 저장된 인증 세션을 아직 확인하지 못했다 — 이미 Google로 연결된 사람일
-            // 수도 있으니, 확인이 끝나기 전에는 "로그인해 주세요"부터 보여주지 않는다.
-            <p className="feed-status" role="status" aria-live="polite">
-              {t('join.checkingAccount')}
+          {/* 계정 관문이 없다. 로그인은 createGroup이 알아서 확보한다(익명이어도 된다). */}
+          <p className="note">{t('join.createLead')}</p>
+          <label className="field">
+            <span>{t('join.nameField')}</span>
+            <input
+              type="text"
+              autoComplete="off"
+              placeholder={t('join.namePlaceholder')}
+              maxLength={GROUP_NAME_MAX}
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value.slice(0, GROUP_NAME_MAX))}
+            />
+            <em>{Array.from(nameInput).length}/{GROUP_NAME_MAX}</em>
+          </label>
+          {createError && (
+            <p className="warn" role="alert">
+              {createError}
             </p>
-          ) : !googleConnected ? (
-            // 서버도 비익명(Google) 계정만 그룹을 만들게 하지만, 여기서 먼저 막아야
-            // "그룹을 만들지 못했어요"라는 막연한 에러 대신 무엇을 해야 하는지 바로 알려준다.
-            <>
-              <p className="note">
-                {t('join.needAccount')}
-              </p>
-              {createError && (
-                <p className="warn" role="alert">
-                  {createError}
-                </p>
-              )}
-              <button
-                type="button"
-                className="google-connect"
-                onClick={() => void connectForGroup()}
-                disabled={connecting}
-              >
-                <span aria-hidden="true">G</span>
-                {connecting ? t('join.connecting') : t('profile.connect')}
-              </button>
-            </>
-          ) : (
-            <>
-              <label className="field">
-                <span>{t('join.nameField')}</span>
-                <input
-                  type="text"
-                  autoComplete="off"
-                  placeholder={t('join.namePlaceholder')}
-                  maxLength={GROUP_NAME_MAX}
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value.slice(0, GROUP_NAME_MAX))}
-                />
-                <em>{Array.from(nameInput).length}/{GROUP_NAME_MAX}</em>
-              </label>
-              {createError && (
-                <p className="warn" role="alert">
-                  {createError}
-                </p>
-              )}
-              <button
-                type="button"
-                className="big-cta"
-                disabled={creating || !nameInput.trim()}
-                onClick={() => void submitCreate()}
-              >
-                {creating ? t('join.creating') : t('join.modeCreate')}
-              </button>
-            </>
           )}
+          <button
+            type="button"
+            className="big-cta"
+            disabled={creating || !nameInput.trim()}
+            onClick={() => void submitCreate()}
+          >
+            {creating ? t('join.creating') : t('join.modeCreate')}
+          </button>
         </section>
       )}
     </main>

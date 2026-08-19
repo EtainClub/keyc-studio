@@ -4,6 +4,7 @@ import { applyLangPreference, langPreference, t, type LangPreference } from '../
 import { PROFILE_AVATAR_MAX_CHARS, PROFILE_NAME_MAX } from '../../storage/identity';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ProfileAvatar } from '../components/ProfileAvatar';
+import { RecoveryCard } from '../components/RecoveryCard';
 import { useAppState } from '../state';
 
 /**
@@ -258,6 +259,11 @@ export function ProfileScreen() {
           </>
         )}
       </section>
+
+      {/* 계정 연결 바로 아래에 둔다 — 둘 다 "이 기기를 잃어도 작품이 남는가"에
+          대한 답이고, 하나(Google)가 막힌 사람에게 다른 하나(복구 코드)가 있다는 것을
+          같은 자리에서 보여줘야 한다. */}
+      <RecoveryCard />
 
       <section className="account-card">
         <p className="feed-kicker">LANGUAGE</p>

@@ -18,6 +18,7 @@ import {
   fetchGroupInviteCode,
   fetchGroupStage,
   formatGroupCode,
+  GROUP_MEMBER_MAX,
   type GroupStageSort,
 } from '../../storage/groups';
 import type { GroupStageCursor, GroupStageItem, GroupSummary } from '../../storage/group-feed';
@@ -235,6 +236,13 @@ export function GroupStageScreen({
             {/* 전체가 앞, 들은 수가 뒤다 — "12개 중 7개 들었어요". 순서가 바뀌면 뜻이 뒤집힌다. */}
             {group ? t('group.progress', { total: num(group.entryCount), listened: num(listenedCount) }) : ''}
           </p>
+          {/* 정원을 함께 보여준다 — "몇 명까지 부를 수 있나"가 주최자의 첫 질문이고,
+              그 답이 화면에 없으면 초대할 인원을 스스로 줄여 잡는다. */}
+          {group ? (
+            <p className="group-stage-members">
+              {t('group.members', { n: num(group.memberCount), max: num(GROUP_MEMBER_MAX) })}
+            </p>
+          ) : null}
         </div>
         <div className="group-stage-actions">
           {/* 이미 이 그룹에 들어와 있어도 다른 그룹(코드로 새로 입장할 그룹 포함)으로

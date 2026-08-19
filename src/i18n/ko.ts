@@ -524,7 +524,10 @@ export const ko = {
   'feed.groupsLoading': '내 그룹을 불러오는 중…',
   'feed.reload': '다시 불러오기',
   'feed.noGroupsTitle': '아직 참여한 그룹이 없어요',
-  'feed.noGroupsBody': '초대 코드가 있으면 입장하고, 없으면 새로 만들어 보세요.',
+  'feed.noGroupsBody':
+    '초대 코드를 받았으면 바로 입장하고, 없으면 30초 만에 방을 열 수 있어요. 코드 하나로 최대 100명이 들어와요.',
+  'feed.groupGuideOpen': '그룹 활용법',
+  'feed.groupGuideOpenAria': '그룹 스테이지 활용법 보기',
   'feed.joinByCode': '코드로 입장하기',
   'feed.joinAnother': '코드로 새 그룹 입장하기',
   'feed.createGroup': '그룹 만들기',
@@ -563,6 +566,7 @@ export const ko = {
   'group.inviteLoadFailed': '초대 코드를 불러오지 못했어요.',
   'group.deleteFailed': '그룹을 삭제하지 못했어요.',
   'group.progress': '{total}개 중 {listened}개 들었어요',
+  'group.members': '참가자 {n}명 · 최대 {max}명까지 들어올 수 있어요',
   'group.switch': '다른 그룹',
   'group.inviteCodeAria': '입장 코드 {code}',
   'group.copied': '복사했어요 ✓',
@@ -590,13 +594,40 @@ export const ko = {
   'group.stats': '리플레이 {replays}회 · {listeners}명이 들었어요',
   'group.replayAriaListened': '{title} 리플레이 (이미 들었어요)',
 
+  /* ── 그룹 안내 모달 ──────────────────────────── */
+  'groupGuide.aria': '그룹 스테이지 활용 안내',
+  'groupGuide.kicker': 'TEAM PLAY',
+  'groupGuide.title': '한 방에 100명, 같이 만들고 같이 듣기',
+  'groupGuide.lead':
+    '그룹은 초대 코드를 아는 사람만 들어오는 우리끼리의 무대예요. 각자 만든 15초 공연을 올리고 서로 눌러 봅니다.',
+  'groupGuide.step1.title': '① 방 만들기 · 30초',
+  'groupGuide.step1.body': '이름만 정하면 끝이에요. 계정 연동 없이 바로 만들 수 있어요.',
+  'groupGuide.step2.title': '② 초대 코드 뿌리기',
+  'groupGuide.step2.body': '8자리 코드를 단톡방이나 사내 메신저에 붙여넣으세요. 코드 하나로 최대 100명이 들어와요.',
+  'groupGuide.step3.title': '③ 각자 15초 공연 만들기',
+  'groupGuide.step3.body': '그림을 그리고 목소리를 녹음하면 키캡 4개짜리 악기가 돼요. 완성한 작품을 그룹에 제출해요.',
+  'groupGuide.step4.title': '④ 서로 듣기',
+  'groupGuide.step4.body':
+    '기본 정렬이 ‘덜 들린 순’이라 인기 몇 개에 쏠리지 않고 모두의 작품이 골고루 들려요.',
+  'groupGuide.useTitle': '이럴 때 씁니다',
+  'groupGuide.use1': '워크숍·연수 아이스브레이킹 — 돌아가며 이름 말하기 대신 15초 공연으로',
+  'groupGuide.use2': '팀 빌딩·회식 — 팀별로 방을 열고 누구 작품인지 맞혀 보기',
+  'groupGuide.use3': '신입 온보딩 — 말수 적은 사람도 목소리 한 번은 남기게',
+  'groupGuide.use4': '학급·동아리·행사 — 한 무대에 전원이 오르는 가장 빠른 방법',
+  'groupGuide.privacyTitle': '그룹 밖으로 나가지 않아요',
+  'groupGuide.privacy':
+    '그룹에 올린 작품은 그 그룹 사람들에게만 보여요. 공개 스테이지와는 완전히 따로 돌아가고, 언제든 내릴 수 있어요.',
+  'groupGuide.create': '지금 방 만들기',
+  'groupGuide.join': '코드로 입장하기',
+  'groupGuide.close': '닫기',
+  'groupGuide.dontShowAgain': '다음에 보지 않기',
+
   /* ── 그룹 입장·만들기 ────────────────────────── */
   'join.title': '그룹 스테이지',
   'join.failed': '입장하지 못했어요. 다시 시도해 주세요.',
   'join.createFailed': '그룹을 만들지 못했어요. 다시 시도해 주세요.',
-  'join.connectFailed': 'Google 계정을 연결하지 못했어요. 다시 시도해 주세요.',
   'join.createdTitle': '그룹을 만들었어요',
-  'join.shareCode': '이 코드를 그룹 사람들에게 알려주세요.',
+  'join.shareCode': '이 코드를 그룹 사람들에게 알려주세요. 최대 100명까지 들어올 수 있어요.',
   'join.toStage': '스테이지로 가기',
   'join.modeAria': '그룹 시작 방법',
   'join.modeJoin': '코드로 입장',
@@ -605,13 +636,61 @@ export const ko = {
   'join.already': '이미 들어와 있어요. 스테이지로 이동할게요…',
   'join.joining': '입장하는 중…',
   'join.join': '입장하기',
-  'join.checkingAccount': '계정을 확인하는 중…',
-  'join.needAccount':
-    '그룹을 만들려면 Google 계정으로 로그인해야 해요. 초대 코드로 입장하는 건 로그인 없이도 할 수 있어요.',
-  'join.connecting': '연결하는 중…',
   'join.nameField': '그룹 이름',
-  'join.namePlaceholder': '예: 3학년 2반',
+  'join.namePlaceholder': '예: 개발팀 워크숍',
   'join.creating': '만드는 중…',
+  'join.createLead':
+    '계정 연동 없이 바로 만들 수 있어요. 만든 사람이 주최자가 되고, 초대 코드로 최대 100명이 들어와요.',
+  'join.keepOwnerTitle': '주최자 자리를 지켜두세요',
+  'join.keepOwnerBody':
+    '지금은 이 기기에서만 주최자예요. 앱을 지우거나 폰을 바꾸면 초대 코드도 방 관리도 되찾을 수 없어요.',
+  'join.keepOwnerCta': '복구 코드 만들기',
+  'join.keepOwnerDone': '복구 코드를 만들었어요. 아래 코드를 안전한 곳에 옮겨 적어 두세요.',
+
+  /* ── 기기 복구(익명 계정) ────────────────────── */
+  'recovery.op.issue': '복구 코드 만들기',
+  'recovery.op.status': '복구 코드 확인',
+  'recovery.op.redeem': '계정 되찾기',
+  'recovery.badResponse': '복구 코드를 처리하지 못했어요. 다시 시도해 주세요.',
+  'recovery.badCode': '복구 코드는 16자예요. 다시 확인해 주세요.',
+  'recovery.kicker': 'DEVICE RECOVERY',
+  'recovery.title': '기기를 바꿔도 작품 지키기',
+  'recovery.body':
+    '지금은 이 기기 안에만 계정이 있어요. 복구 코드를 만들어 두면 폰을 바꾸거나 앱을 지워도 작품과 내 그룹을 그대로 되찾을 수 있어요.',
+  'recovery.bodyGoogle':
+    'Google 계정으로 이미 백업되고 있어요. 복구 코드는 계정 연동 없이 쓰는 기기를 위한 장치예요.',
+  'recovery.checking': '확인하는 중…',
+  'recovery.hasCode': '복구 코드를 만들어 두었어요 · {date}',
+  'recovery.noCode': '아직 복구 코드가 없어요.',
+  'recovery.issue': '복구 코드 만들기',
+  'recovery.reissue': '새 복구 코드 만들기',
+  'recovery.issuing': '만드는 중…',
+  'recovery.issueFailed': '복구 코드를 만들지 못했어요.',
+  'recovery.codeAria': '복구 코드 {code}',
+  'recovery.copy': '코드 복사하기',
+  'recovery.copied': '복사했어요 ✓',
+  'recovery.keepSecret':
+    '이 코드가 곧 계정 열쇠예요. 가진 사람은 누구나 이 작품들을 가져갈 수 있으니 남에게 알려주지 마세요.',
+  'recovery.showOnce':
+    '이 화면을 벗어나면 다시 볼 수 없어요. 지금 옮겨 적어 두세요.',
+  'recovery.reissueWarn': '새로 만들면 예전 코드는 그 즉시 못 쓰게 돼요.',
+  'recovery.backupOn': '이제 이 기기의 작품이 자동으로 백업돼요.',
+  'recovery.restoreTitle': '복구 코드로 되찾기',
+  'recovery.restoreBody':
+    '다른 기기에서 만든 복구 코드를 넣으면 그 계정의 작품과 그룹을 이 기기로 가져와요.',
+  'recovery.codeField': '복구 코드 16자',
+  'recovery.restore': '되찾기',
+  'recovery.restoring': '되찾는 중…',
+  'recovery.restored': '되찾았어요. 홈에서 작품을 확인해 보세요.',
+  'recovery.restoreFailed': '되찾지 못했어요.',
+  'recovery.restoredButSyncFailed':
+    '계정은 되찾았어요. 다만 작품을 내려받지 못했어요 — 잠시 뒤 앱을 다시 열면 이어서 받아와요.',
+  'recovery.switchTitle': '이 기기의 계정을 바꿀까요?',
+  'recovery.switchDetail':
+    '복구 코드의 계정으로 갈아타요. 이 기기에 있는 작품은 그대로 남고, 되찾은 계정과 함께 백업돼요.',
+  'recovery.switchConfirm': '갈아타기',
+  'recovery.googleWarn':
+    '지금은 Google 계정으로 로그인해 있어요. 복구 코드를 쓰면 그 계정에서 빠져나와요.',
 
   /* ── 서버 통신 ───────────────────────────────── */
   'remote.timeout': '서버가 응답하지 않아요 ({what})',

@@ -91,9 +91,29 @@ Cloud Run까지 도달하도록 서비스 IAM의 `roles/run.invoker`를 `allUser
 Functions 배포에는 **Blaze 등록(결제 계정 연결)이 필수**다. 초기 사용량은 무료
 할당량 안에서 운영될 가능성이 높지만, 등록 자체는 피할 수 없다.
 
-배포되는 함수 여섯: `shareMeta`(OG 태그) · `thumb`(썸네일 서빙) ·
-`avatar`(공개 아바타 서빙) · `listPublicFeed`(공개 피드) · `recordPlay`(집계) ·
-`unshareWork`(공유 중단 시 자산 실제 삭제).
+배포되는 함수 열여섯 —
+
+- 공개 공유 여섯: `shareMeta`(OG 태그) · `thumb`(썸네일 서빙) · `avatar`(공개 아바타 서빙) ·
+  `listPublicFeed`(공개 피드) · `recordPlay`(집계) · `unshareWork`(공유 중단 시 자산 실제 삭제).
+- 그룹 스테이지 일곱: `createGroup` · `getGroupCode` · `joinGroup` · `listGroupStage` ·
+  `submitToGroup` · `withdrawEntry` · `deleteGroup`.
+- 기기 복구 셋: `issueRecoveryCode` · `getRecoveryStatus` · `redeemRecoveryCode`.
+
+**기기 복구에는 IAM이 하나 더 필요하다.** `redeemRecoveryCode`는 커스텀 토큰에 서명하는데,
+그러려면 함수를 실행하는 서비스 계정(기본값 `{프로젝트번호}-compute@developer.gserviceaccount.com`)이
+자기 자신에 대해 `roles/iam.serviceAccountTokenCreator`를 가져야 한다:
+
+```bash
+npm run deploy:functions:signer
+```
+
+이 권한이 없으면 다른 기능은 전부 멀쩡히 돌면서 **복구만** 실패한다
+("복구 토큰을 만들지 못했어요"). 계정 없이 쓰는 사용자에게는 그것이 곧 작품 유실이므로,
+익명 그룹 생성을 여는 배포에서는 이 단계를 건너뛰면 안 된다.
+
+복구 코드는 `recoveryCodes/{sha256}`와 `recoveryOwners/{uid}`에 저장되며, 규칙에서 클라이언트
+접근을 전부 막는다(Admin SDK만 만진다). **코드 원문은 저장하지 않는다** — 해시뿐이라
+분실 시 재발급 외에 되돌릴 방법이 없고, 그게 의도한 성질이다.
 
 공개 피드는 `visibility == 'link'`, `discoverable == true`, `createdAt desc` 복합 인덱스가 필요하다. Functions보다
 인덱스를 먼저 배포하고 Firebase 콘솔에서 빌드 완료를 확인한다:

@@ -207,5 +207,24 @@ service cloud.firestore {
     match /joinCodes/{code} {
       allow read, write: if false;
     }
+
+    /*
+     * 복구 코드 — 해시 → uid 조회표와 uid → 현재 해시 역참조.
+     *
+     * 여기 문서 하나는 곧 그 계정의 열쇠 구멍이다. 코드 원문은 저장하지 않지만
+     * (functions/index.js: hashRecoveryCode), 읽기를 열면 "어떤 uid에 복구 코드가
+     * 걸려 있는지"라는 계정 목록이 그대로 새어 나가고, 쓰기를 열면 남의 uid를
+     * 가리키는 코드를 스스로 심어 계정을 통째로 가져갈 수 있다.
+     *
+     * 그래서 클라이언트에는 아무것도 열지 않는다. issueRecoveryCode·
+     * redeemRecoveryCode callable만 Admin SDK로 만지고, redeem 쪽은 시도 횟수도 센다.
+     */
+    match /recoveryCodes/{hash} {
+      allow read, write: if false;
+    }
+
+    match /recoveryOwners/{uid} {
+      allow read, write: if false;
+    }
   }
 }

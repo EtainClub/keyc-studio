@@ -20,6 +20,7 @@ import {
   onAuthStateChanged,
   signInAnonymously,
   signInWithCredential,
+  signInWithCustomToken,
   updateProfile,
   type Auth,
   type User,
@@ -142,6 +143,24 @@ export function ensureSignedIn(): Promise<SignInResult> {
     })();
   }
   return signInPromise;
+}
+
+/**
+ * 복구 코드로 받은 커스텀 토큰으로 **원래 계정에 다시 들어간다.**
+ *
+ * 지금 로그인해 있는 계정이 있으면 조용히 갈아탄다. 대개 이 기기에서 방금 만들어진
+ * 익명 계정이고, 거기엔 아직 아무것도 없다 — 버려도 잃는 것이 없다. 반대로
+ * "이미 로그인돼 있으니 안 된다"고 막으면, 앱을 한 번 켜기만 해도 익명 계정이
+ * 생기는 흐름에서는 복구가 영영 불가능해진다.
+ *
+ * `signInPromise` 캐시를 새 사용자로 갈아끼우는 것을 잊으면 안 된다. 그대로 두면
+ * 이후의 `ensureSignedIn`이 방금 버린 uid를 계속 돌려줘서, 화면은 복구됐다고 하는데
+ * 저장은 옛 계정으로 나간다.
+ */
+export async function signInWithRecoveryToken(token: string): Promise<User> {
+  const credential = await signInWithCustomToken(auth(), token);
+  signInPromise = Promise.resolve({ user: credential.user, error: null });
+  return credential.user;
 }
 
 export function watchUser(cb: (user: User | null) => void): () => void {

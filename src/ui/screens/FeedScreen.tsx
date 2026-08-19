@@ -14,6 +14,10 @@
  * 아니라 URL 쿼리(`g`)에 둔다 — 그래야 그룹 리플레이 링크(`/w/:id?g=...`)에서
  * 뒤로가기를 눌렀을 때 그룹 탭으로 돌아오고, 새로고침해도 탭이 안 날아간다.
  *
+ * [그룹] 탭에 처음 들어오면 활용 안내 모달을 한 번 띄운다(`group-guide.ts`).
+ * 이 기능은 만들어 두고도 설명이 없어서 거의 쓰이지 않았다 — 탭을 눌렀을 때
+ * 비어 있는 목록만 보이면 무엇에 쓰는 것인지 알 길이 없다.
+ *
  * 공개 피드의 훅(load/cursor/sort/search/authorNick)은 아래 `PublicFeedSection`으로
  * 그대로 옮겼을 뿐 손대지 않았다 — [그룹] 탭일 때 그 훅들을 조건부로 부르면 React
  * 규칙 위반이라, 통째로 별도 컴포넌트로 빼서 탭에 따라 마운트/언마운트되게 했다.
@@ -33,6 +37,12 @@ import { listMyGroups, type MyGroup } from '../../storage/groups';
 import { PUBLIC_ORIGIN } from '../../storage/firebase';
 import { useAppState } from '../state';
 import { ProfileAvatar } from '../components/ProfileAvatar';
+import { GroupGuideModal } from '../components/GroupGuideModal';
+import {
+  dismissGroupGuide,
+  markGroupGuideShown,
+  shouldAutoShowGroupGuide,
+} from '../group-guide';
 import { GroupStageScreen } from './GroupStageScreen';
 
 /** 타자를 멈춘 뒤 이만큼 기다렸다 검색한다. 한 글자마다 서버를 부르지 않기 위한 것. */
@@ -44,6 +54,7 @@ const SORTS: { id: FeedSort; label: string }[] = [
 ];
 
 export function FeedScreen() {
+  const nav = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // 그룹 탭에 있는지는 'g' 키가 있는지로 본다 — 값이 빈 문자열이어도(아직 그룹을
   // 고르기 전) 그룹 탭에 있는 것이다. 값의 진위로만 판단하면 "그룹 탭 진입, 미선택"
@@ -110,6 +121,26 @@ export function FeedScreen() {
     setSearchParams({ g: '' });
   };
 
+  /* ── 활용 안내 ─────────────────────────────── */
+  const [guideOpen, setGuideOpen] = useState(false);
+
+  // 탭에 들어온 그 순간에 띄운다. 목록을 다 불러올 때까지 기다리면, 이미 화면을
+  // 훑어보기 시작한 사람 위로 뒤늦게 창이 덮여서 더 방해가 된다.
+  useEffect(() => {
+    if (activeTab !== 'group' || !shouldAutoShowGroupGuide()) return;
+    markGroupGuideShown();
+    setGuideOpen(true);
+  }, [activeTab]);
+
+  const goCreateGroup = () => {
+    setGuideOpen(false);
+    nav('/g/join?new=1');
+  };
+  const goJoinGroup = () => {
+    setGuideOpen(false);
+    nav('/g/join');
+  };
+
   return (
     <main className="screen feed">
       <header className="feed-head">
@@ -140,6 +171,21 @@ export function FeedScreen() {
         </button>
       </div>
 
+      {/* 안내를 한 번 닫은 사람도 다시 열 수 있어야 한다 — "다음에 보지 않기"가
+          곧 "영영 못 보기"가 되면 아무도 그 버튼을 못 누른다. */}
+      {activeTab === 'group' && (
+        <div className="feed-group-help">
+          <button
+            type="button"
+            className="chip ghost"
+            aria-label={t('feed.groupGuideOpenAria')}
+            onClick={() => setGuideOpen(true)}
+          >
+            <span aria-hidden="true">?</span> {t('feed.groupGuideOpen')}
+          </button>
+        </div>
+      )}
+
       {activeTab === 'all' ? (
         <PublicFeedSection />
       ) : groupId ? (
@@ -169,6 +215,18 @@ export function FeedScreen() {
           error={groupsError}
           onRetry={() => void loadMyGroups()}
           onSelect={(id) => setSearchParams({ g: id })}
+        />
+      )}
+
+      {guideOpen && (
+        <GroupGuideModal
+          onClose={() => setGuideOpen(false)}
+          onDontShowAgain={() => {
+            dismissGroupGuide();
+            setGuideOpen(false);
+          }}
+          onCreate={goCreateGroup}
+          onJoin={goJoinGroup}
         />
       )}
     </main>

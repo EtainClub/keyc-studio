@@ -542,7 +542,10 @@ export const en = {
   'feed.groupsLoading': 'Loading your groups…',
   'feed.reload': 'Load again',
   'feed.noGroupsTitle': 'You are not in any group yet',
-  'feed.noGroupsBody': 'Join with an invite code, or make a new group of your own.',
+  'feed.noGroupsBody':
+    'Got an invite code? Join right away. If not, you can open a room in 30 seconds — one code lets in up to 100 people.',
+  'feed.groupGuideOpen': 'How groups work',
+  'feed.groupGuideOpenAria': 'See how the group stage works',
   'feed.joinByCode': 'Join with a code',
   'feed.joinAnother': 'Join another group with a code',
   'feed.createGroup': 'Make a group',
@@ -582,6 +585,7 @@ export const en = {
   'group.inviteLoadFailed': 'Could not load the invite code.',
   'group.deleteFailed': 'Could not delete the group.',
   'group.progress': 'You have heard {listened} of {total}',
+  'group.members': '{n} people in · up to {max} can join',
   'group.switch': 'Another group',
   'group.inviteCodeAria': 'Entry code {code}',
   'group.copied': 'Copied ✓',
@@ -611,13 +615,42 @@ export const en = {
   'group.stats': '{replays} replays · heard by {listeners} people',
   'group.replayAriaListened': 'Replay {title} (already heard)',
 
+  /* ── Group guide modal ───────────────────────── */
+  'groupGuide.aria': 'How the group stage works',
+  'groupGuide.kicker': 'TEAM PLAY',
+  'groupGuide.title': 'Up to 100 people in one room, making and listening together',
+  'groupGuide.lead':
+    'A group is a stage only people with the invite code can see. Everyone posts a 15-second show and plays each other’s.',
+  'groupGuide.step1.title': '① Open a room · 30 seconds',
+  'groupGuide.step1.body': 'Pick a name and you are done. No account linking needed.',
+  'groupGuide.step2.title': '② Hand out the invite code',
+  'groupGuide.step2.body':
+    'Paste the 8-character code into your group chat or work messenger. One code lets in up to 100 people.',
+  'groupGuide.step3.title': '③ Everyone makes a 15-second show',
+  'groupGuide.step3.body':
+    'Draw, record your voice, and four keycaps become an instrument. Submit the finished show to the group.',
+  'groupGuide.step4.title': '④ Listen to each other',
+  'groupGuide.step4.body':
+    'The default sort is “least heard”, so attention spreads across everyone instead of piling onto a few.',
+  'groupGuide.useTitle': 'Good for',
+  'groupGuide.use1': 'Workshop ice-breakers — a 15-second show instead of going around saying names',
+  'groupGuide.use2': 'Team building and team dinners — one room per team, then guess whose show it is',
+  'groupGuide.use3': 'New-hire onboarding — even the quiet ones leave their voice once',
+  'groupGuide.use4': 'Classes, clubs and events — the fastest way to get everyone on one stage',
+  'groupGuide.privacyTitle': 'It stays inside the group',
+  'groupGuide.privacy':
+    'Shows posted to a group are visible only to that group. It runs separately from the public stage, and you can take a show down at any time.',
+  'groupGuide.create': 'Open a room now',
+  'groupGuide.join': 'Join with a code',
+  'groupGuide.close': 'Close',
+  'groupGuide.dontShowAgain': 'Do not show again',
+
   /* ── Joining and creating groups ─────────────── */
   'join.title': 'Group stage',
   'join.failed': 'Could not join. Please try again.',
   'join.createFailed': 'Could not make the group. Please try again.',
-  'join.connectFailed': 'Could not connect your Google account. Please try again.',
   'join.createdTitle': 'Your group is ready',
-  'join.shareCode': 'Give this code to the people in your group.',
+  'join.shareCode': 'Give this code to the people in your group. Up to 100 people can join.',
   'join.toStage': 'Go to the stage',
   'join.modeAria': 'How to start with groups',
   'join.modeJoin': 'Join with a code',
@@ -626,13 +659,60 @@ export const en = {
   'join.already': 'You are already in. Taking you to the stage…',
   'join.joining': 'Joining…',
   'join.join': 'Join',
-  'join.checkingAccount': 'Checking your account…',
-  'join.needAccount':
-    'Making a group needs a Google account. Joining with an invite code works without signing in.',
-  'join.connecting': 'Connecting…',
   'join.nameField': 'Group name',
-  'join.namePlaceholder': 'e.g. Class 3B',
+  'join.namePlaceholder': 'e.g. Dev team workshop',
   'join.creating': 'Creating…',
+  'join.createLead':
+    'No account linking needed. Whoever makes the room is the host, and the invite code lets in up to 100 people.',
+  'join.keepOwnerTitle': 'Keep your host seat',
+  'join.keepOwnerBody':
+    'Right now you are the host only on this device. Delete the app or change phones and the invite code and room controls are gone for good.',
+  'join.keepOwnerCta': 'Make a recovery code',
+  'join.keepOwnerDone': 'Recovery code created. Copy it somewhere safe.',
+
+  /* ── Device recovery (anonymous accounts) ────── */
+  'recovery.op.issue': 'making a recovery code',
+  'recovery.op.status': 'checking the recovery code',
+  'recovery.op.redeem': 'recovering the account',
+  'recovery.badResponse': 'Could not handle the recovery code. Please try again.',
+  'recovery.badCode': 'A recovery code is 16 characters. Please check it again.',
+  'recovery.kicker': 'DEVICE RECOVERY',
+  'recovery.title': 'Keep your shows when you change devices',
+  'recovery.body':
+    'Your account only exists on this device right now. Make a recovery code and you can bring your shows and groups back after changing phones or reinstalling.',
+  'recovery.bodyGoogle':
+    'Your Google account already backs everything up. Recovery codes are for devices used without account linking.',
+  'recovery.checking': 'Checking…',
+  'recovery.hasCode': 'You have a recovery code · {date}',
+  'recovery.noCode': 'You do not have a recovery code yet.',
+  'recovery.issue': 'Make a recovery code',
+  'recovery.reissue': 'Make a new recovery code',
+  'recovery.issuing': 'Creating…',
+  'recovery.issueFailed': 'Could not make a recovery code.',
+  'recovery.codeAria': 'Recovery code {code}',
+  'recovery.copy': 'Copy the code',
+  'recovery.copied': 'Copied ✓',
+  'recovery.keepSecret':
+    'This code is the key to your account. Anyone who has it can take these shows, so do not share it.',
+  'recovery.showOnce': 'You cannot see it again after leaving this screen. Write it down now.',
+  'recovery.reissueWarn': 'Making a new one kills the old code immediately.',
+  'recovery.backupOn': 'Shows on this device are backed up automatically from now on.',
+  'recovery.restoreTitle': 'Recover with a code',
+  'recovery.restoreBody':
+    'Enter a recovery code made on another device to bring that account’s shows and groups here.',
+  'recovery.codeField': '16-character recovery code',
+  'recovery.restore': 'Recover',
+  'recovery.restoring': 'Recovering…',
+  'recovery.restored': 'Recovered. Check your shows on the home screen.',
+  'recovery.restoreFailed': 'Could not recover.',
+  'recovery.restoredButSyncFailed':
+    'Your account is back, but the shows could not be downloaded — reopen the app in a moment and it will keep going.',
+  'recovery.switchTitle': 'Switch the account on this device?',
+  'recovery.switchDetail':
+    'You will switch to the recovery code’s account. Shows already on this device stay, and get backed up with the recovered account.',
+  'recovery.switchConfirm': 'Switch',
+  'recovery.googleWarn':
+    'You are signed in with a Google account. Using a recovery code signs you out of it.',
 
   /* ── Server calls ────────────────────────────── */
   'remote.timeout': 'The server is not responding ({what})',

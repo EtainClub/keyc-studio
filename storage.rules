@@ -30,7 +30,13 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Google 계정 백업 자산은 소유자만 읽고 쓴다. 공개 works 경로와 섞지 않는다.
+    /*
+     * 계정 백업 자산은 소유자만 읽고 쓴다. 공개 works 경로와 섞지 않는다.
+     *
+     * Google 계정 전용이 아니다 — 복구 코드를 만든 익명 계정도 여기로 백업한다
+     * (storage/account.ts: canBackup). 판정은 언제나 "경로의 uid == 인증 uid" 하나뿐이라,
+     * 계정 종류가 늘어도 이 규칙은 그대로다.
+     */
     match /users/{uid}/works/{workId}/art/{fileName} {
       allow read, delete: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null

@@ -3427,3 +3427,172 @@ button {
 .group-delete-actions .chip {
   flex: 1;
 }
+
+/* ── 그룹 활용 안내 모달 ────────────────────────── */
+
+/*
+ * 다른 시트와 달리 글이 길다. 스크롤은 .group-guide-body가 갖고, 아래 버튼 줄은
+ * 항상 보이게 고정한다 — 안내를 끝까지 내려야만 [다음에 보지 않기]가 나타나면
+ * 그건 읽기를 강요하는 것이지 안내가 아니다.
+ */
+.sheet.group-guide {
+  gap: 14px;
+  padding-top: 18px;
+}
+.group-guide-body {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-right: 2px;
+}
+.group-guide-hero h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  line-height: 1.3;
+}
+.group-guide-hero p {
+  margin: 0;
+  color: var(--fg-dim);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.group-guide-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.group-guide-steps li {
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.group-guide-steps strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+}
+.group-guide-steps p {
+  margin: 4px 0 0;
+  color: var(--fg-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.group-guide-uses h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 800;
+}
+.group-guide-uses ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.group-guide-uses li {
+  position: relative;
+  padding-left: 18px;
+  color: var(--fg-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.group-guide-uses li::before {
+  content: '·';
+  position: absolute;
+  left: 6px;
+  color: var(--accent);
+  font-weight: 900;
+}
+.group-guide-privacy {
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 212, 0, 0.28);
+  background: rgba(255, 212, 0, 0.07);
+}
+.group-guide-privacy strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+.group-guide-privacy p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg-dim);
+}
+.group-guide-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.group-guide-dismiss {
+  display: flex;
+  gap: 8px;
+}
+.group-guide-dismiss .chip {
+  flex: 1;
+  font-size: 13px;
+}
+
+/* 안내를 다시 여는 버튼. 오른쪽 끝에 작게 — 목록보다 앞에 나설 것은 아니다. */
+.feed-group-help {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -4px;
+}
+.feed-group-help .chip {
+  font-size: 13px;
+}
+
+/* ── 기기 복구(복구 코드) ───────────────────────── */
+
+.recovery-code-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/*
+ * 16자를 4-4-4-4로 끊어 보여준다. 코드는 손으로 옮겨 적히는 물건이라,
+ * 글자 폭 고정과 자간이 장식이 아니라 기능이다.
+ */
+.recovery-code {
+  margin: 0;
+  padding: 14px 8px;
+  border-radius: var(--radius);
+  border: 2px dashed rgba(255, 212, 0, 0.4);
+  background: rgba(255, 212, 0, 0.08);
+  color: var(--accent);
+  font-size: 20px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  text-align: center;
+  /* 코드만은 길게 눌러 복사할 수 있어야 한다(클립보드 권한이 없는 웹뷰가 있다). */
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+.recovery-code-block .warn,
+.recovery-code-block .note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 그룹을 막 만든 직후의 "주최자 자리 지키기" 칸. 축하 화면 안이라 좁게 둔다. */
+.owner-guard {
+  margin-top: 18px;
+  text-align: left;
+}
+
+/* 그룹 헤더의 정원 줄. 진행률보다 한 단계 조용하게 — 정보이지 알림이 아니다. */
+.group-stage-members {
+  margin: 2px 0 0;
+  color: var(--fg-dim);
+  font-size: 13px;
+}

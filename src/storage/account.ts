@@ -1,4 +1,11 @@
-/** Google 계정 전용 프로필과 비공개 작품 백업. 공개 공유 경로와 완전히 분리한다. */
+/**
+ * 계정 프로필과 비공개 작품 백업. 공개 공유 경로와 완전히 분리한다.
+ *
+ * 예전에는 **Google 계정 전용**이었다. 지금은 복구 코드를 만든 익명 계정도 여기에
+ * 들어온다(`canBackup` 참고) — 기기를 잃어도 작품이 남으려면 올라가 있어야 하고,
+ * 토스 미니앱처럼 Google 로그인 팝업을 띄울 수 없는 자리가 있기 때문이다.
+ */
+import type { User } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { deleteObject, getBytes, ref, uploadBytes } from 'firebase/storage';
 import { parseWork } from '../work-model/serialize';
@@ -15,6 +22,7 @@ import {
   type WorkRecord,
 } from './db';
 import { auth, firestore, isFirebaseConfigured, isPermanentUser, storage } from './firebase';
+import { isCloudBackupOptIn } from './recovery';
 import {
   normalizeProfile,
   type CreatorProfile,
@@ -22,6 +30,22 @@ import {
 import { backupAssetPath } from './paths';
 
 type CloudRecord = WorkRecord;
+
+/**
+ * 이 사용자의 작품을 클라우드에 올려도 되는가.
+ *
+ * 두 경우다:
+ *   · 비익명(Google) 계정 — 계정을 연결한 행위 자체가 백업하겠다는 뜻이다.
+ *   · 복구 코드를 만든 익명 계정 — 코드를 발급받는 화면에서 백업을 함께 설명한다.
+ *
+ * **익명이면 무조건 올린다로 두면 안 된다.** 이 앱은 아이의 그림과 목소리를 다루고,
+ * 공유하지 않은 작품은 이 기기 밖으로 나가지 않는다는 것이 기본 약속이다
+ * (README "먼저, 정정 사항"). 백업은 사용자가 켜는 것이지 기본값이 아니다.
+ */
+function canBackup(user: User | null): user is User {
+  if (!user) return false;
+  return isPermanentUser(user) || isCloudBackupOptIn();
+}
 
 function profileRef(uid: string) {
   return doc(firestore(), 'users', uid);
@@ -74,7 +98,7 @@ export async function backupWorkRecord(record: WorkRecord, uid?: string): Promis
   if (!isFirebaseConfigured) return;
   const user = auth().currentUser;
   const ownerUid = uid ?? user?.uid;
-  if (!ownerUid || !isPermanentUser(user) || user.uid !== ownerUid) return;
+  if (!ownerUid || !canBackup(user) || user.uid !== ownerUid) return;
 
   const previous = await getDoc(workRef(ownerUid, record.work.id));
   const previousRecord = previous.exists() ? cloudRecordOf(previous.data()) : null;
@@ -241,7 +265,7 @@ const backupTimers = new Map<string, number>();
 export function scheduleWorkBackup(record: WorkRecord): void {
   if (!isFirebaseConfigured) return;
   const user = auth().currentUser;
-  if (!isPermanentUser(user)) return;
+  if (!canBackup(user)) return;
   const existing = backupTimers.get(record.work.id);
   if (existing !== undefined) clearTimeout(existing);
   const timer = window.setTimeout(() => {
@@ -291,7 +315,7 @@ export function cancelWorkBackup(workId: string): void {
 export async function deleteAccountBackup(record: WorkRecord): Promise<void> {
   if (!isFirebaseConfigured) return;
   const user = auth().currentUser;
-  if (!isPermanentUser(user)) return;
+  if (!canBackup(user)) return;
 
   const snapshot = await getDoc(workRef(user.uid, record.work.id));
   const cloud = snapshot.exists() ? cloudRecordOf(snapshot.data()) : null;

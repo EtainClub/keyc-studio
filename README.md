@@ -66,7 +66,8 @@ npm run preview
 | `npm run emulators` | Firebase Emulator Suite 실행 |
 | `npm run deploy:cors` | Storage 버킷에 허용 웹 출처 적용 |
 | `npm run deploy:functions:iam` | callable Function의 Cloud Run 호출 IAM 적용 |
-| `npm run deploy` | 빌드·Firebase 배포 후 CORS와 callable IAM 적용 |
+| `npm run deploy:functions:signer` | 복구 토큰 서명 권한(서비스 계정 토큰 생성자) 부여 |
+| `npm run deploy` | 빌드·Firebase 배포 후 CORS와 callable IAM·서명 권한 적용 |
 
 ## Apps in Toss `.ait` 빌드
 
@@ -127,9 +128,15 @@ npm run build
 node functions/smoke-load.mjs
 ```
 
-스모크 테스트는 `shareMeta`, `thumb`, `avatar`, `listPublicFeed`, `recordPlay`, `unshareWork`
-여섯 함수가 실제로 로드되는지 확인한다. `npm run build`는 프런트엔드만 검사하므로 이 단계를
-대체하지 않는다.
+스모크 테스트는 공개 공유(`shareMeta`, `thumb`, `avatar`, `listPublicFeed`, `recordPlay`,
+`unshareWork`), 그룹 스테이지(`createGroup`, `getGroupCode`, `joinGroup`, `listGroupStage`,
+`submitToGroup`, `withdrawEntry`, `deleteGroup`), 기기 복구(`issueRecoveryCode`,
+`getRecoveryStatus`, `redeemRecoveryCode`) 열여섯 함수가 실제로 로드되는지 확인한다.
+`npm run build`는 프런트엔드만 검사하므로 이 단계를 대체하지 않는다.
+
+> **v0.8.0(그룹 개방 + 기기 복구)을 올릴 때는 [docs/DEPLOY.md](docs/DEPLOY.md)를 먼저 읽는다.**
+> 배포 단계가 하나 늘었고(`npm run deploy:functions:signer`), 그것을 빠뜨리면 다른 기능은
+> 멀쩡한 채 기기 복구만 조용히 실패한다.
 
 ### 3. 최초 배포
 
@@ -140,6 +147,7 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 npm run deploy:cors
 firebase deploy --only functions
 npm run deploy:functions:iam
+npm run deploy:functions:signer
 firebase deploy --only hosting
 ```
 
@@ -150,6 +158,11 @@ firebase deploy --only hosting
   `allUsers` 바인딩이 필요하다. `npm run deploy:functions:iam`은 공개 피드·재생 집계·공유 중단
   서비스에 이 전송 권한을 적용한다. 실제 데이터 권한은 Firebase Auth·App Check와 함수 내부
   소유권 검사가 계속 제한한다.
+- `redeemRecoveryCode`는 복구 토큰(커스텀 토큰)에 **서명**해야 하고, 그러려면 함수를 실행하는
+  서비스 계정에 자기 자신에 대한 `roles/iam.serviceAccountTokenCreator`가 있어야 한다.
+  `npm run deploy:functions:signer`가 그 바인딩을 건다. 없으면 복구 시도가
+  "복구 토큰을 만들지 못했어요"로 끝나고, 다른 기능은 멀쩡히 도는 채로 **기기 복구만**
+  조용히 죽는다. 이 명령에는 Google Cloud CLI와 IAM 수정 권한이 필요하다.
 - 공개 피드는 Firestore 복합 인덱스가 필요하다. 콘솔에서 인덱스 상태가 **사용 설정됨**이 될
   때까지 `listPublicFeed`가 실패할 수 있다.
 - Hosting의 `/w/**`, `/thumb/**`, `/avatar/**` rewrite는 Functions를 가리키므로 Functions를
@@ -170,7 +183,7 @@ npm run deploy
 ### 4. 배포 후 확인
 
 1. Hosting 기본 주소에서 홈과 새 작품 만들기가 열리는지 확인한다.
-2. Firebase Console에서 여섯 Functions가 `asia-northeast3`에 배포됐는지 확인한다.
+2. Firebase Console에서 열여섯 Functions가 `asia-northeast3`에 배포됐는지 확인한다.
 3. 실제 작품을 하나 공유하고 시크릿 창이나 다른 기기에서 `/w/{workId}` 링크의 그림과 녹음
    소리가 모두 재생되는지 확인한다.
 4. 공유 중단 후 문서와 `works/{workId}/...` Storage 파일이 삭제됐는지 확인한다.
@@ -397,6 +410,46 @@ webm/opus를 뱉고, 한쪽에서 녹음한 파일이 다른 쪽에서 안 열�
 계정 연결은 공개 동의가 아니다. Google 계정에 연결해도 작품은 키크 스테이지에 나타나지
 않으며, 아래 공유 게이트를 따로 완료해야 공개된다.
 
+### 기기 복구 — 계정 없이 쓰는 사람을 위한 열쇠
+
+익명 로그인의 uid는 **그 기기 안에만** 있다. 저장소를 지우거나 폰을 바꾸면 uid가 사라지고,
+거기에 매달린 것들(클라우드 백업된 작품, 내가 연 그룹의 주최자 자리, 그룹 안의 내 표)이
+주인을 잃는다. Google 연결이 지금까지의 유일한 답이었지만, **토스 미니앱 웹뷰에는 로그인
+팝업을 띄울 자리가 없다.**
+
+그래서 **복구 코드**를 둔다. 프로필의 [기기 복구]에서 16자를 발급받아 옮겨 적어 두면,
+다른 기기에서 그 코드를 넣어 원래 계정으로 돌아온다.
+
+- 발급: `issueRecoveryCode` → 서버가 코드를 만들고 **SHA-256 해시만** `recoveryCodes/{hash}`에
+  남긴다. 원문은 어디에도 저장하지 않으므로 **다시 보여줄 수 없다.** 잃어버리면 재발급뿐이고,
+  재발급하면 옛 코드는 그 즉시 죽는다(`recoveryOwners/{uid}`가 현재 해시를 들고 있다).
+- 복구: `redeemRecoveryCode` → 해시를 문서 ID로 한 번에 조회하고, 계정이 살아 있으면
+  커스텀 토큰을 끊어 준다. **이 함수만 로그인 없이 호출할 수 있다** — 새 기기에는 아직
+  계정이 없기 때문이다. 방어선은 코드 엔트로피(30^16 ≈ 78비트)와 IP당 1분 5회 제한이다.
+- 코드는 비밀번호가 아니라 **열쇠 그 자체다.** 가진 사람이 곧 그 계정이므로 화면은 항상
+  "남에게 보여주지 마세요"를 함께 말한다.
+
+**복구 코드를 만들면 클라우드 백업이 함께 켜진다.** 되찾을 것이 서버에 없으면 복구는 빈
+계정으로 로그인하는 일에 지나지 않는다. 반대로 이 백업은 **켠 사람에게만** 적용된다 —
+익명 사용자의 작품을 아무 말 없이 전부 올리는 것은 위의 "로컬 만들기 모드"가 지키는
+약속을 깨는 일이라, 기본값은 언제나 꺼짐이다(`storage/recovery.ts`, `storage/account.ts`).
+
+### 그룹 스테이지 — 닫힌 무리 안의 작은 무대
+
+초대 코드를 아는 사람만 들어오는 그룹이다. 한 그룹에 **최대 100명**, 작품 200개까지 올라가고,
+한 작품은 동시에 3개 그룹까지 낼 수 있다. 순위판이 아니라 서로 듣게 만드는 장치라 기본
+정렬이 '덜 들린 순'이다.
+
+- **그룹 만들기에 Google 계정이 필요하지 않다.** 예전에는 요구했다 — 기기를 바꾸면 사라지는
+  익명 주최자가 그룹을 고아로 만든다는 걱정이었고, 그 걱정 자체는 옳았다. 다만 해법이
+  틀렸다: 로그인 방식을 막는 대신 **주최자 자리를 되찾을 길**(위의 복구 코드)을 내주면 된다.
+  관문을 앞에 두면 워크숍·회식처럼 "지금 이 자리에서 방을 열어야 하는" 상황이 통째로 막히고,
+  토스 미니앱에서는 아예 불가능해진다. 그래서 방을 만든 **직후에** 복구 코드를 권한다.
+- 남는 방어는 계정당 그룹 3개와 uid당 10분에 3회의 생성 제한이다(`functions/index.js`).
+- [그룹] 탭에 처음 들어오면 활용 안내가 한 번 뜬다. 기능만 있고 설명이 없어서 거의 쓰이지
+  않던 자리라, 무엇에 쓰는 물건인지를 화면에서 말한다. [다음에 보지 않기]는 영구적이고,
+  그 뒤에도 [그룹 활용법] 버튼으로 다시 열 수 있다(`ui/group-guide.ts`).
+
 ### 온라인 공유 모드 — 명시적 관문
 
 공유 버튼을 누르면 공개용 서버 전송이 시작된다. 게이트 화면에서:
@@ -457,7 +510,8 @@ webm/opus를 뱉고, 한쪽에서 녹음한 파일이 다른 쪽에서 안 열�
   업로드 중 `local` 상태의 짧은 구간은 추측 불가능한 경로로 우발 접근을 막고,
   **공유 중단 시 파일을 실제로 지우는 것**으로 값을 치른다.
 - **Functions** (Blaze 등록 필요): `shareMeta`(OG 태그), `thumb`(썸네일), `avatar`(공개 아바타),
-  `listPublicFeed`(공개 피드), `recordPlay`(App Check + 중복 방지), `unshareWork`(자산 실제 삭제).
+  `listPublicFeed`(공개 피드), `recordPlay`(App Check + 중복 방지), `unshareWork`(자산 실제 삭제),
+  그룹 스테이지 7종, 기기 복구 3종(`issueRecoveryCode`·`getRecoveryStatus`·`redeemRecoveryCode`).
 
 초기 사용량은 무료 할당량 안에서 운영될 가능성이 높으나, **Functions 배포를 위해
 Blaze 등록 및 결제 계정 연결은 필요하다.**
