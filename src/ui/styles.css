@@ -629,34 +629,6 @@ button {
 .lang-seg .seg-btn {
   flex: 1 1 0;
 }
-.account-connected {
-  margin: 0;
-  color: #62e6b6;
-  font-size: 16px;
-  font-weight: 800;
-}
-.google-connect {
-  min-height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  border-radius: 18px;
-  background: #fff;
-  color: #241a44;
-  font-weight: 800;
-}
-.google-connect > span {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 2px solid #4285f4;
-  border-radius: 50%;
-  color: #4285f4;
-  font-size: 14px;
-}
-.google-connect:disabled,
 .profile-save:disabled {
   cursor: wait;
   opacity: 0.65;
@@ -3054,17 +3026,30 @@ button {
   background: #fff;
 }
 
+.countdown-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
 .countdown {
   font-size: 96px;
   font-weight: 900;
   text-align: center;
   animation: m-pop 400ms ease-out;
 }
+.countdown-hint {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0;
+}
 
 .live-hint {
   text-align: center;
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--accent);
   display: flex;
   flex-direction: column;
   gap: 4px;

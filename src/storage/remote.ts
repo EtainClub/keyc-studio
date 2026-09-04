@@ -33,6 +33,7 @@ import { ensureSignedIn, firestore, functions, isAdminUser, isFirebaseConfigured
 import { acquireUid } from './identity';
 import { assetPath, thumbPath } from './paths';
 import { parsePublicFeedPage, type FeedCursor, type PublicFeedPage } from './public-feed';
+import { shareOrigin } from './share-url';
 import { toPortableWork } from './portable-work';
 import { renderShareThumb } from './thumbnail';
 // groups.ts는 remote.ts를 import하지 않는다 — 순환 없음. 그룹 제출은 공유가 이미
@@ -68,8 +69,12 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   });
 }
 
+/**
+ * 공유 링크. 화면이 토스 웹뷰처럼 다른 origin에 떠 있어도 링크는 늘 공개
+ * 도메인을 가리킨다 — 이유는 share-url.ts에 적어 뒀다.
+ */
 export function shareUrl(workId: string): string {
-  return `${window.location.origin}/w/${workId}`;
+  return `${shareOrigin(window.location)}/w/${workId}`;
 }
 
 /**

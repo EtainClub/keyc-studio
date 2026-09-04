@@ -47,14 +47,15 @@ export const ko = {
 
   /* ── 만들기 ──────────────────────────────────── */
   'create.title': '키캡 꾸미기',
-  'create.guide': '키캡을 누르면 소리가 나고 꾸미기가 열려요. 그냥 무대로 가도 괜찮아요.',
+  'create.guide':
+    '키캡을 누르면 소리가 나고 꾸미기가 열려요. 네 개 다 안 꾸며도 괜찮아요 — 다음 무대에서는 이걸로 15초 공연을 직접 연주해요.',
   'create.toStage': '무대로 가기 →',
 
   /* ── 무대(준비) ──────────────────────────────── */
   'stageScreen.title': '무대',
   'stageScreen.backToCreate': '‹ 꾸미기',
   'stageScreen.guide':
-    '공연이 시작할 때 자동으로 반복할 키를 골라요. 키를 누르면 소리를 확인할 수 있어요.',
+    '공연이 시작할 때 자동으로 반복할 키를 골라요. 여기서 누르는 건 아직 기록되지 않아요 — 진짜 공연은 다음 화면에서 시작해요.',
   'stageScreen.tempo': '빠르기',
   'stageScreen.duration': '공연은 {seconds}초 — 박자에 딱 맞게 끝나요.',
   'stageScreen.toPerform': '공연하러 가기 →',
@@ -63,7 +64,10 @@ export const ko = {
   /* ── 공연 ────────────────────────────────────── */
   'perform.title': '공연',
   'perform.backToStage': '‹ 무대',
+  'perform.readyGuide':
+    '시작을 누르면 3초 뒤부터 15초 동안 녹화가 시작돼요. 그동안 키캡을 자유롭게 눌러 연주해 보세요.',
   'perform.start': '공연 시작',
+  'perform.getReady': '누를 준비!',
   'perform.paused': '잠시 멈췄어요',
   'perform.live': '누르고 싶은 대로 눌러요!',
   'perform.counter': '{seconds}초 남음 · {presses}번 눌렀어요',
@@ -132,7 +136,7 @@ export const ko = {
   'guide.step5.tip': '감상 중에도 일시정지, 계속하기와 재생 중단을 사용할 수 있어요.',
   'guide.accountTitle': '작품을 오래 보관하려면',
   'guide.accountBody':
-    '프로필에서 Google 계정을 연결하세요. 계정 연결만으로 작품이 공개되지는 않아요.',
+    '프로필에서 복구 코드를 만들어 두세요. 코드를 만들어도 작품이 공개되지는 않아요.',
   'guide.firstWork': '첫 작품 만들기',
 
   /* ── 빠르기 ──────────────────────────────────── */
@@ -413,11 +417,8 @@ export const ko = {
   'profile.savedWithAvatar': '프로필을 저장하고 스테이지 공개용 사진도 업데이트했어요.',
   'profile.saved': '프로필과 작품의 만든이 이름을 바꿨어요.',
   'profile.saveFailed': '프로필을 저장하지 못했어요.',
-  'profile.connected': 'Google 계정에 연결하고 작품을 안전하게 보관했어요.',
   'profile.photoLoadFailed': '사진을 불러오지 못했어요.',
-  'profile.needAccountFirst': '공개 사진을 언제든 내릴 수 있도록 먼저 Google 계정을 연결해 주세요.',
-  'profile.needOwnPhoto':
-    'Google 계정 사진은 자동 공개하지 않아요. 먼저 공개할 사진을 직접 선택해 주세요.',
+  'profile.needOwnPhoto': '먼저 공개할 사진을 직접 선택해 주세요.',
   'profile.stageAvatarOn': '공개용 사진을 따로 저장했어요. 앞으로 스테이지 작품에만 표시돼요.',
   'profile.stageAvatarOff': '스테이지에서 프로필 사진을 내리고 공개용 파일도 삭제했어요.',
   'profile.visibilityFailed': '공개 설정을 바꾸지 못했어요.',
@@ -426,30 +427,11 @@ export const ko = {
   'profile.nameField': '크리에이터 이름',
   'profile.stageAvatarTitle': '스테이지에 프로필 사진 공개',
   'profile.stageAvatarBody1': '직접 선택한 사진을 작은 공개용 이미지로 따로 저장해요.',
-  'profile.stageAvatarBody2': 'Google 계정 사진은 자동으로 공개하지 않아요.',
+  'profile.stageAvatarBody2': '공개한 사진은 언제든 이 스위치로 다시 내릴 수 있어요.',
   'profile.stageAvatarToggleAria': '스테이지 프로필 사진 공개',
-  'profile.stageAvatarNeedAccount': '언제든 공개 해제할 수 있도록 Google 계정을 먼저 연결해 주세요.',
   'profile.stageAvatarNeedPhoto': '사진 바꾸기에서 공개할 사진을 직접 골라야 켤 수 있어요.',
   'profile.save': '프로필 저장',
-  'profile.keepTitle': '작품을 오래 보관하기',
-  'profile.keptGoogle': '✓ Google 계정에 보관 중',
-  'profile.autoBackup': '이 기기에서 만든 작품은 자동으로 비공개 백업돼요.',
-  'profile.syncing': '동기화하고 있어요…',
-  'profile.syncNow': '지금 다시 동기화',
-  'profile.connectBody1': 'Google 계정을 연결하면 기기를 바꿔도 내 작품을 다시 불러올 수 있어요.',
-  'profile.connectBody2': '연결만으로 작품이 키크 스테이지에 공개되지는 않아요.',
-  'profile.connecting': '연결하고 있어요…',
-  'profile.connect': 'Google 계정 연결',
   'profile.versionAria': '키크 앱 버전 {version}',
-  'profile.err.cancelled': 'Google 계정 연결을 취소했어요.',
-  'profile.err.notConfigured':
-    'Google 로그인이 아직 준비되지 않았어요 (Firebase 제공업체 설정 필요).',
-  'profile.err.unauthorizedDomain':
-    '현재 주소에서는 Google 로그인을 사용할 수 없어요 (승인된 도메인 설정 필요).',
-  'profile.err.backupCleanup':
-    '작품 백업 데이터를 정리하지 못했어요. 앱을 새로고침한 뒤 다시 동기화해 주세요.',
-  'profile.err.generic':
-    'Google 계정 연결 또는 작품 보관을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.',
   'profile.avatar.badType': 'PNG, JPG, WebP 사진을 골라 주세요.',
   'profile.avatar.tooBig': '10MB보다 작은 사진을 골라 주세요.',
   'profile.avatar.cannotProcess': '사진을 처리할 수 없어요.',
@@ -737,11 +719,11 @@ export const ko = {
 
   /* ── Firebase ────────────────────────────────── */
   'firebase.noConfig': 'Firebase 설정이 없어요 (.env의 VITE_FIREBASE_* 확인)',
-  'firebase.connectFailed': '계정을 연결하지 못했어요',
 
   /* ── 공개용 프로필 사진 ──────────────────────── */
   'avatar.needFirebase': '공개 프로필을 사용하려면 Firebase 설정이 필요해요.',
-  'avatar.pickOwn': '스테이지에 공개할 사진을 직접 선택해 주세요. Google 사진은 자동 공개하지 않아요.',
+  'avatar.needSignIn': '사진을 공개하려면 서버에 연결해야 해요. 잠시 후 다시 시도해 주세요.',
+  'avatar.pickOwn': '스테이지에 공개할 사진을 직접 선택해 주세요.',
   'avatar.cannotProcess': '공개용 사진을 처리할 수 없어요.',
   'avatar.resizeFailed': '공개용 사진을 줄이지 못했어요.',
   'avatar.stillTooBig': '공개용 사진의 용량을 줄이지 못했어요.',

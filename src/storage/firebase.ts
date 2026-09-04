@@ -1,25 +1,22 @@
 /**
- * Firebase 초기화 + 익명 로그인 + Google 계정 연결.
+ * Firebase 초기화 + 익명 로그인.
  *
- * 익명 로그인과 선택적인 Google 계정 연결을 지원한다. 다만 **어떤 로그인도 법정대리인 동의를
+ * 로그인은 익명 하나뿐이다. 다만 **어떤 로그인도 법정대리인 동의를
  * 대체하지는 않는다** — 동의 필요 여부는 로그인 방식이 아니라 아동의 개인정보를
  * 수집·이용하는가로 판단되고, 목소리·그림·작품 기록은 그 대상이다.
  * 익명 인증은 서버에서 "이 작품의 주인이 누구인가"를 판별하는 기술 수단일 뿐이다.
  *
- * 앱 시작 시에는 저장된 인증 세션만 확인하고, 새 익명 계정은 공유나 Google 연결을
- * 사용자가 직접 시작했을 때만 만든다.
+ * 앱 시작 시에는 저장된 인증 세션만 확인하고, 새 익명 계정은 공유·프로필 사진 공개처럼
+ * 사용자가 직접 시작한 일에서만 만든다.
  *
  * 설정이 비어 있으면(로컬 개발) 앱은 그대로 돈다 — 공유만 막힌다.
  */
 
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
-  GoogleAuthProvider,
   getAuth,
-  linkWithPopup,
   onAuthStateChanged,
   signInAnonymously,
-  signInWithCredential,
   signInWithCustomToken,
   updateProfile,
   type Auth,
@@ -205,37 +202,16 @@ export function isAdminUser(): boolean {
   return isPermanentUser(user) && isAdminEmail(user.email);
 }
 
-export type GoogleLinkResult = { user: User; mergedExistingAccount: boolean };
-
-export async function connectGoogleAccount(options: { beforeAccountSwitch?: () => Promise<void> } = {}): Promise<GoogleLinkResult> {
-  const signed = await ensureSignedIn();
-  if (!signed.user) throw signed.error ?? new Error(t('firebase.connectFailed'));
-  if (signed.user.providerData.some((provider) => provider.providerId === 'google.com')) {
-    return { user: signed.user, mergedExistingAccount: false };
-  }
-
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: 'select_account' });
-  try {
-    const result = await linkWithPopup(signed.user, provider);
-    signInPromise = Promise.resolve({ user: result.user, error: null });
-    return { user: result.user, mergedExistingAccount: false };
-  } catch (cause) {
-    const code = (cause as { code?: string }).code ?? '';
-    const credential = GoogleAuthProvider.credentialFromError(cause as never);
-    if (
-      credential &&
-      (code.includes('credential-already-in-use') || code.includes('email-already-in-use'))
-    ) {
-      // 다른 기기에서 이미 연결한 Google 계정이면 그 계정으로 전환한 뒤 로컬 작품을 병합한다.
-      await options.beforeAccountSwitch?.();
-      const result = await signInWithCredential(auth(), credential);
-      signInPromise = Promise.resolve({ user: result.user, error: null });
-      return { user: result.user, mergedExistingAccount: true };
-    }
-    throw cause;
-  }
-}
+/*
+ * Google 계정 연결은 걷어냈다.
+ *
+ * 이 앱은 토스 미니앱으로 나가고, 토스 인앱 웹뷰는 OAuth 팝업/리다이렉트를 띄우지
+ * 못한다 — 버튼이 있어도 아무 일도 일어나지 않는다. 기기를 바꿔도 작품을 되찾는
+ * 길은 복구 코드(storage/recovery.ts) 하나로 통일한다.
+ *
+ * 이미 Google로 연결해 둔 계정은 그대로 살아 있다. 세션 복원은 계정 종류를 묻지
+ * 않고, 아래 isPermanentUser를 보는 자리들(관리자 기능·클라우드 프로필)도 그대로다.
+ */
 
 export async function updateFirebaseProfile(name: string): Promise<void> {
   const user = auth().currentUser;

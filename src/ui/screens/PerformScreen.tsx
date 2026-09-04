@@ -187,6 +187,8 @@ export function PerformScreen() {
         </div>
       )}
 
+      {phase === 'ready' && <p className="guide">{t('perform.readyGuide')}</p>}
+
       {phase === 'ready' && (
         <button type="button" className="record-cta" onClick={start}>
           <span className="record-dot" />
@@ -194,7 +196,12 @@ export function PerformScreen() {
         </button>
       )}
 
-      {phase === 'countdown' && <div className="countdown">{count}</div>}
+      {phase === 'countdown' && (
+        <div className="countdown-wrap">
+          <div className="countdown">{count}</div>
+          <p className="countdown-hint">{t('perform.getReady')}</p>
+        </div>
+      )}
 
       {(phase === 'live' || phase === 'paused') && (
         <p className="live-hint">

@@ -124,9 +124,17 @@ export function FeedScreen() {
   /* ── 활용 안내 ─────────────────────────────── */
   const [guideOpen, setGuideOpen] = useState(false);
 
-  // 탭에 들어온 그 순간에 띄운다. 목록을 다 불러올 때까지 기다리면, 이미 화면을
-  // 훑어보기 시작한 사람 위로 뒤늦게 창이 덮여서 더 방해가 된다.
+  // 탭을 "직접 눌러" 그룹으로 바꾼 순간에만 띄운다. 링크(/g/:groupId, 공유된
+  // /feed?g=...)로 곧장 들어오면 이 화면의 첫 렌더가 이미 그룹 탭이라, 예전
+  // 코드는 그 순간 접속하자마자 바텀시트부터 덮었다 — 앱인토스 심사에서
+  // "미니앱 접속 직후 바텀시트 노출"로 반려된 지점이다. 첫 렌더는 건너뛰고,
+  // 이후 selectGroupTab으로 실제 전환이 일어날 때만 자동으로 연다.
+  const skippedFirstRenderRef = useRef(false);
   useEffect(() => {
+    if (!skippedFirstRenderRef.current) {
+      skippedFirstRenderRef.current = true;
+      return;
+    }
     if (activeTab !== 'group' || !shouldAutoShowGroupGuide()) return;
     markGroupGuideShown();
     setGuideOpen(true);

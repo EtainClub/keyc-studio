@@ -7,7 +7,7 @@
 import { deleteDoc, doc, setDoc } from 'firebase/firestore/lite';
 import { deleteObject, ref, uploadBytes } from 'firebase/storage';
 import { t } from '../i18n';
-import { auth, firestore, isFirebaseConfigured, isPermanentUser, storage } from './firebase';
+import { auth, ensureSignedIn, firestore, isFirebaseConfigured, storage } from './firebase';
 import type { CreatorProfile } from './identity';
 import { publicAvatarPath } from './paths';
 
@@ -32,11 +32,21 @@ export async function syncPublicAvatar(profile: CreatorProfile): Promise<void> {
     throw new Error(t('avatar.pickOwn'));
   }
 
-  const user = auth().currentUser;
-  if (!isPermanentUser(user)) {
-    throw new Error(t('profile.needAccountFirst'));
-  }
-  const uid = user.uid;
+  /*
+   * 계정 **종류**는 묻지 않는다.
+   *
+   * 예전에는 비익명(Google) 계정만 공개 아바타를 올릴 수 있었다. 토스 미니앱에는
+   * Google 연결이 아예 없으므로, 그 조건을 남겨두면 "아무도 사진을 공개할 수 없다"와
+   * 같은 말이 된다. 규칙(storage.rules)이 보는 것은 언제나 경로의 uid == 인증 uid
+   * 하나뿐이고 내리기(removePublicAvatar)도 같은 uid로 하므로, 익명 계정이어도
+   * 올린 사람이 언제든 내릴 수 있다.
+   *
+   * 로그인은 여기서 **확보한다** — 공개 토글은 사용자가 직접 누르는 일이라
+   * 이 자리에서 익명 계정이 만들어져도 앱의 약속(firebase.ts 주석)을 어기지 않는다.
+   */
+  const signed = await ensureSignedIn();
+  if (!signed.user) throw signed.error ?? new Error(t('avatar.needSignIn'));
+  const uid = signed.user.uid;
   const path = publicAvatarPath(uid);
   const blob = await renderPublicAvatar(profile.avatarUrl);
 

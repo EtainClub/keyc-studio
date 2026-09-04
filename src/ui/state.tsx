@@ -28,7 +28,6 @@ import { registerAssets, resolveAsset } from '../storage/assets';
 import { getWorkRecord, putWorkRecord, pruneAssets, renameLocalWorks } from '../storage/db';
 import {
   auth,
-  connectGoogleAccount,
   isFirebaseConfigured,
   isPermanentUser,
   updateFirebaseProfile,
@@ -40,7 +39,7 @@ import {
   saveCreatorProfile,
   type CreatorProfile,
 } from '../storage/identity';
-import { removePublicAvatar, syncPublicAvatar } from '../storage/public-avatar';
+import { syncPublicAvatar } from '../storage/public-avatar';
 import {
   isCloudBackupOptIn,
   redeemRecoveryCode,
@@ -79,7 +78,6 @@ type AppState = {
   /** work를 주면 그것을, 안 주면 현재 draft를 저장한다. */
   saveDraft: (opts?: { thumb?: boolean; work?: Work }) => Promise<void>;
   updateCreatorProfile: (profile: CreatorProfile) => Promise<void>;
-  connectGoogle: (opts?: { publishStageAvatar?: boolean }) => Promise<void>;
   /** 복구 코드를 발급받은 직후. 백업을 켜고 이 기기의 작품을 올린다. */
   enableCloudBackup: () => Promise<void>;
   /** 복구 코드로 원래 계정으로 갈아탄 뒤 그 계정의 작품을 내려받는다. */
@@ -309,7 +307,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (user) {
         await updateFirebaseProfile(saved.name).catch(() => {});
         await renamePublishedCreator(records, saved.name);
-        if (isPermanentUser(user)) {
+        /*
+         * 백업을 쓰는 계정이면 종류를 가리지 않고 올린다.
+         *
+         * 예전에는 비익명(Google) 계정만 여기를 지났다. Google 연결을 걷어낸 지금
+         * 그대로 두면 **아무의 프로필도 클라우드에 올라가지 않는다** — 복구 코드를
+         * 만들어 둔 사람이 기기를 바꿔 되찾아도 이름과 사진은 옛 값 그대로다
+         * (hydrateCloudAccount가 클라우드 프로필을 우선하기 때문).
+         */
+        if (isPermanentUser(user) || isCloudBackupOptIn()) {
           await saveCloudProfile(user.uid, saved);
           for (const record of records) scheduleWorkBackup(record);
         }
@@ -317,40 +323,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
     setSyncRevision((value) => value + 1);
   }, []);
-
-  /**
-   * @param opts.publishStageAvatar 연결이 끝나면 공개 아바타도 올려달라는 뜻.
-   *   프로필 화면이 이 값을 넘긴다 — updateCreatorProfile은 syncPublicAvatar를
-   *   먼저 부르고 그 함수가 비익명 계정을 요구하므로, 연결 **전에** 공개를 켠 채로
-   *   저장하면 "연결하려면 저장해야 하고 저장하려면 연결돼 있어야 한다"는 고리에
-   *   갇힌다. 그래서 공개는 여기까지 미루고, 하이드레이션이 끝나 클라우드 프로필이
-   *   반영된 profileRef 위에 얹는다.
-   */
-  const connectGoogle = useCallback(async (opts: { publishStageAvatar?: boolean } = {}) => {
-    if (!isFirebaseConfigured) throw new Error(t('firebase.required'));
-    setAccount({ kind: 'syncing', email: null });
-    try {
-      const result = await connectGoogleAccount({ beforeAccountSwitch: removePublicAvatar });
-      await hydrateCloudAccount(result.user, 'google');
-      // 계정을 갈아탔으면 옛 계정의 공개 아바타는 beforeAccountSwitch에서 이미
-      // 내려갔다 — 켜져 있던 사람에겐 새 계정으로 다시 올려줘야 한다.
-      const republishAfterSwitch = result.mergedExistingAccount && profileRef.current.stageAvatarEnabled;
-      if (opts.publishStageAvatar || republishAfterSwitch) {
-        const next = normalizeProfile({ ...profileRef.current, stageAvatarEnabled: true });
-        await syncPublicAvatar(next);
-        const saved = saveCreatorProfile(next);
-        profileRef.current = saved;
-        setProfile(saved);
-        await saveCloudProfile(result.user.uid, saved);
-      }
-    } catch (error) {
-      const user = auth().currentUser;
-      setAccount(isPermanentUser(user)
-        ? { kind: 'google', email: user.email }
-        : { kind: user?.isAnonymous ? 'anonymous' : 'local', email: null });
-      throw error;
-    }
-  }, [hydrateCloudAccount]);
 
   /**
    * 복구 코드를 발급받은 직후 부른다.
@@ -438,7 +410,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setTempo,
       saveDraft,
       updateCreatorProfile,
-      connectGoogle,
       enableCloudBackup,
       recoverAccount,
       clearDraft,
@@ -459,7 +430,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setTempo,
       saveDraft,
       updateCreatorProfile,
-      connectGoogle,
       enableCloudBackup,
       recoverAccount,
       clearDraft,

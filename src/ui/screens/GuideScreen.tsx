@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { t } from '../../i18n';
+import { markAppGuideSeen } from '../first-guide';
 import { useAppState } from '../state';
 
 const GUIDE_STEPS = [
@@ -38,6 +40,12 @@ const GUIDE_STEPS = [
 export function GuideScreen() {
   const nav = useNavigate();
   const { engine, startNewDraft } = useAppState();
+
+  // 프로필 메뉴로 직접 들어온 경우에도 표시한다 — 이미 봤으면 다음 [새로 만들기]는
+  // 곧장 꾸미기로 가야 한다(first-guide.ts).
+  useEffect(() => {
+    markAppGuideSeen();
+  }, []);
 
   const create = async () => {
     void engine.unlock();

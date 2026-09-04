@@ -51,14 +51,14 @@ export const en = {
   /* ── Create ──────────────────────────────────── */
   'create.title': 'Decorate keycaps',
   'create.guide':
-    'Tap a keycap to hear it and open its decorations. Heading straight to rehearsal is fine too.',
+    'Tap a keycap to hear it and open its decorations. Skipping some is fine — you’ll perform live with these in a 15-second show next.',
   'create.toStage': 'Go to rehearsal →',
 
   /* ── Rehearsal ───────────────────────────────── */
   'stageScreen.title': 'Rehearsal',
   'stageScreen.backToCreate': '‹ Decorate',
   'stageScreen.guide':
-    'Pick the keys that should loop by themselves once the show starts. Tap a key to hear it.',
+    'Pick the keys that should loop by themselves once the show starts. Nothing you tap here is recorded yet — the real show starts on the next screen.',
   'stageScreen.tempo': 'Tempo',
   'stageScreen.duration': 'The show runs {seconds}s — it ends right on the beat.',
   'stageScreen.toPerform': 'Go perform →',
@@ -67,7 +67,10 @@ export const en = {
   /* ── Perform ─────────────────────────────────── */
   'perform.title': 'Show',
   'perform.backToStage': '‹ Rehearsal',
+  'perform.readyGuide':
+    'Once you start, recording begins 3 seconds later and runs for 15 seconds. Tap the keycaps freely during that time to perform.',
   'perform.start': 'Start the show',
+  'perform.getReady': 'Get ready to tap!',
   'perform.paused': 'Paused for a moment',
   'perform.live': 'Tap however you like!',
   'perform.counter': '{seconds}s left · tapped {presses}×',
@@ -137,7 +140,7 @@ export const en = {
   'guide.step5.tip': 'You can pause, keep going, or stop playback while you watch.',
   'guide.accountTitle': 'To keep your works for good',
   'guide.accountBody':
-    'Connect a Google account from your profile. Connecting an account does not make your works public.',
+    'Create a recovery code from your profile. Creating one does not make your works public.',
   'guide.firstWork': 'Make your first work',
 
   /* ── Tempo ───────────────────────────────────── */
@@ -422,12 +425,8 @@ export const en = {
   'profile.savedWithAvatar': 'Profile saved, and your public Stage photo was updated too.',
   'profile.saved': 'Your profile and the creator name on your works have been changed.',
   'profile.saveFailed': 'Could not save your profile.',
-  'profile.connected': 'Connected to your Google account — your works are safely kept.',
   'profile.photoLoadFailed': 'Could not load that photo.',
-  'profile.needAccountFirst':
-    'Connect a Google account first, so you can take a public photo down whenever you want.',
-  'profile.needOwnPhoto':
-    'Your Google account photo is never published automatically. Choose the photo you want to share first.',
+  'profile.needOwnPhoto': 'Choose the photo you want to share first.',
   'profile.stageAvatarOn':
     'Your public photo is stored separately. From now on it appears only on Stage works.',
   'profile.stageAvatarOff':
@@ -439,32 +438,11 @@ export const en = {
   'profile.stageAvatarTitle': 'Show my profile photo on the Stage',
   'profile.stageAvatarBody1':
     'The photo you pick is stored separately as a small public image.',
-  'profile.stageAvatarBody2': 'Your Google account photo is never published automatically.',
+  'profile.stageAvatarBody2': 'You can take it down again with this switch at any time.',
   'profile.stageAvatarToggleAria': 'Show profile photo on the Stage',
-  'profile.stageAvatarNeedAccount':
-    'Connect a Google account first, so you can turn this off at any time.',
   'profile.stageAvatarNeedPhoto': 'Pick a photo to share under Change photo before turning this on.',
   'profile.save': 'Save profile',
-  'profile.keepTitle': 'Keep your works for good',
-  'profile.keptGoogle': '✓ Kept in your Google account',
-  'profile.autoBackup': 'Works made on this device are backed up privately, automatically.',
-  'profile.syncing': 'Syncing…',
-  'profile.syncNow': 'Sync again now',
-  'profile.connectBody1':
-    'Connect a Google account and your works come back even if you change devices.',
-  'profile.connectBody2': 'Connecting alone does not put your works on the Keyc Stage.',
-  'profile.connecting': 'Connecting…',
-  'profile.connect': 'Connect a Google account',
   'profile.versionAria': 'Keyc app version {version}',
-  'profile.err.cancelled': 'Google account connection was cancelled.',
-  'profile.err.notConfigured':
-    'Google sign-in is not ready yet (the Firebase provider still needs setting up).',
-  'profile.err.unauthorizedDomain':
-    'Google sign-in is not available at this address (the domain still needs authorising).',
-  'profile.err.backupCleanup':
-    'Could not tidy up the backup data. Refresh the app and sync again.',
-  'profile.err.generic':
-    'Could not finish connecting your account or storing your works. Try again in a moment.',
   'profile.avatar.badType': 'Please pick a PNG, JPG or WebP photo.',
   'profile.avatar.tooBig': 'Please pick a photo smaller than 10MB.',
   'profile.avatar.cannotProcess': 'That photo could not be processed.',
@@ -759,12 +737,11 @@ export const en = {
 
   /* ── Firebase ────────────────────────────────── */
   'firebase.noConfig': 'Firebase is not configured (check VITE_FIREBASE_* in .env)',
-  'firebase.connectFailed': 'Could not connect the account',
 
   /* ── Public profile photo ────────────────────── */
   'avatar.needFirebase': 'Using a public profile needs Firebase configuration.',
-  'avatar.pickOwn':
-    'Choose the photo you want on the Stage yourself. Google photos are never published automatically.',
+  'avatar.needSignIn': 'Sharing a photo needs a server connection. Please try again in a moment.',
+  'avatar.pickOwn': 'Choose the photo you want on the Stage yourself.',
   'avatar.cannotProcess': 'The public photo could not be processed.',
   'avatar.resizeFailed': 'The public photo could not be shrunk.',
   'avatar.stillTooBig': 'The public photo is still too large.',
