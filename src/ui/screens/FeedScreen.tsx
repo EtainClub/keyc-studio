@@ -150,7 +150,10 @@ export function FeedScreen() {
   };
 
   return (
-    <main className="screen feed">
+    // data-mode는 activeTab에서 바로 나온다 — 별도 state도 effect도 없다.
+    // 이 속성 안에서만 그룹 토큰이 산다(styles.css의 [data-mode='group']).
+    // 하단 내비는 이 <main> 바깥(App.tsx)이라 따라오지 않는다 — 의도한 것이다.
+    <main className="screen feed" data-mode={activeTab === 'group' ? 'group' : undefined}>
       <header className="feed-head">
         <div>
           <p className="feed-kicker">KEYC STAGE</p>

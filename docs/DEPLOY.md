@@ -79,6 +79,32 @@ firebase deploy --only hosting
 
 익숙해진 뒤에는 `npm run deploy` 한 줄로 같은 일을 한다(빌드 → 전체 배포 → CORS → IAM → 서명 권한).
 
+### 3-0. 웹 빌드와 토스 빌드는 디렉터리가 다르다
+
+| 명령 | 산출물 | 쓰이는 곳 |
+| --- | --- | --- |
+| `npm run build` | `dist-web/` | Firebase Hosting (`firebase.json`의 `hosting.public`) |
+| `npm run build:ait` | `dist-ait/` + `keyc-studio.ait` | 앱인토스 콘솔 업로드 |
+
+`ait build`는 시작할 때 패키지 루트의 `dist/`를 통째로 지운다(CLI에 하드코딩돼 있고
+`granite.config.ts`의 `outdir`과 무관하다). 예전처럼 둘 다 `dist`를 쓰면 토스 빌드 뒤에
+호스팅으로 올릴 파일이 사라져 **Page Not Found인 사이트가 배포된다** — 실제로 한 번
+그렇게 내려갔다. 그래서 `dist-web`과 `dist-ait`으로 갈라 뒀고, 이제 둘은 서로를 지우지
+않는다. 호스팅 배포 전에는 `npm run build`를 돌린 그 결과인지만 확인하면 된다.
+
+**`build:ait`·`deploy:ait`는 `dist-ait`을 먼저 지운다. 이 `rm -rf`를 빼지 말 것.**
+`ait build`는 `<outdir>/web/index.html`이 이미 있으면 **웹 빌드를 통째로 건너뛰고 그
+디렉터리를 그대로 다시 포장한다**(CLI의 `ensurePrepared`). outdir이 `dist`였을 때는 CLI가
+매번 `dist`를 지워서 드러나지 않던 동작인데, `dist-ait`으로 옮긴 뒤로는 아무도 지우지 않아
+**어제 번들이 든 `.ait`이 조용히 만들어진다.** 실제로 이것 때문에 고친 코드가 안 들어간
+빌드를 제출해 같은 사유로 두 번 반려됐다. 빌드 뒤 `dist-ait/web/index.html`의 시각이
+방금인지 한 번 보면 확실하다.
+
+토스 산출물은 `VITE_TOSS=1`로 빌드돼 `__TOSS_BUILD__`가 참이다(`vite.config.ts`).
+화면 왼쪽 위 뒤로가기는 이 값으로 감춘다 — 토스가 자기 내비게이션 바에 뒤로가기를
+이미 그리기 때문이다(`src/platform/toss.ts`). 그래서 **`dist-ait/web`을 그냥 브라우저로
+열어도 뒤로가기가 없어야 정상**이다. 있으면 그 `.ait`은 제출하면 안 된다.
+
 ### 3-1. 서명 권한이 무엇이고 왜 필요한가
 
 `redeemRecoveryCode`는 복구 코드를 확인한 뒤 **원래 uid로 커스텀 토큰을 발급**한다. 그 토큰에

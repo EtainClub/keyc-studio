@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { t } from '../../i18n';
+import { isTossApp } from '../../platform/toss';
 import { fetchWork, recordPlay, shareUrl } from '../../storage/remote';
 import { registerAssets } from '../../storage/assets';
 import type { Work } from '../../work-model/types';
@@ -176,9 +177,23 @@ export function ViewScreen() {
   return (
     <main className="screen view">
       <header className="view-head">
+        {/*
+          * 그룹 무대로 가는 칩. 토스 안에서는 화살표만 뗀다 — 네이티브 뒤로가기
+          * 바로 아래에 ← 달린 버튼이 있으면 뒤로가기가 둘로 보인다. 버튼 자체는
+          * 남긴다: 공유 링크로 바로 들어온 사람에겐 뒤로 갈 기록이 없어서 이게
+          * 그룹 무대로 가는 유일한 길이다.
+          */}
         {backTo && (
-          <button type="button" className="chip view-back" onClick={() => nav(backTo)}>
-            <span aria-hidden="true">←</span> {t('view.backGroupStage')}
+          /* 화면은 개인 모드다. 이 버튼 하나만 그룹 토큰을 써서
+             "온 곳은 그룹, 지금 보는 것은 작품"이 색으로 읽히게 한다. */
+          <button
+            type="button"
+            className="chip view-back"
+            data-mode="group"
+            onClick={() => nav(backTo)}
+          >
+            {!isTossApp() && <span aria-hidden="true">← </span>}
+            {t('view.backGroupStage')}
           </button>
         )}
         <h1>{work.title || t('common.untitled')}</h1>

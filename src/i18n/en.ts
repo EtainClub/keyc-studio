@@ -301,7 +301,7 @@ export const en = {
   'edit.capColor.yellow': 'Yellow',
   'edit.capColor.green': 'Green',
   'edit.capColor.blue': 'Blue',
-  'edit.capColor.white': 'White',
+  'edit.capColor.ink': 'Ink',
   'edit.capColor.purple': 'Purple',
   'edit.capColor.orange': 'Orange',
   'edit.capColor.red': 'Red',

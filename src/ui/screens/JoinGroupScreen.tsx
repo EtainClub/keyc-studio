@@ -108,7 +108,7 @@ export function JoinGroupScreen() {
   // 만들기에 성공하면 코드부터 보여준다 — 모드를 되돌려 다시 이름을 묻는 흐름은 없다.
   if (created) {
     return (
-      <main className="screen join-group">
+      <main className="screen join-group" data-mode="group">
         <header className="bar">
           <h1>{t('join.createdTitle')}</h1>
         </header>
@@ -144,7 +144,7 @@ export function JoinGroupScreen() {
   }
 
   return (
-    <main className="screen join-group">
+    <main className="screen join-group" data-mode="group">
       <header className="bar">
         <h1>{t('join.title')}</h1>
       </header>

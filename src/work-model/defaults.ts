@@ -31,7 +31,7 @@ const workId = customAlphabet(ALPHABET, WORK_ID_LENGTH);
 const assetId = customAlphabet(ALPHABET, ASSET_ID_LENGTH);
 const secretId = customAlphabet(ALPHABET, SECRET_ID_LENGTH);
 
-export const DEFAULT_COLORS = ['#FF6B8A', '#FFC53D', '#4ED9A4', '#7AA5FF'] as const;
+export const DEFAULT_COLORS = ['#ED7088', '#DFB127', '#47B968', '#4FA3F4'] as const;
 
 const DEFAULT_SOUNDS: PresetId[] = [
   'realTactile9@1',

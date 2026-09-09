@@ -1,0 +1,1324 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  /* 파일로 직접 열었을 때도 같은 모양이 되게 하는 최소 리셋. */
+  *, *::before, *::after { box-sizing: border-box; }
+  body, h1, h2, h3, h4, p, ul, ol, li, figure, pre { margin: 0; padding: 0; }
+  img { max-width: 100%; height: auto; }
+</style>
+<title>키크 디자인 전면 개편 — 두 관객, 두 얼굴</title>
+<style>
+  /* ── 문서 토큰 ────────────────────────────────────────
+     docs/group-stage-design.html과 같은 값을 쓴다. 두 문서가 나란히 놓일 것이라
+     서체·간격·색이 어긋나면 같은 프로젝트의 문서로 읽히지 않는다. */
+  :root {
+    color-scheme: light dark;
+
+    --ground:      #EDEFF3;
+    --surface:     #FBFCFD;
+    --surface-2:   #E3E7EE;
+    --line:        #C9D0DA;
+    --line-soft:   #DCE1E9;
+    --text:        #161A21;
+    --text-dim:    #5A6270;
+    --text-faint:  #838B99;
+
+    --accent:      #B0561A;
+    --accent-ink:  #8E4413;
+    --accent-wash: #F5E6D8;
+
+    --teal:        #276560;
+    --teal-wash:   #DBE8E6;
+
+    --warn:        #A02C22;
+    --warn-wash:   #F6E0DD;
+
+    --code-bg:     #E5EAF1;
+    --code-line:   #D2D9E3;
+
+    --measure: 70ch;
+    --step--1: 0.8125rem;
+    --step-0:  1rem;
+    --step-1:  1.1875rem;
+    --step-2:  1.5rem;
+    --step-3:  2rem;
+    --step-4:  2.75rem;
+
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+            "Pretendard", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo,
+            "D2Coding", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #101319;  --surface:     #191D25;  --surface-2:   #222833;
+      --line:        #333A47;  --line-soft:   #262C37;
+      --text:        #E2E6ED;  --text-dim:    #99A2B2;  --text-faint:  #6E7889;
+      --accent:      #DF8E51;  --accent-ink:  #EFA971;  --accent-wash: #33220F;
+      --teal:        #6FB6AC;  --teal-wash:   #142C2A;
+      --warn:        #E07C70;  --warn-wash:   #351C19;
+      --code-bg:     #1E232C;  --code-line:   #2E3542;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #101319;  --surface:     #191D25;  --surface-2:   #222833;
+    --line:        #333A47;  --line-soft:   #262C37;
+    --text:        #E2E6ED;  --text-dim:    #99A2B2;  --text-faint:  #6E7889;
+    --accent:      #DF8E51;  --accent-ink:  #EFA971;  --accent-wash: #33220F;
+    --teal:        #6FB6AC;  --teal-wash:   #142C2A;
+    --warn:        #E07C70;  --warn-wash:   #351C19;
+    --code-bg:     #1E232C;  --code-line:   #2E3542;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: var(--step-0);
+    line-height: 1.72;
+    -webkit-font-smoothing: antialiased;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  .page {
+    max-width: 1140px;
+    margin: 0 auto;
+    padding: clamp(1.75rem, 4vw, 4rem) clamp(1.1rem, 4vw, 2.5rem) 6rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 3rem;
+  }
+
+  @media (min-width: 1020px) {
+    .page { grid-template-columns: 15rem minmax(0, 1fr); align-items: start; gap: 3.5rem; }
+  }
+
+  /* ── 목차 레일 ──────────────────────────────────────── */
+  .rail { display: none; }
+  @media (min-width: 1020px) {
+    .rail { display: block; position: sticky; top: 2.5rem; font-size: var(--step--1); }
+  }
+  .rail-title {
+    font-family: var(--mono); font-size: 0.6875rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text-faint);
+    padding-bottom: 0.75rem; border-bottom: 1px solid var(--line); margin-bottom: 0.75rem;
+  }
+  .rail ol { list-style: none; display: flex; flex-direction: column; gap: 0.1rem; }
+  .rail a {
+    display: grid; grid-template-columns: 1.6rem 1fr; gap: 0.25rem; padding: 0.28rem 0;
+    color: var(--text-dim); text-decoration: none; line-height: 1.4; transition: color 0.15s ease;
+  }
+  .rail a .n { font-family: var(--mono); font-size: 0.6875rem; color: var(--text-faint); padding-top: 0.15em; }
+  .rail a:hover { color: var(--accent-ink); }
+
+  /* ── 표제 ───────────────────────────────────────────── */
+  .masthead { border-top: 3px solid var(--text); padding-top: 1.4rem; margin-bottom: 3.25rem; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 0.6875rem; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 0.9rem;
+  }
+  h1 { font-size: var(--step-4); line-height: 1.12; letter-spacing: -0.025em; font-weight: 800; text-wrap: balance; margin-bottom: 0.75rem; }
+  .standfirst { font-size: var(--step-1); line-height: 1.6; color: var(--text-dim); max-width: 52ch; }
+  .meta {
+    margin-top: 1.6rem; padding-top: 1rem; border-top: 1px solid var(--line-soft);
+    display: flex; flex-wrap: wrap; gap: 0.5rem 2rem;
+    font-family: var(--mono); font-size: 0.6875rem; letter-spacing: 0.05em; color: var(--text-faint);
+  }
+  .meta b { color: var(--text-dim); font-weight: 500; }
+
+  /* ── 절 ─────────────────────────────────────────────── */
+  section { margin-bottom: 3.5rem; }
+  section > *:not(.sec-head) { max-width: var(--measure); }
+  section > .wide { max-width: none; }
+  .sec-head {
+    display: grid; grid-template-columns: 2.75rem 1fr; gap: 0.5rem; align-items: baseline;
+    border-top: 1px solid var(--line); padding-top: 1rem; margin-bottom: 1.5rem;
+  }
+  .sec-head .n { font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.06em; color: var(--accent); padding-top: 0.35em; }
+  h2 { font-size: var(--step-2); line-height: 1.25; letter-spacing: -0.018em; font-weight: 700; text-wrap: balance; }
+  h3 { font-size: var(--step-1); line-height: 1.35; font-weight: 700; letter-spacing: -0.012em; margin: 2rem 0 0.7rem; text-wrap: balance; }
+  h4 { font-size: var(--step-0); font-weight: 700; margin: 1.4rem 0 0.4rem; }
+  p { margin-bottom: 1rem; }
+  p:last-child { margin-bottom: 0; }
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 0.15em; }
+  a:hover { color: var(--accent); }
+  strong { font-weight: 700; }
+  em { font-style: normal; background: var(--accent-wash); padding: 0 0.15em; }
+  ul, ol { margin: 0 0 1rem 0; padding-left: 1.25rem; }
+  li { margin-bottom: 0.4rem; }
+  li::marker { color: var(--text-faint); }
+  ul.tight li, ol.tight li { margin-bottom: 0.15rem; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em; background: var(--code-bg);
+    border: 1px solid var(--code-line); border-radius: 3px; padding: 0.08em 0.32em; word-break: break-all;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--code-line); padding: 1rem 1.1rem;
+    overflow-x: auto; margin-bottom: 1.2rem; font-size: var(--step--1); line-height: 1.6;
+  }
+  pre code { background: none; border: 0; padding: 0; font-size: inherit; word-break: normal; }
+  pre .c { color: var(--text-faint); }
+  pre .k { color: var(--accent); }
+
+  /* ── 판단 블록 ──────────────────────────────────────── */
+  .verdict {
+    background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--accent);
+    padding: 1.1rem 1.25rem; margin: 1.5rem 0;
+  }
+  .verdict .label, .risk .label, .found .label {
+    font-family: var(--mono); font-size: 0.6875rem; letter-spacing: 0.14em;
+    text-transform: uppercase; display: block; margin-bottom: 0.5rem;
+  }
+  .verdict .label { color: var(--accent); }
+  .risk { background: var(--warn-wash); border: 1px solid var(--warn); padding: 1.1rem 1.25rem; margin: 1.5rem 0; }
+  .risk .label { color: var(--warn); }
+  .found {
+    background: var(--teal-wash); border: 1px solid var(--teal); padding: 1.1rem 1.25rem;
+    margin: 1.5rem 0; font-size: var(--step--1); line-height: 1.65;
+  }
+  .found .label { color: var(--teal); }
+  .risk p:last-child, .verdict p:last-child, .found p:last-child { margin-bottom: 0; }
+
+  /* ── 표 ─────────────────────────────────────────────── */
+  .table-wrap { overflow-x: auto; margin: 1.4rem 0; border: 1px solid var(--line); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 40rem; font-size: var(--step--1); line-height: 1.55; }
+  thead th {
+    text-align: left; vertical-align: bottom; font-family: var(--mono); font-size: 0.6875rem;
+    letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-dim); font-weight: 500;
+    padding: 0.75rem 0.9rem; background: var(--surface-2); border-bottom: 1px solid var(--line);
+  }
+  tbody td, tbody th { padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; text-align: left; }
+  tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+  tbody th { font-weight: 700; white-space: nowrap; }
+  td.num, td.r, th.r { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.r, th.r { text-align: right; }
+  tr.win td, tr.win th { background: var(--accent-wash); }
+
+  .pick {
+    display: inline-block; font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--surface); background: var(--accent);
+    padding: 0.1rem 0.4rem; vertical-align: 0.15em; margin-left: 0.35rem;
+  }
+  :root[data-theme="dark"] .pick { color: #101319; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pick { color: #101319; } }
+
+  /* ── 단계 띠 ────────────────────────────────────────── */
+  .phases { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 1.5rem 0; grid-template-columns: 1fr; }
+  @media (min-width: 700px) { .phases { grid-template-columns: repeat(4, 1fr); } }
+  .phase { background: var(--surface); padding: 1rem 1.1rem 1.1rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .phase .when { font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+  .phase .name { font-weight: 700; font-size: var(--step-1); line-height: 1.2; }
+  .phase .what { font-size: var(--step--1); color: var(--text-dim); line-height: 1.55; }
+
+  /* ── 상태 칩 ────────────────────────────────────────── */
+  .chip {
+    display: inline-block; font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 0.12rem 0.42rem; border: 1px solid currentColor; white-space: nowrap;
+  }
+  .chip.now { color: var(--warn); }
+  .chip.p1  { color: var(--accent); }
+  .chip.p2  { color: var(--teal); }
+  .chip.p3  { color: var(--text-faint); }
+
+  /* ── 질문 목록 ──────────────────────────────────────── */
+  .questions { counter-reset: q; list-style: none; padding: 0; }
+  .questions > li {
+    counter-increment: q; background: var(--surface); border: 1px solid var(--line);
+    padding: 1rem 1.15rem; margin-bottom: 0.7rem; display: grid; grid-template-columns: 1.9rem 1fr; gap: 0.5rem;
+  }
+  .questions > li::before {
+    content: "Q" counter(q); font-family: var(--mono); font-size: 0.6875rem; color: var(--accent); padding-top: 0.35em;
+  }
+  .questions .q { font-weight: 700; margin-bottom: 0.3rem; }
+  .questions .a { font-size: var(--step--1); color: var(--text-dim); margin: 0; }
+
+  hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+
+  /* ── 색 견본 ────────────────────────────────────────── */
+  .sw-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(9.25rem, 1fr));
+    gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 1.25rem 0;
+  }
+  .sw { background: var(--surface); display: flex; flex-direction: column; }
+  .sw .patch { height: 4.25rem; border-bottom: 1px solid var(--line-soft); }
+  .sw .body { padding: 0.55rem 0.7rem 0.75rem; display: flex; flex-direction: column; gap: 0.12rem; }
+  .sw .nm { font-family: var(--mono); font-size: 0.6875rem; color: var(--text); font-weight: 500; }
+  .sw .hx { font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.04em; color: var(--text-dim); }
+  .sw .us { font-size: 0.6875rem; line-height: 1.45; color: var(--text-faint); margin-top: 0.15rem; }
+
+  /* 대비비 배지 */
+  .cr { font-family: var(--mono); font-size: 0.625rem; padding: 0.05rem 0.3rem; border: 1px solid currentColor; }
+  .cr.ok   { color: var(--teal); }
+  .cr.warn { color: var(--warn); }
+
+  /* ── 화면 견본 ──────────────────────────────────────── */
+  .mocks { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin: 1.75rem 0; }
+  @media (min-width: 780px) { .mocks { grid-template-columns: 1fr 1fr; } }
+  .mock { border: 1px solid var(--line); background: var(--surface-2); padding: 1.1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+  .mock > .cap { font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); }
+  .phone {
+    width: 100%; max-width: 20rem; margin: 0 auto; padding: 1rem 0.9rem 1.1rem;
+    border-radius: 1.5rem; font-size: 0.8125rem; line-height: 1.45; display: flex; flex-direction: column; gap: 0.7rem;
+  }
+  .phone * { box-sizing: border-box; }
+
+  /* 개인(아동) 모드 견본 */
+  .m-kid { background: linear-gradient(178deg, #FEF4F8 0%, #F2F1FD 100%); color: #3D2A46; }
+  .m-kid .hd { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+  .m-kid .sub { font-size: 0.75rem; color: #75657D; }
+  .m-kid .seg { display: flex; gap: 0.35rem; background: #FFE9F3; border-radius: 999px; padding: 0.25rem; }
+  .m-kid .seg > span { flex: 1; text-align: center; padding: 0.5rem 0; border-radius: 999px; font-weight: 800; font-size: 0.75rem; color: #75657D; }
+  .m-kid .seg > span.on { background: #CE386F; color: #FFFFFF; }
+  .m-kid .card {
+    background: #FFFFFF; border: 2px solid #F1CEDD; border-radius: 1.25rem;
+    padding: 0.9rem; display: flex; flex-direction: column; gap: 0.65rem;
+    box-shadow: 0 6px 0 #F1CEDD;
+  }
+  .m-kid .caps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
+  .m-kid .cap-k { aspect-ratio: 1; border-radius: 0.6rem; display: grid; place-items: center; font-size: 1.05rem; box-shadow: inset 0 -0.28rem 0 rgba(0,0,0,0.16), inset 0 0.18rem 0 rgba(255,255,255,0.5); }
+  .m-kid .ttl { font-weight: 800; font-size: 1rem; }
+  .m-kid .row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .m-kid .play { background: #CE386F; color: #FFFFFF; font-weight: 800; font-size: 0.8125rem; padding: 0.6rem 1.05rem; border-radius: 999px; }
+  .m-kid .badge { background: #3DBA64; color: #3D2A46; font-weight: 800; font-size: 0.6875rem; padding: 0.2rem 0.55rem; border-radius: 999px; }
+
+  /* 그룹(업무) 모드 견본 */
+  .m-grp { background: #F7F8FA; color: #161A21; border: 1px solid #D5DAE2; border-radius: 0.75rem; }
+  .m-grp .kick { font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.16em; text-transform: uppercase; color: #B0561A; }
+  .m-grp .hd { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.015em; }
+  .m-grp .sub { font-size: 0.75rem; color: #5A6270; }
+  .m-grp .seg { display: flex; border: 1px solid #D5DAE2; border-radius: 0.375rem; overflow: hidden; background: #FFFFFF; }
+  .m-grp .seg > span { flex: 1; text-align: center; padding: 0.45rem 0; font-size: 0.75rem; font-weight: 600; color: #5A6270; }
+  .m-grp .seg > span.on { background: #B0561A; color: #FFFFFF; }
+  .m-grp .bar { height: 0.3rem; background: #E4E8EE; border-radius: 999px; overflow: hidden; }
+  .m-grp .bar > i { display: block; height: 100%; width: 37%; background: #276560; }
+  .m-grp .card {
+    background: #FFFFFF; border: 1px solid #D5DAE2; border-radius: 0.5rem;
+    padding: 0.75rem 0.85rem; display: flex; flex-direction: column; gap: 0.35rem;
+  }
+  .m-grp .card.done { background: #FBFCFD; }
+  .m-grp .who { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.8125rem; font-weight: 600; }
+  .m-grp .when { font-family: var(--mono); font-size: 0.6875rem; color: #838B99; }
+  .m-grp .state { font-size: 0.6875rem; font-weight: 700; }
+  .m-grp .state.new  { color: #B0561A; }
+  .m-grp .state.done { color: #276560; }
+  .m-grp .caps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; margin-top: 0.2rem; }
+  .m-grp .cap-k { aspect-ratio: 1.15; border-radius: 0.25rem; background: #EDF0F4; border: 1px solid #D5DAE2; }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } html { scroll-behavior: auto; } }
+  html { scroll-behavior: smooth; }
+  [id] { scroll-margin-top: 2rem; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <nav class="rail" aria-label="목차">
+    <div class="rail-title">목차</div>
+    <ol>
+      <li><a href="#decisions"><span class="n">◆</span><span>확정 사항</span></a></li>
+      <li><a href="#s1"><span class="n">01</span><span>지금 무엇이 문제인가</span></a></li>
+      <li><a href="#s2"><span class="n">02</span><span>두 관객</span></a></li>
+      <li><a href="#s3"><span class="n">03</span><span>팔레트 · 개인</span></a></li>
+      <li><a href="#s4"><span class="n">04</span><span>팔레트 · 그룹</span></a></li>
+      <li><a href="#s5"><span class="n">05</span><span>화면 견본</span></a></li>
+      <li><a href="#s6"><span class="n">06</span><span>토큰 대응표</span></a></li>
+      <li><a href="#s7"><span class="n">07</span><span>형태 · 타이포 · 밀도</span></a></li>
+      <li><a href="#s8"><span class="n">08</span><span>키캡 오브젝트</span></a></li>
+      <li><a href="#s9"><span class="n">09</span><span>모드 전환의 코드 형태</span></a></li>
+      <li><a href="#s10"><span class="n">10</span><span>경계 — 두 색이 만나는 곳</span></a></li>
+      <li><a href="#s11"><span class="n">11</span><span>단계</span></a></li>
+      <li><a href="#s12"><span class="n">12</span><span>남은 결정</span></a></li>
+      <li><a href="#s13"><span class="n">13</span><span>계획과 실제의 차이</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="masthead">
+      <p class="eyebrow">디자인 개편 · 구현 완료(P0–P3)</p>
+      <h1>두 관객,<br>두 얼굴</h1>
+      <p class="standfirst">
+        키크는 지금 하나의 어두운 보라 화면으로 초등학생과 회사원을 동시에 맞이한다.
+        이 문서는 그 화면을 <strong>밝은 개인 모드</strong>와 <strong>차분한 그룹 모드</strong>로
+        가르는 계획이다. 색만이 아니라 그 색을 담을 그릇 — 지금 없는 토큰 —
+        을 먼저 만드는 일부터 적는다.
+      </p>
+      <div class="meta">
+        <span><b>대상</b> keyc-studio · main · v0.8.7</span>
+        <span><b>상태</b> P0–P3 구현 완료 · §13에 실제와의 차이</span>
+        <span><b>작성</b> 2026-09-09</span>
+        <span><b>선행 문서</b> group-stage-design.html</span>
+      </div>
+    </header>
+
+    <div class="verdict">
+      <span class="label">결론 먼저</span>
+      <p>
+        <strong>①</strong> 이것은 색을 고르는 일이 아니라 <em>색을 담을 자리를 만드는 일</em>이다.
+        <code>styles.css</code>는 3583줄·클래스 규칙 437개인데 <code>:root</code> 토큰은 <strong>5개</strong>뿐이고,
+        나머지 색은 하드코딩된 hex 82회(41종)와 <code>rgba()</code> 235회로 흩어져 있다.
+        토큰 추출이 0단계다. 이걸 건너뛰면 두 번째 팔레트는 첫 번째의 복사·붙여넣기가 된다.
+      </p>
+      <p>
+        <strong>②</strong> 두 모드는 라우트가 아니라 <strong>스코프</strong>다.
+        그룹은 <code>/feed?g=</code> 쿼리 하나로만 구분되는 탭이라(<code>App.tsx:77</code>,
+        <code>FeedScreen.tsx:62</code>) 라우트를 쪼개면 뒤로가기와 딥링크가 무너진다.
+        <code>data-mode="group"</code>이 붙은 컨테이너 <strong>안에서만</strong> 토큰을 다시 정의한다.
+      </p>
+      <p>
+        <strong>③</strong> 밝은 바탕으로 뒤집으면 <code>rgba(255,255,255,…)</code> 흰 오버레이 106개가
+        전부 사라진다. 다만 그중 <strong>50개는 키캡·재질 구간</strong>(1111–1756줄)에 있고
+        이 구간은 작품 데이터에 묶여 있어 손대는 규칙이 다르다.
+        <strong>화면 크롬에서 실제로 뒤집어야 하는 것은 56개</strong>, 그룹 모드가 당장 건드릴 것은 <strong>14개</strong>다.
+      </p>
+    </div>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="decisions">
+      <div class="sec-head"><span class="n">◆</span><h2>확정 사항</h2></div>
+      <p>
+        아래 여섯은 결정이 끝났다. <strong>본문의 다른 서술과 어긋나면 이 표가 우선한다.</strong>
+      </p>
+
+      <div class="table-wrap wide">
+        <table>
+          <thead>
+            <tr><th scope="col">항목</th><th scope="col">결정</th><th scope="col">단서 / 구현 메모</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">그룹 모드 색</th>
+              <td><strong>밝은 뉴트럴 + 딥 액센트</strong></td>
+              <td>바탕 <code>#F7F8FA</code>, 액센트 딥 오렌지 <code>#B0561A</code>, 보조 틸 <code>#276560</code>.
+                  <code>group-stage-design.html</code>이 이미 쓰는 값이라 문서와 앱이 한 언어가 된다</td>
+            </tr>
+            <tr>
+              <th scope="row">그룹 모드 범위</th>
+              <td><strong>그룹 화면들만</strong></td>
+              <td>피드 [그룹] 탭, 그룹 스테이지, <code>/g/join</code>, 그룹 안내 모달.
+                  만들기·무대·공연·감상은 개인 모드 그대로</td>
+            </tr>
+            <tr>
+              <th scope="row">개인 모드 색</th>
+              <td><strong>밝은 파스텔로 전환</strong></td>
+              <td>지금의 딥 퍼플 다크(<code>#150F2B</code>)를 버린다. 참고 이미지 셋이 모두 밝은 바탕이다</td>
+            </tr>
+            <tr>
+              <th scope="row">키캡 오브젝트</th>
+              <td><strong>모드별로 다르게</strong></td>
+              <td><strong>단, 재질 8종은 못 건드린다</strong> — 작품 데이터다(§08).
+                  바꾸는 것은 키캡이 놓인 판·하우징·주변 조명</td>
+            </tr>
+            <tr>
+              <th scope="row">모드 전환 방식</th>
+              <td><strong>DOM 스코프</strong></td>
+              <td><code>data-mode</code> 속성 하나. 라우트 분리 없음, 전역 상태 없음, 사용자 설정 없음</td>
+            </tr>
+            <tr>
+              <th scope="row">하단 내비 형태</th>
+              <td><strong>불변</strong></td>
+              <td>플로팅 3탭은 앱인토스 심사 조건이다(<code>styles.css:1032–1045</code>). 색만 바꾼다</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s1">
+      <div class="sec-head"><span class="n">01</span><h2>지금 무엇이 문제인가</h2></div>
+
+      <p>
+        “색상이 마음에 안 든다”는 말은 정확하지만, 코드에서 그 말을 실행하려고 하면
+        바꿀 대상이 <strong>한 곳에 없다</strong>는 문제를 먼저 만난다.
+        <code>src/ui/styles.css</code>의 실제 상태는 이렇다.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">측정</th><th scope="col" class="r">값</th><th scope="col">뜻</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">전체 줄 수</th><td class="r">3,583</td><td>클래스 규칙 437개. 화면 12개·컴포넌트 16개가 한 파일에 있다</td></tr>
+            <tr class="win"><th scope="row"><code>:root</code> 토큰</th><td class="r">5</td><td><code>--bg --bg-2 --fg --fg-dim --accent</code>(+<code>--danger --radius</code>). <strong>여기가 병목이다</strong></td></tr>
+            <tr><th scope="row">하드코딩 hex</th><td class="r">82회 / 41종</td><td><code>#3dd6a0</code> 6회, <code>#241a44</code> 9회, <code>#ffd400</code> 4회…</td></tr>
+            <tr><th scope="row"><code>rgba()</code> 전체</th><td class="r">235</td><td>대부분 토큰이 아니라 그 자리에서 만든 반투명 값</td></tr>
+            <tr class="win"><th scope="row">└ 흰 오버레이</th><td class="r">106</td><td><code>rgba(255,255,255,…)</code>. <strong>밝은 바탕에서 전부 안 보인다</strong></td></tr>
+            <tr><th scope="row">└ 검정 그림자</th><td class="r">69</td><td>밝은 바탕에서는 값이 너무 세다 — 약화가 필요하다</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>흰 오버레이 106개는 어디에 있나</h3>
+      <p>
+        전부가 같은 무게가 아니다. 절반이 <strong>키캡 렌더링</strong>에 몰려 있고,
+        그것은 “화면 색”이 아니라 “물건의 재질”이다.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">구간</th><th scope="col" class="r">줄</th><th scope="col" class="r">흰 오버레이</th><th scope="col">개편에서의 취급</th></tr></thead>
+          <tbody>
+            <tr class="win"><th scope="row">키캡 · 재질 8종</th><td class="r">1111–1756</td><td class="r">50</td><td>작품 데이터에 묶임 — §08의 규칙을 따른다</td></tr>
+            <tr><th scope="row">프로필 · 계정</th><td class="r">500–720</td><td class="r">9</td><td>개인 모드 라이트 전환</td></tr>
+            <tr><th scope="row">피드</th><td class="r">721–1031</td><td class="r">9</td><td><strong>두 모드가 공유한다</strong> — 토큰화 필수</td></tr>
+            <tr><th scope="row">비밀 반응</th><td class="r">2082–2467</td><td class="r">7</td><td>개인 모드 라이트 전환</td></tr>
+            <tr><th scope="row">그리기</th><td class="r">2711–2891</td><td class="r">5</td><td>캔버스 바탕은 키캡 색이라 별도 검토</td></tr>
+            <tr><th scope="row">앱 사용법</th><td class="r">366–499</td><td class="r">4</td><td>개인 모드 라이트 전환</td></tr>
+            <tr><th scope="row">편집 시트</th><td class="r">2468–2710</td><td class="r">3</td><td>개인 모드 라이트 전환</td></tr>
+            <tr><th scope="row">공연 · 감상</th><td class="r">3004–3153</td><td class="r">3</td><td>§10의 경계 규칙 대상</td></tr>
+            <tr><th scope="row">홈</th><td class="r">247–365</td><td class="r">3</td><td>개인 모드 라이트 전환</td></tr>
+            <tr><th scope="row">공통 파츠 · 그룹 · 그 외</th><td class="r">—</td><td class="r">13</td><td>공통 파츠 2 · 그룹 2 · 나머지 9</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="found">
+        <span class="label">좋은 소식</span>
+        <p>
+          그룹 모드가 실제로 뒤집어야 하는 크롬은 <strong>흰 오버레이 14개</strong>
+          (공통 파츠 2 + 피드 9 + 하단 내비 1 + 그룹 2)와 hex 몇 개뿐이다.
+          그룹 화면이 자체 컴포넌트를 거의 갖지 않고 <code>.feed-card</code>·<code>.chip</code>·<code>.seg</code>를
+          재사용하기 때문이다 — 그래서 <strong>토큰만 제대로 뽑으면 그룹 모드는 값 재정의 한 블록으로 끝난다.</strong>
+        </p>
+      </div>
+
+      <div class="risk">
+        <span class="label">뒤집어 말하면</span>
+        <p>
+          같은 이유로 <strong>토큰을 안 뽑으면 그룹 모드를 만들 수 없다.</strong>
+          <code>.feed-card</code>는 공개 피드와 그룹 스테이지가 같이 쓴다.
+          <code>.feed-card { background: #1d163b }</code>를 그룹에서만 바꾸려면
+          <code>[data-mode="group"] .feed-card { background: … }</code>를 색마다 한 줄씩 쓰게 되고,
+          그것이 40종 곱하기 두 모드가 되면 파일은 5천 줄이 된다.
+        </p>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s2">
+      <div class="sec-head"><span class="n">02</span><h2>두 관객</h2></div>
+
+      <p>
+        디자인을 나누기 전에 <strong>무엇이 다른지</strong>를 먼저 적는다.
+        나이만 다른 것이 아니라 화면을 보는 상황이 다르다.
+      </p>
+
+      <div class="table-wrap wide">
+        <table>
+          <thead><tr><th scope="col"></th><th scope="col">개인 모드</th><th scope="col">그룹 모드</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">누구</th><td>초등학생. 혼자, 또는 친구에게 링크로 보냄</td><td>회사원·성인 모임. 8~20명이 한 스테이지 안에</td></tr>
+            <tr><th scope="row">어디서</th><td>집·방과 후. 밝은 조명 또는 이불 속</td><td>사무실·회의실. 형광등, 옆에 사람이 있음</td></tr>
+            <tr><th scope="row">목적</th><td>“내가 만든 걸 봐 줘”</td><td>“우리 팀이 뭘 만들었는지 다 듣기”</td></tr>
+            <tr><th scope="row">체류</th><td>길다. 만들기가 목적</td><td>짧다. 점심시간에 두세 개 듣고 나감</td></tr>
+            <tr><th scope="row">읽는 단위</th><td>그림 하나 · 큰 글자 하나</td><td>목록. 누가 · 언제 · 들었나</td></tr>
+            <tr class="win"><th scope="row">화면이 해야 할 일</th><td><strong>부르기.</strong> 누르고 싶게 만든다</td><td><strong>비키기.</strong> 정보를 주고 물러난다</td></tr>
+            <tr><th scope="row">옆 사람이 볼 때</th><td>상관없음</td><td><strong>부끄럽지 않아야 한다</strong> — 회사 화면에 형광 노랑이 뜨면 닫는다</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        마지막 줄이 그룹 모드 팔레트를 결정한 이유다.
+        지금의 <code>#ffd400</code> 형광 노랑과 <code>#150f2b</code> 딥 퍼플은
+        “게임을 켜 놓았다”고 읽힌다. 그룹 스테이지는 회사 계정으로 열리는 사내 활동이고,
+        <strong>화면이 조용해야 사람이 그걸 켜 둔다.</strong>
+      </p>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s3">
+      <div class="sec-head"><span class="n">03</span><h2>팔레트 · 개인 모드</h2></div>
+
+      <p>
+        참고 이미지 셋(핑크 스위치 · 러키비키 · 미션 컬렉션)이 공유하는 것은
+        “파스텔 하늘 위에 채도 높은 물건이 떠 있다”는 구조다.
+        <strong>바탕은 아주 옅게, 물건은 아주 진하게</strong> — 그 대비가 화사함의 정체이지
+        모든 것을 형광으로 칠하는 것이 아니다.
+      </p>
+      <p>
+        모든 값은 oklch에서 밝기·채도를 맞춰 계산한 뒤 sRGB 안쪽으로 잘라냈다.
+        놀이 색 다섯은 <strong>L 0.70으로 통일</strong>되어 있어 어느 것을 나란히 놓아도
+        하나만 튀지 않는다.
+      </p>
+
+      <h3>바탕과 글자</h3>
+      <div class="sw-grid wide">
+        <div class="sw"><div class="patch" style="background:#FEF4F8"></div><div class="body">
+          <span class="nm">--ground</span><span class="hx">#FEF4F8</span><span class="us">화면 바탕(위)</span></div></div>
+        <div class="sw"><div class="patch" style="background:#F2F1FD"></div><div class="body">
+          <span class="nm">--ground-2</span><span class="hx">#F2F1FD</span><span class="us">화면 바탕(아래). 세로 그라데이션 끝</span></div></div>
+        <div class="sw"><div class="patch" style="background:#FFFFFF"></div><div class="body">
+          <span class="nm">--surface</span><span class="hx">#FFFFFF</span><span class="us">카드 · 시트 · 키보드 판</span></div></div>
+        <div class="sw"><div class="patch" style="background:#FFE9F3"></div><div class="body">
+          <span class="nm">--surface-2</span><span class="hx">#FFE9F3</span><span class="us">고르지 않은 칩 · 입력칸 · 트랙</span></div></div>
+        <div class="sw"><div class="patch" style="background:#F1CEDD"></div><div class="body">
+          <span class="nm">--line</span><span class="hx">#F1CEDD</span><span class="us">테두리 2px · 카드 아래 두께</span></div></div>
+        <div class="sw"><div class="patch" style="background:#3D2A46"></div><div class="body">
+          <span class="nm">--text</span><span class="hx">#3D2A46</span><span class="us">본문 <span class="cr ok">11.9:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#75657D"></div><div class="body">
+          <span class="nm">--text-dim</span><span class="hx">#75657D</span><span class="us">보조 <span class="cr ok">5.4:1</span></span></div></div>
+      </div>
+
+      <p>
+        글자를 검정이 아니라 <strong>따뜻한 자주 먹</strong>(<code>#3D2A46</code>)으로 둔 이유:
+        순검정은 파스텔 위에서 구멍처럼 뚫린다. 자주 먹은 바탕과 같은 색 계열이라
+        면이 이어져 보이면서도 대비는 11.9:1로 충분하다.
+      </p>
+
+      <h3>액센트 — 하나의 딸기색, 세 밝기</h3>
+      <div class="sw-grid wide">
+        <div class="sw"><div class="patch" style="background:#F6558C"></div><div class="body">
+          <span class="nm">--accent</span><span class="hx">#F6558C</span><span class="us">큰 면 · 그래픽 · 아이콘 채움</span></div></div>
+        <div class="sw"><div class="patch" style="background:#CE386F"></div><div class="body">
+          <span class="nm">--accent-fill</span><span class="hx">#CE386F</span><span class="us">버튼 채움. 흰 글자 <span class="cr ok">4.8:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#BB2260"></div><div class="body">
+          <span class="nm">--accent-ink</span><span class="hx">#BB2260</span><span class="us">액센트 글자·링크 <span class="cr ok">6.0:1</span></span></div></div>
+      </div>
+
+      <div class="risk">
+        <span class="label">여기서 실수하기 쉽다</span>
+        <p>
+          <code>#F6558C</code> 위에 흰 글자를 얹으면 대비가 <strong>3.2:1</strong>이라 본문 기준(4.5)에 못 미친다.
+          18px 굵은 글씨도 WCAG의 “큰 글자”(14pt 굵게 = 18.66px) 문턱을 넘지 못한다.
+          <strong>버튼 채움에는 반드시 <code>--accent-fill</code>을 쓴다.</strong>
+          <code>--accent</code>는 글자가 얹히지 않는 면에만 쓴다.
+        </p>
+      </div>
+
+      <h3>놀이 색 다섯 — 키캡 · 배지 · 상태에만</h3>
+      <p>
+        UI 크롬에는 쓰지 않는다. 키캡 기본색, 흔적 색연필, “새 작품” 배지처럼
+        <strong>여러 개가 동시에 놓여 서로 구분되어야 하는 곳</strong>에만 쓴다.
+        모두 <code>oklch(0.70 · 0.14–0.165)</code>로 밝기가 같아 순서를 바꿔도 위계가 생기지 않는다.
+      </p>
+      <div class="sw-grid wide">
+        <div class="sw"><div class="patch" style="background:#ED7088"></div><div class="body">
+          <span class="nm">--play-1</span><span class="hx">#ED7088</span><span class="us">먹색 글자 <span class="cr ok">4.5:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#D38E22"></div><div class="body">
+          <span class="nm">--play-2</span><span class="hx">#D38E22</span><span class="us">먹색 글자 <span class="cr ok">4.7:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#3DBA64"></div><div class="body">
+          <span class="nm">--play-3</span><span class="hx">#3DBA64</span><span class="us">먹색 글자 <span class="cr ok">5.2:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#2FA8EF"></div><div class="body">
+          <span class="nm">--play-4</span><span class="hx">#2FA8EF</span><span class="us">먹색 글자 <span class="cr ok">4.9:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#B780F0"></div><div class="body">
+          <span class="nm">--play-5</span><span class="hx">#B780F0</span><span class="us">먹색 글자 <span class="cr ok">4.6:1</span></span></div></div>
+      </div>
+
+      <div class="risk">
+        <span class="label">놀이 색 위의 글자는 흰색이 아니다</span>
+        <p>
+          다섯 색 모두 흰 글자와의 대비가 <strong>2.5–2.9:1</strong>로 전부 미달이다.
+          놀이 색 위의 글자·아이콘은 항상 <code>--text</code>(<code>#3D2A46</code>)를 쓴다.
+          지금 코드에서 <code>.loop-toggle.is-on</code>이 초록 위에 <code>#0d3b2c</code>를 쓰는 방식과 같은 원리다.
+        </p>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s4">
+      <div class="sec-head"><span class="n">04</span><h2>팔레트 · 그룹 모드</h2></div>
+
+      <p>
+        확정된 방향은 <strong>밝은 뉴트럴 + 딥 액센트</strong>다.
+        이 값들은 <code>docs/group-stage-design.html</code>이 이미 쓰고 있으므로,
+        설계 문서와 앱이 같은 색으로 이어진다.
+      </p>
+
+      <h3>바탕과 글자</h3>
+      <div class="sw-grid wide">
+        <div class="sw"><div class="patch" style="background:#F7F8FA"></div><div class="body">
+          <span class="nm">--ground</span><span class="hx">#F7F8FA</span><span class="us">화면 바탕. 그라데이션 없음</span></div></div>
+        <div class="sw"><div class="patch" style="background:#FFFFFF"></div><div class="body">
+          <span class="nm">--surface</span><span class="hx">#FFFFFF</span><span class="us">카드 · 시트</span></div></div>
+        <div class="sw"><div class="patch" style="background:#EDF0F4"></div><div class="body">
+          <span class="nm">--surface-2</span><span class="hx">#EDF0F4</span><span class="us">눌린 상태 · 입력칸 · 진행바 트랙</span></div></div>
+        <div class="sw"><div class="patch" style="background:#D5DAE2"></div><div class="body">
+          <span class="nm">--line</span><span class="hx">#D5DAE2</span><span class="us">테두리 1px</span></div></div>
+        <div class="sw"><div class="patch" style="background:#E4E8EE"></div><div class="body">
+          <span class="nm">--line-soft</span><span class="hx">#E4E8EE</span><span class="us">목록 안 구분선</span></div></div>
+        <div class="sw"><div class="patch" style="background:#161A21"></div><div class="body">
+          <span class="nm">--text</span><span class="hx">#161A21</span><span class="us">본문 <span class="cr ok">16.4:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#5A6270"></div><div class="body">
+          <span class="nm">--text-dim</span><span class="hx">#5A6270</span><span class="us">보조 <span class="cr ok">5.8:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#838B99"></div><div class="body">
+          <span class="nm">--text-faint</span><span class="hx">#838B99</span><span class="us">시각 · 코드 <span class="cr warn">3.2:1</span> 큰 글자만</span></div></div>
+      </div>
+
+      <h3>액센트와 상태</h3>
+      <div class="sw-grid wide">
+        <div class="sw"><div class="patch" style="background:#B0561A"></div><div class="body">
+          <span class="nm">--accent</span><span class="hx">#B0561A</span><span class="us">주 버튼 채움. 흰 글자 <span class="cr ok">5.0:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#8E4413"></div><div class="body">
+          <span class="nm">--accent-ink</span><span class="hx">#8E4413</span><span class="us">액센트 글자·링크 <span class="cr ok">7.0:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#F5E6D8"></div><div class="body">
+          <span class="nm">--accent-wash</span><span class="hx">#F5E6D8</span><span class="us">초대 코드 칸 · 강조 배경</span></div></div>
+        <div class="sw"><div class="patch" style="background:#276560"></div><div class="body">
+          <span class="nm">--teal</span><span class="hx">#276560</span><span class="us"><strong>“들었음”</strong> · 진행바 <span class="cr ok">6.7:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#DBE8E6"></div><div class="body">
+          <span class="nm">--teal-wash</span><span class="hx">#DBE8E6</span><span class="us">들은 카드 배경</span></div></div>
+        <div class="sw"><div class="patch" style="background:#A02C22"></div><div class="body">
+          <span class="nm">--warn</span><span class="hx">#A02C22</span><span class="us">그룹 삭제 · 정원 초과 <span class="cr ok">7.3:1</span></span></div></div>
+        <div class="sw"><div class="patch" style="background:#F6E0DD"></div><div class="body">
+          <span class="nm">--warn-wash</span><span class="hx">#F6E0DD</span><span class="us">삭제 확인 상자 배경</span></div></div>
+      </div>
+
+      <div class="found">
+        <span class="label">색이 뜻을 이어받는다</span>
+        <p>
+          지금 그룹 스테이지에서 “들었음”은 초록(<code>#79efc2</code>)이고,
+          그 초록은 공개 피드의 리플레이 배지와 같은 색이다 — 이미 학습된 뜻이다.
+          그룹 모드에서 그 자리를 <strong>틸(<code>#276560</code>)</strong>이 그대로 이어받는다.
+          색은 바뀌지만 <em>같은 계열의 초록이 같은 뜻을 유지</em>하므로 다시 배울 것이 없다.
+        </p>
+      </div>
+
+      <h3>그룹 모드에서 안 쓰는 것</h3>
+      <ul>
+        <li><strong>그라데이션 바탕.</strong> 개인 모드는 파스텔 하늘을 쓰지만 그룹은 평면 <code>#F7F8FA</code> 하나다.</li>
+        <li><strong>놀이 색 다섯.</strong> 그룹 화면 크롬에는 액센트·틸·경고 셋만 쓴다.</li>
+        <li><strong>큰 그림자.</strong> 카드는 1px 선으로만 뜬다. <code>box-shadow</code>는 시트·모달에만.</li>
+        <li><strong>둥근 알약 버튼.</strong> §07 참고 — 반경이 두 모드를 가르는 두 번째 축이다.</li>
+      </ul>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s5">
+      <div class="sec-head"><span class="n">05</span><h2>화면 견본</h2></div>
+      <p>
+        위 팔레트를 실제 화면에 앉힌 모습이다. <strong>같은 데이터, 같은 컴포넌트, 다른 토큰.</strong>
+        두 견본 모두 <code>.feed-card</code>·<code>.seg</code>·<code>.chip</code>이라는 같은 뼈대를 쓴다.
+      </p>
+
+      <div class="mocks wide">
+        <figure class="mock">
+          <figcaption class="cap">개인 모드 — 스테이지</figcaption>
+          <div class="phone m-kid">
+            <div>
+              <div class="hd">키크 스테이지</div>
+              <div class="sub">모두의 키크 공연을 만나고 다시 연주해 보세요.</div>
+            </div>
+            <div class="seg"><span class="on">모두</span><span>그룹</span></div>
+            <div class="card">
+              <div class="caps">
+                <span class="cap-k" style="background:#F16C87">?</span>
+                <span class="cap-k" style="background:#D38E22">?</span>
+                <span class="cap-k" style="background:#3DBA64">?</span>
+                <span class="cap-k" style="background:#2FA8EF">?</span>
+              </div>
+              <div class="ttl">미스터리 사운드 2</div>
+              <div class="row">
+                <span class="badge">14초</span>
+                <span class="play">▶ 리플레이</span>
+              </div>
+            </div>
+          </div>
+        </figure>
+
+        <figure class="mock">
+          <figcaption class="cap">그룹 모드 — 그룹 스테이지</figcaption>
+          <div class="phone m-grp">
+            <div>
+              <div class="kick">디자인팀 · 비공개</div>
+              <div class="hd">이번 주 합주</div>
+              <div class="sub">참가자 8명 중 3명이 올렸어요</div>
+            </div>
+            <div class="bar"><i></i></div>
+            <div class="seg"><span>모두</span><span class="on">그룹</span></div>
+            <div class="card">
+              <div class="who"><span>김민수</span><span class="when">40초</span></div>
+              <div class="state new">아직 안 들음</div>
+              <div class="caps"><span class="cap-k"></span><span class="cap-k"></span><span class="cap-k"></span><span class="cap-k"></span></div>
+            </div>
+            <div class="card done">
+              <div class="who"><span>이지현</span><span class="when">28초</span></div>
+              <div class="state done">들었음</div>
+            </div>
+          </div>
+        </figure>
+      </div>
+
+      <p>
+        차이는 색만이 아니다. 개인 모드는 카드 하나가 화면을 차지하고 키캡이 주인공이며
+        버튼이 크고 둥글다. 그룹 모드는 <strong>목록</strong>이고, 한 화면에 여러 명이 들어오며,
+        가장 위에 있는 것이 <strong>진행 상황</strong>이다 — “우리 팀 몇 명이 올렸나”가
+        그룹 스테이지에 들어오는 이유이기 때문이다.
+      </p>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s6">
+      <div class="sec-head"><span class="n">06</span><h2>토큰 대응표</h2></div>
+
+      <p>
+        0단계에서 뽑을 토큰 목록이다. <strong>이름은 의미로 짓는다</strong> —
+        <code>--purple</code>이 아니라 <code>--surface</code>다. 그래야 두 번째 팔레트에서 이름이 거짓말을 하지 않는다.
+      </p>
+
+      <div class="table-wrap wide">
+        <table>
+          <thead>
+            <tr><th scope="col">토큰</th><th scope="col">지금 값</th><th scope="col">개인</th><th scope="col">그룹</th><th scope="col">쓰이는 곳</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row"><code>--ground</code></th><td><code>#150F2B</code></td><td><code>#FEF4F8</code></td><td><code>#F7F8FA</code></td><td><code>body</code> 바탕</td></tr>
+            <tr><th scope="row"><code>--ground-2</code></th><td><code>#2C1F52</code></td><td><code>#F2F1FD</code></td><td>= ground</td><td>바탕 그라데이션 끝. 그룹은 평면</td></tr>
+            <tr><th scope="row"><code>--surface</code></th><td><code>#1D163B</code></td><td><code>#FFFFFF</code></td><td><code>#FFFFFF</code></td><td><code>.feed-card</code> <code>.sheet</code> <code>.account-card</code></td></tr>
+            <tr><th scope="row"><code>--surface-2</code></th><td><code>rgba(255,255,255,.09)</code></td><td><code>#FFE9F3</code></td><td><code>#EDF0F4</code></td><td><code>.chip</code> 기본 · <code>.seg</code> 트랙 · <code>.feed-search</code></td></tr>
+            <tr><th scope="row"><code>--surface-3</code></th><td><code>#352867</code></td><td><code>#FFFFFF</code></td><td><code>#FBFCFD</code></td><td><code>.feed-thumb</code> 바탕 · 드롭다운</td></tr>
+            <tr><th scope="row"><code>--line</code></th><td><code>rgba(255,255,255,.14)</code></td><td><code>#F1CEDD</code></td><td><code>#D5DAE2</code></td><td>카드·드롭다운·하단 내비 테두리</td></tr>
+            <tr><th scope="row"><code>--line-soft</code></th><td><code>rgba(255,255,255,.09)</code></td><td><code>#FFE9F3</code></td><td><code>#E4E8EE</code></td><td>목록 안 구분선</td></tr>
+            <tr><th scope="row"><code>--text</code></th><td><code>#FFFFFF</code></td><td><code>#3D2A46</code></td><td><code>#161A21</code></td><td>본문 전체</td></tr>
+            <tr><th scope="row"><code>--text-dim</code></th><td><code>rgba(255,255,255,.66)</code></td><td><code>#75657D</code></td><td><code>#5A6270</code></td><td><code>.note</code> <code>.row-label</code> <code>.guide</code></td></tr>
+            <tr><th scope="row"><code>--text-faint</code></th><td>—<span class="chip p1">신설</span></td><td><code>#9C8FA3</code></td><td><code>#838B99</code></td><td>시각·개수 같은 메타. 큰 글자에만</td></tr>
+            <tr class="win"><th scope="row"><code>--accent</code></th><td><code>#FFD400</code></td><td><code>#F6558C</code></td><td><code>#B0561A</code></td><td>강조 면·아이콘. <strong>글자 얹지 않음</strong></td></tr>
+            <tr class="win"><th scope="row"><code>--accent-fill</code></th><td>—<span class="chip p1">신설</span></td><td><code>#CE386F</code></td><td><code>#B0561A</code></td><td><code>.big-cta</code> <code>.chip.on</code> <code>.seg-btn.on</code></td></tr>
+            <tr><th scope="row"><code>--accent-on</code></th><td><code>#241A44</code></td><td><code>#FFFFFF</code></td><td><code>#FFFFFF</code></td><td>액센트 채움 위의 글자색</td></tr>
+            <tr><th scope="row"><code>--accent-ink</code></th><td>—<span class="chip p1">신설</span></td><td><code>#BB2260</code></td><td><code>#8E4413</code></td><td><code>.feed-kicker</code> · 링크 · 액센트 글자</td></tr>
+            <tr><th scope="row"><code>--accent-wash</code></th><td><code>rgba(255,212,0,.12)</code></td><td><code>#FFE9F3</code></td><td><code>#F5E6D8</code></td><td><code>.group-invite-code</code> · <code>.feed-mine-badge</code></td></tr>
+            <tr><th scope="row"><code>--go</code></th><td><code>#3DD6A0</code></td><td><code>#3DBA64</code></td><td><code>#276560</code></td><td><code>.loop-toggle.is-on</code> · <code>.chip.primary</code> · 들었음 배지</td></tr>
+            <tr><th scope="row"><code>--go-on</code></th><td><code>#0D3B2C</code></td><td><code>#3D2A46</code></td><td><code>#FFFFFF</code></td><td><code>--go</code> 채움 위의 글자색</td></tr>
+            <tr><th scope="row"><code>--go-wash</code></th><td><code>rgba(121,239,194,.14)</code></td><td><code>#E4F7EA</code></td><td><code>#DBE8E6</code></td><td><code>.feed-listened-badge</code></td></tr>
+            <tr><th scope="row"><code>--danger</code></th><td><code>#FF4D6D</code></td><td><code>#D93A5C</code></td><td><code>#A02C22</code></td><td><code>.warn</code> · <code>.chip.danger-solid</code></td></tr>
+            <tr><th scope="row"><code>--danger-wash</code></th><td><code>rgba(255,77,109,.1)</code></td><td><code>#FDE7EC</code></td><td><code>#F6E0DD</code></td><td><code>.group-delete-confirm</code></td></tr>
+            <tr><th scope="row"><code>--shadow</code></th><td><code>rgba(0,0,0,.45)</code></td><td><code>rgba(93,58,80,.16)</code></td><td><code>rgba(22,26,33,.08)</code></td><td>떠 있는 것 전부. <strong>밝은 바탕에서 값이 확 약해진다</strong></td></tr>
+            <tr><th scope="row"><code>--radius</code></th><td><code>20px</code></td><td><code>22px</code></td><td><code>10px</code></td><td>§07</td></tr>
+            <tr><th scope="row"><code>--radius-pill</code></th><td><code>999px</code></td><td><code>999px</code></td><td><code>8px</code></td><td>칩·세그먼트. §07</td></tr>
+            <tr class="win"><th scope="row"><code>--control-line</code></th><td>—<span class="chip now">구현 중 발견</span></td><td><code>#887A8F</code></td><td><code>#838B99</code></td><td>스위치 트랙·입력칸 테두리. <strong>계획에 없던 토큰이다</strong> — §13 참고</td></tr>
+            <tr><th scope="row"><code>--play-1…5</code></th><td>—<span class="chip p1">신설</span></td><td>§03의 다섯</td><td><em>안 씀</em></td><td>키캡 기본색 · 색연필 · 구분 배지</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="risk">
+        <span class="label">한 줄이 화면 전체를 바꾼다</span>
+        <p>
+          <code>styles.css:18</code>의 <code>color-scheme: dark</code>를 지우는 순간
+          브라우저 기본 폼 컨트롤·스크롤바·<code>&lt;input&gt;</code> 자동완성 배경이 전부 바뀐다.
+          검색창(<code>.feed-search input</code>)·초대 코드 입력·별명 입력 세 곳을
+          <strong>직접 눈으로 확인</strong>해야 한다. 이 한 줄은 P1의 첫 커밋이자 첫 리스크다.
+        </p>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s7">
+      <div class="sec-head"><span class="n">07</span><h2>형태 · 타이포 · 밀도</h2></div>
+
+      <p>
+        색만 바꾸면 그룹 모드는 “흰 배경의 어린이 앱”이 된다.
+        <strong>형태가 두 번째 축</strong>이고, 실제로는 색보다 먼저 읽힌다.
+      </p>
+
+      <div class="table-wrap wide">
+        <table>
+          <thead><tr><th scope="col">축</th><th scope="col">개인 모드</th><th scope="col">그룹 모드</th><th scope="col">근거</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">모서리 반경</th><td>22px · 칩은 완전 알약</td><td>10px · 칩은 8px</td><td>둥글수록 장난감, 각질수록 도구</td></tr>
+            <tr><th scope="row">테두리</th><td>2px 색 있는 선 + 아래 두께</td><td>1px <code>--line</code></td><td>개인 모드의 “두께”가 키캡의 입체와 이어진다</td></tr>
+            <tr><th scope="row">그림자</th><td>단단한 오프셋(<code>0 6px 0</code>)</td><td>거의 없음. 시트만</td><td>스티커 대 서류</td></tr>
+            <tr><th scope="row">본문</th><td>16px / 굵기 700</td><td>15px / 굵기 500</td><td>아이는 굵은 글씨, 어른은 많은 정보</td></tr>
+            <tr><th scope="row">제목</th><td>28px / 800 / <code>-0.02em</code></td><td>19px / 700 / <code>-0.015em</code></td><td>개인 모드는 제목이 그림, 그룹은 이정표</td></tr>
+            <tr><th scope="row">숫자</th><td>본문과 같은 서체</td><td><code>tabular-nums</code> 고정폭</td><td>초대 코드·시간·인원이 세로로 정렬돼야 읽힌다</td></tr>
+            <tr><th scope="row">세로 간격</th><td><code>gap: 16–20px</code> 유지</td><td><code>gap: 10–12px</code></td><td>한 화면에 담기는 항목 수가 다르다</td></tr>
+            <tr class="win"><th scope="row">최소 탭 크기</th><td colspan="2"><strong>둘 다 56px 유지 — 예외 없음</strong></td><td>정보 밀도를 높인다고 손가락 목표를 줄이지 않는다</td></tr>
+            <tr><th scope="row">움직임</th><td><code>:active</code>에 <code>scale(.95)</code> 유지</td><td><code>scale(.98)</code> · 배경만 변화</td><td>회의실에서 화면이 튀지 않게</td></tr>
+            <tr><th scope="row">서체</th><td colspan="2">Pretendard 유지 (두 모드 공통)</td><td>웨이트만 다르게 쓴다. 서체를 늘리면 로딩이 늘고 미니앱 용량이 는다</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="found">
+        <span class="label">지켜야 할 것</span>
+        <p>
+          접근성 관련 기존 결정은 그대로 간다: <code>:focus-visible</code> 3px 링,
+          최소 탭 56px(키캡 루프 토글은 44px), <code>touch-action: manipulation</code>,
+          그리고 <strong>색만으로 구분하지 않기</strong>(<code>.chip.danger-solid</code>의 주석).
+          링 색은 <code>--accent</code>를 계속 쓰되, 밝은 바탕에서 노랑이 사라지던 문제는
+          두 팔레트 모두 액센트가 진해져 자연히 해결된다.
+        </p>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s8">
+      <div class="sec-head"><span class="n">08</span><h2>키캡 오브젝트 — 무엇을 못 바꾸는가</h2></div>
+
+      <p>
+        “키캡을 모드별로 다르게”가 확정 사항이지만, 그 전에
+        <strong>바꿀 수 없는 것</strong>을 명확히 해야 한다. 그러지 않으면
+        과거 작품 전체가 다르게 재생되는 사고가 난다.
+      </p>
+
+      <div class="risk">
+        <span class="label">재질은 화면이 아니라 데이터다</span>
+        <p>
+          <code>Material</code> 8종(<code>plastic jelly ice metal water cotton wood sand</code>)은
+          <code>work-model/types.ts:51</code>의 <strong>작품 스키마</strong>에 있고,
+          키마다 저장된다. <code>types.ts:17–22</code>가 못 박은 규칙 그대로다 —
+          <em>“프리셋을 고칠 때는 기존 값을 바꾸지 말고 <code>squish@2</code>를 추가한다.
+          이걸 어기면 6개월 뒤 애니메이션 하나 손봤을 때 과거 작품 전체가 다르게 재생된다.”</em>
+        </p>
+        <p>
+          그래서 <code>.mat-jelly</code>·<code>.mat-ice</code> 같은 재질 표면 CSS(1619–1756줄)와
+          움직임·LED 프리셋(1520–1618줄)은 <strong>모드로 갈아끼울 수 없다.</strong>
+          감상자가 보는 것은 언제나 <em>만든 사람이 고른 재질</em>이다.
+        </p>
+      </div>
+
+      <h3>그래서 바꿀 수 있는 것</h3>
+      <div class="table-wrap wide">
+        <table>
+          <thead><tr><th scope="col">대상</th><th scope="col">데이터인가</th><th scope="col">개인</th><th scope="col">그룹</th></tr></thead>
+          <tbody>
+            <tr><th scope="row"><code>.keyboard-plate</code> 판</th><td>아니오 — 화면 장식</td><td>흰 판 + 파스텔 테두리 2px + 아래 두께</td><td>연회색 판(<code>#EDF0F4</code>) + 1px 선</td></tr>
+            <tr><th scope="row">판 주변 조명</th><td>아니오</td><td>파스텔 하늘 그라데이션</td><td>없음. 평면</td></tr>
+            <tr><th scope="row">키캡 기본색(팔레트)</th><td>고를 때 저장됨</td><td><strong>놀이 색 5종으로 교체</strong></td><td>같은 5종 — 만들기 화면은 개인 모드다</td></tr>
+            <tr><th scope="row">키캡 하우징·굴절광</th><td>아니오 — 렌더 상수</td><td>지금 그대로. 흰 오버레이 50개가 여기</td><td>지금 그대로</td></tr>
+            <tr><th scope="row">각인(<code>Face</code> 4종)</th><td>저장됨</td><td><strong>확장 후보</strong> — §12 Q2</td><td>동일</td></tr>
+            <tr><th scope="row">썸네일 안의 키캡</th><td>렌더 결과</td><td>흰 카드 위</td><td>연회색 칸 위, 채도 낮춘 컨테이너</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        요약하면 <strong>키캡 자체는 두 모드에서 같고, 키캡이 놓인 환경이 다르다.</strong>
+        그룹 스테이지의 카드 썸네일에서 키캡은 회색 칸 안에 조용히 놓이고,
+        개인 모드의 스테이지에서는 흰 카드 위에 그림자를 달고 뜬다.
+        이것이 “모드별로 다르게”를 데이터 안전하게 지키는 방법이다.
+      </p>
+
+      <div class="found">
+        <span class="label">부수 효과</span>
+        <p>
+          키캡 렌더링에 손을 대지 않으므로 <code>PRESET_VERSION</code>·<code>ENGINE_VERSION</code>을
+          올릴 일이 없고, 마이그레이션도 없다. <strong>이번 개편은 스키마를 건드리지 않는다.</strong>
+        </p>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s9">
+      <div class="sec-head"><span class="n">09</span><h2>모드 전환의 코드 형태</h2></div>
+
+      <p>
+        그룹은 라우트가 아니라 <code>/feed?g=</code> 쿼리다.
+        모드도 라우트가 아니라 <strong>DOM 속성</strong>이어야 한다 —
+        그래야 딥링크·뒤로가기·새로고침이 지금과 똑같이 동작한다.
+      </p>
+
+<pre><code><span class="c">/* styles.css — 토큰은 두 벌, 규칙은 한 벌 */</span>
+
+:root {
+  <span class="c">/* 개인 모드가 기본값이다. 대부분의 방문이 링크로 들어온 감상이고,
+     그때는 그룹이 아니다. */</span>
+  <span class="k">--ground</span>: #FEF4F8;
+  <span class="k">--surface</span>: #FFFFFF;
+  <span class="k">--accent-fill</span>: #CE386F;
+  <span class="c">/* … §06 대응표의 개인 열 전체 */</span>
+}
+
+[data-mode="group"] {
+  <span class="c">/* 값만 다시 정의한다. 셀렉터는 하나도 다시 쓰지 않는다. */</span>
+  <span class="k">--ground</span>: #F7F8FA;
+  <span class="k">--surface</span>: #FFFFFF;
+  <span class="k">--accent-fill</span>: #B0561A;
+  <span class="k">--radius</span>: 10px;
+  <span class="k">--radius-pill</span>: 8px;
+  <span class="c">/* … §06 대응표의 그룹 열 전체 */</span>
+}
+</code></pre>
+
+      <p>속성을 붙이는 곳은 <code>FeedScreen</code>의 최상위 하나다:</p>
+
+<pre><code><span class="c">// FeedScreen.tsx — activeTab은 이미 있다(62줄)</span>
+const activeTab: 'all' | 'group' = searchParams.has('g') ? 'group' : 'all';
+
+return (
+  &lt;main className="screen feed" <span class="k">data-mode={activeTab === 'group' ? 'group' : undefined}</span>&gt;
+</code></pre>
+
+      <h3>왜 <code>&lt;html&gt;</code>이 아니라 화면 컨테이너인가</h3>
+      <ul>
+        <li><strong>되돌릴 필요가 없다.</strong> 컴포넌트가 언마운트되면 속성도 사라진다.
+            전역에 칠하면 “그룹 탭에서 나갔는데 색이 안 돌아온다”는 버그가 반드시 생긴다.</li>
+        <li><strong>탭 전환이 곧 색 전환이다.</strong> [모두]/[그룹]을 누르면 <code>searchParams</code>가 바뀌고
+            같은 렌더에서 속성이 바뀐다. 별도 상태·별도 effect가 없다.</li>
+        <li><strong>스크린샷·테스트가 쉽다.</strong> 속성 하나를 강제하면 두 모드를 같은 테스트에서 렌더할 수 있다.</li>
+      </ul>
+
+      <div class="risk">
+        <span class="label">화면 바깥으로 새는 것 둘</span>
+        <p>
+          <strong>①</strong> <code>body</code> 배경(<code>styles.css:46</code>)은 <code>.screen</code>보다 바깥이라
+          속성이 닿지 않는다. 그룹 탭에서는 <code>.screen</code>이 자기 바탕을 직접 칠하고
+          <code>min-height: 100dvh</code>로 화면을 덮어야 한다.
+        </p>
+        <p>
+          <strong>②</strong> <code>.bottom-nav</code>는 <code>position: fixed</code>라
+          <code>.screen</code> 안에 있어도 시각적으로는 위에 떠 있다.
+          지금은 <code>App.tsx</code>의 <code>.app-shell</code> 아래 형제로 렌더된다 —
+          <strong>속성을 <code>.app-shell</code>에 함께 올리든가, 내비를 예외로 두든가 결정이 필요하다.</strong> §10.
+        </p>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s10">
+      <div class="sec-head"><span class="n">10</span><h2>경계 — 두 색이 만나는 곳</h2></div>
+
+      <p>
+        “그룹 화면들만”이라는 범위는 <strong>경계를 만든다.</strong>
+        경계에서 무슨 일이 일어나는지를 미리 정해 두지 않으면
+        사용자는 색이 튀는 순간마다 “뭔가 잘못됐다”고 느낀다. 경계는 셋이다.
+      </p>
+
+      <h3>① 하단 내비 — 항상 보인다</h3>
+      <p>
+        홈·스테이지·프로필·안내·<code>/w/</code>·<code>/g/</code>에서 계속 떠 있다(<code>App.tsx:51–60</code>).
+        그룹 탭에 들어갔다고 내비 색까지 바뀌면 <strong>앱 전체가 바뀐 것처럼</strong> 보이고,
+        플로팅 형태가 요구되는 앱인토스 심사 조건과도 얽힌다.
+      </p>
+      <div class="verdict">
+        <span class="label">결정</span>
+        <p>
+          <strong>하단 내비는 개인 모드 색으로 고정한다.</strong>
+          그룹은 “스테이지 탭 안의 한 상태”이지 별개의 앱이 아니다.
+          내비가 그대로 있어야 그 사실이 읽힌다. 형태는 손대지 않는다.
+        </p>
+      </div>
+
+      <h3>② 그룹에서 작품을 열 때 — <code>/w/:id?g=…</code></h3>
+      <p>
+        그룹 스테이지에서 카드를 누르면 감상 화면으로 가고, 거기서 뒤로 가면 그룹 탭으로 돌아온다.
+        감상 화면은 <strong>작품이 주인공</strong>인 화면이라 개인 모드다.
+      </p>
+      <div class="verdict">
+        <span class="label">결정</span>
+        <p>
+          <strong>감상 화면은 개인 모드. 단 “돌아가기”만 그룹 표시를 단다.</strong>
+          이미 <code>styles.css:3239</code>에 그룹에서 들어온 감상 화면 전용 되돌아가기 스타일이 있다 —
+          거기에 그룹 이름을 붙이고 그룹 액센트를 쓴다.
+          <em>온 곳은 그룹, 지금 보는 것은 작품</em>이 한 줄로 표현된다.
+        </p>
+      </div>
+
+      <h3>③ 그룹에서 만들기로 들어갈 때</h3>
+      <p>
+        그룹 스테이지에서 “나도 만들기”를 누르면 <code>/create</code>로 간다.
+        만들기·무대·공연은 범위 밖이므로 <strong>개인 모드 화사한 화면으로 전환된다.</strong>
+        회사원이 파스텔 핑크 만들기 화면을 만나는 순간이 여기다.
+      </p>
+      <div class="verdict">
+        <span class="label">결정 — 이번 범위에서는 받아들인다</span>
+        <p>
+          만들기 도구는 두 관객이 <strong>같은 일</strong>(그림·소리·반복)을 하는 곳이고,
+          거기서까지 두 벌을 유지하면 편집 시트 797줄·그리기 378줄이 이중화된다.
+          다만 <strong>진입 직후 한 줄</strong>로 맥락을 잇는다:
+          만들기 화면 상단에 <code>“디자인팀 · 이번 주 합주에 올릴 작품”</code>이라는
+          그룹 표시 띠를 그룹 액센트로 둔다. 색은 개인 모드, <em>소속만 그룹</em>이다.
+        </p>
+        <p>
+          완성 후 <strong>공유 게이트</strong>는 예외다 — 여기서 “그룹에만 올림/공개”가 갈리므로
+          이 화면의 그룹 선택 영역만 그룹 토큰을 쓴다.
+        </p>
+      </div>
+
+      <h3>경계 요약</h3>
+      <div class="table-wrap wide">
+        <table>
+          <thead><tr><th scope="col">화면</th><th scope="col">경로</th><th scope="col">모드</th><th scope="col">예외</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">홈</th><td><code>/</code></td><td>개인</td><td>—</td></tr>
+            <tr><th scope="row">스테이지 [모두]</th><td><code>/feed</code></td><td>개인</td><td>—</td></tr>
+            <tr class="win"><th scope="row">스테이지 [그룹]</th><td><code>/feed?g=</code></td><td><strong>그룹</strong></td><td>하단 내비 제외</td></tr>
+            <tr class="win"><th scope="row">그룹 입장·만들기</th><td><code>/g/join</code></td><td><strong>그룹</strong></td><td>하단 내비 제외</td></tr>
+            <tr class="win"><th scope="row">그룹 활용 안내</th><td>모달</td><td><strong>그룹</strong></td><td>—</td></tr>
+            <tr><th scope="row">감상</th><td><code>/w/:id</code></td><td>개인</td><td>그룹 되돌아가기 줄만 그룹 액센트</td></tr>
+            <tr><th scope="row">만들기 · 무대 · 공연</th><td><code>/create /stage /perform</code></td><td>개인</td><td>그룹 표시 띠(있을 때)</td></tr>
+            <tr><th scope="row">공유 게이트</th><td><code>/card</code></td><td>개인</td><td>그룹 선택 영역만 그룹 토큰</td></tr>
+            <tr><th scope="row">프로필 · 사용법</th><td><code>/profile /guide</code></td><td>개인</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s11">
+      <div class="sec-head"><span class="n">11</span><h2>단계</h2></div>
+
+      <div class="phases wide">
+        <div class="phase">
+          <span class="when">P0 · 색 이동 없음 · 완료</span>
+          <span class="name">토큰 추출</span>
+          <span class="what">
+            하드코딩 82회와 <code>rgba()</code> 235회를 §06 이름으로 옮긴다.
+            <strong>값은 지금과 똑같이 둔다</strong> — 화면이 한 픽셀도 바뀌지 않아야 성공이다.
+            리뷰가 쉽고, 되돌리기도 쉽다.
+          </span>
+        </div>
+        <div class="phase">
+          <span class="when">P1 · 개인 모드 · 완료</span>
+          <span class="name">라이트 전환</span>
+          <span class="what">
+            <code>:root</code> 값을 파스텔로 교체. <code>color-scheme</code> 제거.
+            흰 오버레이 56개(크롬)를 토큰으로 뒤집고 그림자를 약화.
+            폼 컨트롤 셋을 눈으로 확인.
+          </span>
+        </div>
+        <div class="phase">
+          <span class="when">P2 · 그룹 모드 · 완료</span>
+          <span class="name">스코프 적용</span>
+          <span class="what">
+            <code>[data-mode="group"]</code> 블록 하나 + <code>FeedScreen</code>·<code>JoinGroupScreen</code>·
+            안내 모달에 속성. §07의 반경·굵기·간격 오버라이드.
+            §10의 경계 셋 구현.
+          </span>
+        </div>
+        <div class="phase">
+          <span class="when">P3 · 마감 · 완료</span>
+          <span class="name">키캡 환경</span>
+          <span class="what">
+            키보드 판·썸네일 컨테이너를 모드별로. 놀이 색 5종을 키캡 팔레트·색연필에 반영.
+            각인 확장은 §12 Q2 결정 후.
+          </span>
+        </div>
+      </div>
+
+      <p>
+        P0과 P1을 나누는 것이 이 계획의 핵심이다.
+        한 커밋에서 토큰화와 색 교체를 같이 하면
+        <strong>“색이 이상해진 것”과 “토큰을 잘못 뽑은 것”을 구별할 수 없다.</strong>
+        P0이 끝난 시점의 화면은 지금과 완전히 같아야 하고, 그것이 검증 방법이다.
+      </p>
+
+      <h3>단계별 확인 항목</h3>
+      <ul class="tight">
+        <li><strong>P0</strong> — 스크린샷 비교. 12개 화면 전부 픽셀 동일.</li>
+        <li><strong>P1</strong> — 검색창·초대 코드 입력·별명 입력의 기본 폼 렌더링. 대비비 표(§03) 재측정.</li>
+        <li><strong>P2</strong> — [모두]↔[그룹] 왕복 시 색이 되돌아오는가. <code>/w/:id?g=</code>에서 뒤로가기.</li>
+        <li><strong>P3</strong> — 재질 8종 렌더가 P0 시점과 동일한가(작품 재생 불변 확인).</li>
+        <li><strong>전 단계</strong> — <code>npm run typecheck</code> · <code>npm run test</code>.</li>
+      </ul>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s12">
+      <div class="sec-head"><span class="n">12</span><h2>남은 결정</h2></div>
+
+      <p>구현 전에 답이 있어야 하는 것들이다. 답에 따라 작업량이 달라진다.</p>
+
+      <ol class="questions">
+        <li><div>
+          <p class="q">다크 모드를 버리는가?</p>
+          <p class="a">
+            새 팔레트 둘 다 밝다. 지금 앱은 <code>color-scheme: dark</code> 고정이라
+            <strong>야간 사용자는 갑자기 밝은 화면을 만난다.</strong>
+            선택지: ⓐ 라이트 전용으로 간다(가장 단순, 이번 범위) ⓑ
+            <code>prefers-color-scheme</code>에 따른 어두운 변주를 두 모드 각각 만든다(토큰 값이 네 벌이 된다).
+            <strong>권장: ⓐ로 출시하고 사용자 반응을 본 뒤 ⓑ.</strong>
+          </p>
+        </div></li>
+        <li><div>
+          <p class="q">각인(<code>Face</code>)을 늘리는가?</p>
+          <p class="a">
+            지금 <code>'none' | 'happy' | 'cat' | 'monster'</code> 4종이다.
+            참고 이미지의 캐릭터 각인 느낌을 내려면 종류가 더 필요하다.
+            <strong>이것은 스키마 변경이다</strong> — 추가는 안전하지만(기존 값 유지)
+            <code>serialize.ts</code> 화이트리스트·<code>firestore.rules</code>를 함께 고쳐야 한다.
+            디자인 개편과 분리해 별도 항목으로 낼지 결정 필요.
+          </p>
+        </div></li>
+        <li><div>
+          <p class="q">그룹 모드에 조직 색을 허용하는가?</p>
+          <p class="a">
+            회사마다 브랜드 색이 있다. 그룹 만들 때 액센트를 고르게 하면 소속감이 생기지만,
+            <strong>대비비를 사용자가 정하게 되는 것</strong>이라 읽히지 않는 조합이 나온다.
+            허용한다면 미리 검증한 4~6색 중에서만 고르게 하는 형태여야 한다. 이번 범위 밖 제안.
+          </p>
+        </div></li>
+        <li><div>
+          <p class="q">개인 모드 그라데이션 바탕을 유지하는가?</p>
+          <p class="a">
+            <code>#FEF4F8 → #F2F1FD</code> 세로 그라데이션은 참고 이미지의 “파스텔 하늘”을 재현하지만,
+            긴 스크롤 화면에서는 아래쪽만 보라색이 된다.
+            대안: 상단 320px에만 그라데이션을 두고 그 아래는 <code>--ground</code> 평면.
+            <strong>P1에서 실제 화면으로 판단한다.</strong>
+          </p>
+        </div></li>
+        <li><div>
+          <p class="q">공개 피드([모두] 탭)는 어느 모드인가?</p>
+          <p class="a">
+            §10 표에서는 개인 모드로 두었다. 공개 피드에는 아이들 작품이 올라오므로 맞는 선택이다.
+            다만 <strong>그룹 스테이지와 나란히 있는 탭</strong>이라, 탭을 누를 때마다
+            화면 전체 색이 바뀌는 것이 어떻게 느껴지는지는 P2에서 직접 보고 판단해야 한다.
+            튄다면 대안은 “[그룹] 탭 안의 목록 영역만 그룹 토큰”으로 범위를 더 좁히는 것이다.
+          </p>
+        </div></li>
+      </ol>
+
+      <hr>
+
+      <p style="color: var(--text-dim); font-size: var(--step--1);">
+        이 문서는 <code>docs/group-stage-design.html</code>의 결정 위에 얹혀 있다.
+        그룹 스테이지의 기능·데이터 모델·보안 규칙은 그 문서를 따르고,
+        이 문서는 <strong>그 위에 무슨 색을 칠할지</strong>만 정한다.
+      </p>
+    </section>
+
+    <!-- ────────────────────────────────────────────── -->
+    <section id="s13">
+      <div class="sec-head"><span class="n">13</span><h2>계획과 실제의 차이</h2></div>
+
+      <p>
+        위 §01–§12는 코드를 열기 전에 쓴 계획이다. 네 단계를 다 구현하고 나서,
+        <strong>계획이 틀렸던 곳</strong>만 여기 적는다. 다음에 이 문서를 읽는 사람이
+        §06의 표를 그대로 믿고 쓰면 안 되는 지점들이다.
+      </p>
+
+      <div class="verdict">
+        <span class="label">가장 큰 발견</span>
+        <p>
+          <strong>어두운 테마에서 <code>rgba(255,255,255,…)</code>는 장식이 아니라
+          컨트롤의 경계선이었다.</strong> §01은 흰 오버레이 106개를 "밝은 바탕에서
+          안 보이게 되는 것"으로만 셌는데, 그중 일부는 <em>스위치 트랙과 입력칸의
+          테두리가 어디까지인지</em>를 알려주는 유일한 신호였다. 밝은 바탕으로
+          넘어오자 그 역할이 통째로 없어져서, 프로필의 공개 스위치는
+          <strong>흰 카드 위 1.05:1</strong>로 컨트롤 자체가 사라졌다.
+        </p>
+        <p>
+          §06 표에 없던 <code>--control-line</code>을 새로 뒀다. 장식용
+          <code>--line</code>과 달리 인접 색과 3:1을 지켜야 하는 선이다
+          (WCAG 1.4.11). 적용처는 스위치 트랙 둘, 입력칸 테두리, 루프 토글 넷.
+        </p>
+      </div>
+
+      <h3>§08이 틀렸던 곳 — 키캡 하우징</h3>
+      <div class="risk">
+        <span class="label">"지금 그대로"가 안 됐다</span>
+        <p>
+          §08 표는 <strong>키캡 하우징·굴절광을 "지금 그대로"</strong>로 두고
+          판만 바꾸면 된다고 했다. 실제로는 그 둘이 한 몸이었다.
+          투명 스위치 하우징은 <code>rgba(255,255,255,0.42→0.5)</code>로 그려져
+          있었고 — 코드 주석이 이유를 적어두고 있었다:
+          <em>"어두운 상판 위에서 '투명'으로 읽히려면 흰색을 세게 넣어야 한다."</em>
+        </p>
+        <p>
+          판이 희어지자 흰 하우징이 판에 묻혀 <strong>금색 접점 두 개만 공중에
+          떠 있는</strong> 화면이 됐다. 투명한 것은 자기 색이 없고 뒤에 있는 것보다
+          진하거나 연해 보일 뿐이라, 흰색 기반을 <strong>옅은 먹빛 기반으로
+          뒤집었다</strong>(하이라이트만 흰색으로 남겼다). 재질 8종과 달리 하우징은
+          작품 데이터가 아니라 렌더 상수라 스키마와는 무관하다.
+        </p>
+      </div>
+
+      <h3>CSS로는 못 고치는 것 — 구워진 썸네일</h3>
+      <p>
+        홈 목록과 공유 카드의 썸네일은 <code>canvas</code>로 그려 PNG/JPEG로
+        저장된다. 배경이 이미지 <strong>안에</strong> 있어서 토큰을 바꿔도 예전
+        썸네일은 어두운 채로 남는다. <code>THUMB_VERSION</code>을 두고 홈이
+        판 번호가 다른 썸네일을 만나면 다시 그리게 했다 — 작품당 한 번의 비용이고,
+        색을 또 바꿀 일이 있으면 숫자를 올리는 것이 전부다.
+      </p>
+      <div class="risk">
+        <span class="label">되돌릴 수 없는 것</span>
+        <p>
+          <strong>이미 서버에 올라간 공유 커버는 그대로 어둡다.</strong>
+          그건 남의 기기에서 만들어져 원격에 저장된 이미지라 이쪽에서 다시 그릴 수
+          없다. 새로 올리는 작품부터 밝은 커버가 된다 — 공개 피드는 한동안
+          두 세대가 섞여 보인다.
+        </p>
+      </div>
+
+      <h3>선택지에서 뺀 색</h3>
+      <p>
+        <code>palette.ts</code>의 여덟 색은 주석이 기준을 명시하고 있었다 —
+        <em>"어두운 보라 배경 위에서 그대로 보여야 한다. 골라도 안 보이는 색은
+        선택지가 아니라 함정이다."</em> 그 기준이 뒤집히면서
+        <strong>하양이 함정이 됐다.</strong> 흔적은 화면 배경 위에 직접 찍히기 때문에
+        흰 흔적은 밝은 바탕에서 사라진다. 하양을 빼고 먹색을 넣었고
+        (<code>edit.capColor.white</code> → <code>edit.capColor.ink</code>),
+        여덟 다 oklch로 밝기를 맞춰 다시 잡았다. 기존 작품에 저장된 색은
+        그대로다 — 목록에서 고를 수 있는 색만 바뀐다.
+      </p>
+
+      <h3>대비 때문에 움직인 값</h3>
+      <div class="table-wrap wide">
+        <table>
+          <thead><tr><th scope="col">토큰</th><th scope="col">계획</th><th scope="col">실제</th><th scope="col">왜</th></tr></thead>
+          <tbody>
+            <tr><th scope="row"><code>--accent-ink</code></th><td><code>#C22B65</code></td><td><code>#BB2260</code></td>
+                <td>배지 배경(<code>--accent-wash-2</code>) 위에서 4.39:1로 미달이었다. 11px 배지라 큰 글자 예외도 못 쓴다</td></tr>
+            <tr><th scope="row"><code>--play-1</code></th><td><code>#F16C87</code></td><td><code>#ED7088</code></td>
+                <td>먹색 글자와 4.47:1 — 문턱에서 3/100 모자랐다</td></tr>
+            <tr><th scope="row"><code>--text-faint</code></th><td>—</td><td><code>#887A8F</code> · 3.7:1</td>
+                <td>세 단계 글자색이 밝은 바탕에서 전부 4.5를 넘으면 위계가 무너진다.
+                    그룹 팔레트와 같은 자세를 택했다 — <strong>큰 글자 전용</strong>으로 역할을 좁히고,
+                    작은 글자였던 두 곳(<code>.app-version</code>, 루프 토글 꺼짐)은 <code>--text-dim</code>으로 옮겼다</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>§06이 놓친 갈래 — 액센트는 하나가 아니었다</h3>
+      <p>
+        표에는 <code>--accent</code>와 <code>--accent-fill</code>이 따로 있었지만,
+        기존 코드는 <code>var(--accent)</code> 하나를 <strong>33곳</strong>에서 쓰고 있었고
+        그게 배경인지 글자인지 구분이 없었다. 노랑일 때는 아무 문제가 없었다 —
+        어두운 바탕에서 <code>#ffd400</code>은 12.9:1이라 어느 쪽으로 써도 읽혔기 때문이다.
+        딸기 핑크는 흰 글자와 3.2:1이라 그 구분이 즉시 필요해졌다:
+        <strong>채움 9곳은 <code>--accent-fill</code>로, 글자 17곳은 <code>--accent-ink</code>로</strong>
+        갈랐고, 나머지 7곳(진행바·비트 점·포커스 링처럼 글자가 안 얹히는 면)만 <code>--accent</code>에 남았다.
+      </p>
+
+      <h3>구현하지 않은 것</h3>
+      <div class="found">
+        <span class="label">경계 ③ — 만들기 화면의 그룹 표시 띠</span>
+        <p>
+          §10은 그룹에서 만들기로 들어갈 때 상단에 그룹 표시 띠를 두자고 했다.
+          <strong>붙일 자리가 없었다</strong> — 그룹 스테이지에는 "나도 만들기" 진입이
+          아예 없고(<code>GroupStageScreen</code>의 이동은 감상 화면 하나뿐이다),
+          작품이 어느 그룹에 속하는지는 만들 때가 아니라 <strong>공유 게이트에서</strong>
+          정해진다. 없는 흐름에 색을 칠할 수는 없어서, 대신 공유 게이트의
+          <strong>그룹 칸에만</strong> 그룹 토큰을 붙였다 — 바로 아래 [공개 스테이지]와
+          색이 달라서 어디에 올리는 것인지가 고르는 순간 읽힌다.
+        </p>
+      </div>
+
+      <h3>확인한 것</h3>
+      <ul class="tight">
+        <li><strong>P0</strong> — <code>var()</code>를 전부 원래 값으로 되돌려 원본과 대조.
+            <strong>3,573줄 완전 일치</strong>. 색이 한 곳도 움직이지 않았다.</li>
+        <li><strong>대비</strong> — 실제로 함께 쓰이는 24쌍을 토큰에서 풀어 측정.
+            개인 모드는 <code>--text-faint</code>(큰 글자 전용) 하나만 4.5 아래,
+            그룹 모드는 크롬 전부 5.0 이상.</li>
+        <li><strong>화면</strong> — 홈·스테이지(두 탭)·프로필·사용법·만들기·리허설·편집 시트·
+            그룹 만들기를 390×844에서 직접 확인. 폼 컨트롤 셋(검색·별명·초대 코드)은
+            <code>color-scheme</code>을 뒤집은 뒤 눈으로 봤다.</li>
+        <li><strong>[모두]↔[그룹] 왕복</strong> — 탭을 오갈 때 색이 정확히 되돌아온다.
+            속성이 컴포넌트와 함께 사라지므로 되돌릴 코드가 없다.</li>
+        <li><code>npm run typecheck</code> · <code>npm test</code>(203개) · <code>npm run build</code> 통과.</li>
+      </ul>
+
+      <div class="risk">
+        <span class="label">아직 안 본 것</span>
+        <p>
+          공연·감상 화면과 편집 시트의 <strong>비밀 연출</strong>(<code>.secret-dim</code>,
+          <code>.secret-burst</code>)은 일부러 어둡게 남겨 뒀다 — 화면을 덮고 터지는
+          연출이라 밝은 바탕에서도 어두운 것이 맞다. 다만 <strong>실제 기기에서
+          공연 한 판을 끝까지 돌려본 적은 없다.</strong> 흔적이 쌓이는 화면과
+          비밀이 열리는 순간은 눈으로 한 번 봐야 한다.
+        </p>
+      </div>
+    </section>
+  </main>
+</div>
+
+</body>
+</html>

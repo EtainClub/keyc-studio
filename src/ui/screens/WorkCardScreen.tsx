@@ -10,6 +10,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { workBytes } from '../../storage/db';
 import { explainFirebaseError, shareUrl, unshareWork } from '../../storage/remote';
 import { t } from '../../i18n';
+import { isTossApp } from '../../platform/toss';
 import { HINT_MAX, TITLE_MAX } from '../../work-model/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { KeycapGrid, type GridHandle } from '../components/KeycapGrid';
@@ -98,9 +99,11 @@ export function WorkCardScreen() {
   return (
     <main className="screen card">
       <header className="bar">
-        <button type="button" className="bar-back" onClick={() => nav('/perform')}>
-          {t('card.backToPerform')}
-        </button>
+        {!isTossApp() && (
+          <button type="button" className="bar-back" onClick={() => nav('/perform')}>
+            {t('card.backToPerform')}
+          </button>
+        )}
         <h1>{t('card.title')}</h1>
       </header>
 

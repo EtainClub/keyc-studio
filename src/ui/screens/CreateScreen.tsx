@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { t } from '../../i18n';
+import { isTossApp } from '../../platform/toss';
 import { findAsset, type AssetRef, type KeyIndex } from '../../work-model/types';
 import { EditSheet } from '../components/EditSheet';
 import { KeycapGrid, type GridHandle } from '../components/KeycapGrid';
@@ -45,9 +46,11 @@ export function CreateScreen() {
   return (
     <main className="screen create">
       <header className="bar">
-        <button type="button" className="bar-back" onClick={() => nav('/')}>
-          ‹ {t('common.home')}
-        </button>
+        {!isTossApp() && (
+          <button type="button" className="bar-back" onClick={() => nav('/')}>
+            ‹ {t('common.home')}
+          </button>
+        )}
         <h1>{t('create.title')}</h1>
       </header>
 

@@ -295,7 +295,7 @@ export const ko = {
   'edit.capColor.yellow': '노랑',
   'edit.capColor.green': '초록',
   'edit.capColor.blue': '파랑',
-  'edit.capColor.white': '하양',
+  'edit.capColor.ink': '먹색',
   'edit.capColor.purple': '보라',
   'edit.capColor.orange': '주황',
   'edit.capColor.red': '빨강',

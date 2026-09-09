@@ -195,17 +195,17 @@ export async function renderShareThumb(work: Work): Promise<Blob> {
   const ctx = canvas.getContext('2d')!;
 
   const bg = ctx.createLinearGradient(0, 0, OG_W, OG_H);
-  bg.addColorStop(0, '#1b1436');
-  bg.addColorStop(1, '#3a1f5c');
+  bg.addColorStop(0, '#FEF4F8');
+  bg.addColorStop(1, '#F2F1FD');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, OG_W, OG_H);
 
   // 제목 위, 키캡 한 줄 아래 — 키보드 한 줄처럼 보이는 배치가 곧 이 제품의 얼굴이다.
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#3D2A46';
   ctx.font = 'bold 66px system-ui, -apple-system, sans-serif';
   ctx.fillText(work.title || t('common.untitled'), OG_W / 2, 128, 1000);
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.fillStyle = '#75657D';
   ctx.font = '36px system-ui, -apple-system, sans-serif';
   ctx.fillText(work.hint || t('thumb.defaultHint'), OG_W / 2, 188, 1000);
 
@@ -214,12 +214,21 @@ export async function renderShareThumb(work: Work): Promise<Blob> {
   const rowW = cap * 4 + gap * 3;
   drawKeycaps(ctx, work, arts, { x: (OG_W - rowW) / 2, y: 250, cap, gap });
 
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillStyle = '#887A8F';
   ctx.font = '30px system-ui, -apple-system, sans-serif';
   ctx.fillText(t('view.by', { nick: work.authorNick }), OG_W / 2, 552, 800);
 
   return toJpegUnder(canvas, MAX_THUMB_BYTES);
 }
+
+/**
+ * 썸네일 판(版).
+ *
+ * 배경은 PNG 안에 구워진다 — 화면 색을 바꿔도 이미 저장된 썸네일은 어두운 채로
+ * 남는다. 그래서 판 번호를 두고, 홈이 이 번호와 다른 썸네일을 만나면 다시 그린다.
+ * 색을 또 바꿀 일이 있으면 이 숫자를 올리는 것이 전부다.
+ */
+export const THUMB_VERSION = 2;
 
 /**
  * 홈 목록용 썸네일. 로컬에만 둔다.
@@ -232,7 +241,10 @@ export async function renderListThumb(work: Work, width = 320): Promise<Blob> {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#241a44';
+  const bg = ctx.createLinearGradient(0, 0, width, height);
+  bg.addColorStop(0, '#FFF8FB');
+  bg.addColorStop(1, '#FFE9F3');
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
 
   const gap = width * 0.03;

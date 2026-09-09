@@ -7,15 +7,117 @@
  */
 
 :root {
-  --bg: #150f2b;
-  --bg-2: #241a44;
-  --fg: #ffffff;
-  --fg-dim: rgba(255, 255, 255, 0.66);
-  --accent: #ffd400;
-  --danger: #ff4d6d;
-  --radius: 20px;
+  /*
+   * 이름은 의미로 짓는다 — `--purple`이 아니라 `--surface`다.
+   * 두 번째 팔레트(그룹 모드)에서 이름이 거짓말을 하지 않게 하려는 것이고,
+   * 그래서 값이 아니라 역할이 이름이 된다. 설계는 docs/design-overhaul.html.
+   *
+   * 여기 있는 값은 토큰을 뽑기 전과 **완전히 같다**. 색을 옮기는 것은 다음 일이다.
+   */
 
-  color-scheme: dark;
+  /* 바탕과 면 */
+  --ground: #FEF4F8;
+  --ground-2: #F2F1FD;
+  --surface: #FFFFFF;
+  --surface-2: #FFF8FB;
+  --surface-solid: #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --fill: #FFE9F3;
+  --fill-press: #FDD9E9;
+  /* 안으로 파인 것 — 세그먼트·탭의 트랙. 위의 --fill과 반대 방향이다. */
+  --well: #FBDFEB;
+  --well-2: #FBDFEB;
+  --scrim: rgba(61, 42, 70, 0.45);
+  /*
+   * 썸네일과 그림 위에 얹히는 라벨. 밑에 무슨 색이 오든 읽혀야 하므로
+   * 바탕이 밝아져도 이것만은 어둡게 남는다.
+   */
+  --overlay: rgba(61, 42, 70, 0.78);
+  /* 떠 있는 하단 내비 — 뒤가 비치되 글자는 읽혀야 한다. */
+  --nav-bg: rgba(255, 255, 255, 0.92);
+
+  /* 선. --line과 --fill-press는 역할이 다르다 —
+     테두리에는 --line, 배경에는 --fill-press를 쓴다. */
+  --line: #F1CEDD;
+  --line-soft: #F9E0EB;
+  --line-faint: #FCEDF3;
+  --line-strong: #EABBD0;
+  /*
+   * 컨트롤의 경계. 스위치 트랙·입력칸처럼 "여기까지가 누를 수 있는 것"을
+   * 알려야 하는 선은 장식용 --line보다 진해야 한다(WCAG 1.4.11의 3:1).
+   * 어두운 바탕에서는 흰 오버레이가 이 일을 하고 있었고, 밝은 바탕으로
+   * 넘어오면서 그 역할이 통째로 사라졌다.
+   */
+  --control-line: #887A8F;
+
+  /*
+   * 그림자. 밝은 바탕에서 검정 그림자는 때가 낀 것처럼 보인다 —
+   * 바탕과 같은 계열의 어두운 자주로 흐린다.
+   */
+  --shadow-1: rgba(93, 58, 80, 0.1);
+  --shadow-2: rgba(93, 58, 80, 0.16);
+  --shadow-3: rgba(93, 58, 80, 0.22);
+
+  /* 글자. 순검정은 파스텔 위에서 구멍처럼 뚫린다 — 따뜻한 자주 먹을 쓴다. */
+  --text: #3D2A46;
+  --text-dim: #75657D;
+  --text-faint: #887A8F;
+
+  /*
+   * 액센트. --accent에는 글자를 얹지 않는다 — 흰 글자와 3.2:1이라 못 읽는다.
+   * 글자가 얹히는 채움은 --accent-fill(흰 글자 4.8:1),
+   * 액센트가 글자일 때는 --accent-ink(5.5:1)다.
+   */
+  --accent: #F6558C;
+  --accent-fill: #CE386F;
+  --accent-warm: #B5285F;
+  --accent-on: #FFFFFF;
+  --accent-deep-on: #FFFFFF;
+  --accent-ink: #BB2260;
+  --accent-edge: #90204A;
+  --accent-wash: #FFE9F3;
+  --accent-wash-2: #FFDDEC;
+  --accent-wash-soft: #FEF4F8;
+  --accent-line: #F0B2CF;
+  --accent-ring: rgba(246, 85, 140, 0.35);
+  --accent-glow: rgba(206, 56, 111, 0.28);
+
+  /*
+   * 되는 쪽 — 루프 켜짐, 다 들었음, 완료.
+   * --go 위의 글자는 흰색이 아니라 먹색이다(흰 글자는 2.5:1로 미달).
+   */
+  --go: #3DBA64;
+  --go-deep: #2E9B51;
+  --go-edge: #1F7A3C;
+  --go-on: #3D2A46;
+  --go-ink: #0A7E3A;
+  --go-wash: #E3F6E6;
+  --go-wash-2: #C6EDD0;
+  --go-glow: rgba(61, 186, 100, 0.45);
+
+  /* 되돌릴 수 없는 쪽. */
+  --danger: #D23855;
+  --danger-edge: #8E1F35;
+  --danger-on: #FFFFFF;
+  --danger-ink: #AF1B3E;
+  --danger-wash: #FCE7EA;
+
+  /*
+   * 놀이 색. UI 크롬에는 쓰지 않는다 — 키캡·색연필·구분 배지처럼
+   * 여러 개가 나란히 놓여 서로 달라야 하는 곳에만 쓴다.
+   * 다섯 다 oklch L 0.70으로 밝기가 같아 어느 하나가 튀지 않고,
+   * 위의 글자는 전부 --text다(흰 글자는 다섯 다 미달).
+   */
+  --play-1: #ED7088;
+  --play-2: #D38E22;
+  --play-3: #3DBA64;
+  --play-4: #2FA8EF;
+  --play-5: #B780F0;
+
+  --radius: 22px;
+  --radius-pill: 999px;
+
+  color-scheme: light;
 }
 
 * {
@@ -43,8 +145,8 @@ body,
 }
 
 body {
-  background: radial-gradient(120% 90% at 50% 0%, #2c1f52 0%, var(--bg) 60%);
-  color: var(--fg);
+  background: radial-gradient(120% 90% at 50% 0%, var(--ground-2) 0%, var(--ground) 60%);
+  color: var(--text);
   font-family: 'Pretendard', system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
   overscroll-behavior: none;
   /* 아이가 연타할 때 화면이 확대·스크롤되지 않게 */
@@ -63,7 +165,7 @@ button {
 /*
  * 키보드 포커스 표시.
  *
- * 브라우저 기본 링(1px)은 이 어두운 보라 배경에서 거의 보이지 않는다.
+ * 브라우저 기본 링(1px)은 밝은 바탕에서도 거의 보이지 않는다.
  * :focus가 아니라 :focus-visible을 쓴다 — 마우스나 손가락으로 눌렀을 때는
  * 링이 뜨지 않고, 키보드로 옮겨 다닐 때만 뜬다.
  * outline은 border와 달리 자리를 차지하지 않아 레이아웃이 흔들리지 않는다.
@@ -129,19 +231,19 @@ button {
 }
 .bar-back {
   font-size: 17px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   padding: 8px 4px;
 }
 
 .row-label {
   font-size: 15px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   margin: 4px 0;
 }
 
 .note {
   font-size: 14px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   margin: 0;
   line-height: 1.5;
 }
@@ -154,7 +256,7 @@ button {
 
 .guide {
   font-size: 15px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   margin: 0;
   text-align: center;
 }
@@ -162,8 +264,8 @@ button {
 .chip {
   min-height: 52px;
   padding: 10px 16px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-pill);
+  background: var(--fill);
   font-size: 16px;
   font-weight: 600;
   transition: transform 120ms ease, background 120ms ease;
@@ -172,12 +274,12 @@ button {
   transform: scale(0.95);
 }
 .chip.on {
-  background: var(--accent);
-  color: #241a44;
+  background: var(--accent-fill);
+  color: var(--accent-on);
 }
 .chip.primary {
-  background: #3dd6a0;
-  color: #10352a;
+  background: var(--go);
+  color: var(--go-on);
 }
 .chip.big {
   flex: 1;
@@ -193,7 +295,7 @@ button {
 /* 되돌릴 수 없는 쪽. 색만으로 구분하지 않도록 글자에도 무슨 일이 나는지 적는다. */
 .chip.danger-solid {
   background: var(--danger);
-  color: #3d0511;
+  color: var(--danger-on);
   font-weight: 800;
 }
 
@@ -207,20 +309,20 @@ button {
   width: 100%;
   min-height: 76px;
   border-radius: var(--radius);
-  background: linear-gradient(180deg, #ffd400, #ff9f1c);
-  color: #2b1a00;
+  background: linear-gradient(180deg, var(--accent-fill), var(--accent-warm));
+  color: var(--accent-deep-on);
   font-size: 22px;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  box-shadow: 0 8px 0 #b96f00;
+  box-shadow: 0 8px 0 var(--accent-edge);
   transition: transform 90ms ease, box-shadow 90ms ease;
 }
 .big-cta:active {
   transform: translateY(6px);
-  box-shadow: 0 2px 0 #b96f00;
+  box-shadow: 0 2px 0 var(--accent-edge);
 }
 .big-cta:disabled {
   opacity: 0.6;
@@ -235,7 +337,7 @@ button {
 .progress {
   height: 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--well);
   overflow: hidden;
 }
 .progress-fill {
@@ -258,7 +360,7 @@ button {
 }
 .nick {
   font-size: 14px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   margin: 0;
 }
 .profile-menu {
@@ -274,7 +376,7 @@ button {
   border-radius: 50%;
 }
 .profile-trigger[aria-expanded='true'] {
-  background: rgba(255, 212, 0, 0.12);
+  background: var(--accent-wash);
 }
 .profile-trigger:focus-visible,
 .profile-menu-item:focus-visible {
@@ -287,10 +389,10 @@ button {
   right: 0;
   width: min(250px, calc(100vw - 32px));
   padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--line-strong);
   border-radius: 18px;
-  background: rgba(30, 21, 57, 0.98);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+  background: var(--surface-raised);
+  box-shadow: 0 18px 48px var(--shadow-3);
   backdrop-filter: blur(18px);
   transform-origin: top right;
   animation: profile-menu-in 130ms ease-out;
@@ -307,7 +409,7 @@ button {
   align-items: center;
   gap: 10px;
   padding: 5px 6px 11px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom: 1px solid var(--line-soft);
 }
 .profile-dropdown-user .profile-avatar {
   width: 38px;
@@ -327,7 +429,7 @@ button {
   white-space: nowrap;
 }
 .profile-dropdown-user small {
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 11px;
 }
 .profile-menu-item {
@@ -344,7 +446,7 @@ button {
   font-weight: 750;
 }
 .profile-menu-item:active {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill-press);
 }
 .profile-menu-icon {
   width: 28px;
@@ -352,13 +454,13 @@ button {
   display: grid;
   place-items: center;
   border-radius: 9px;
-  background: rgba(255, 212, 0, 0.14);
-  color: var(--accent);
+  background: var(--accent-wash-2);
+  color: var(--accent-ink);
   font-size: 17px;
 }
 .profile-menu-icon.guide {
-  background: rgba(65, 211, 164, 0.14);
-  color: #72e7bf;
+  background: var(--go-wash);
+  color: var(--go-ink);
   font-size: 15px;
   font-weight: 900;
 }
@@ -374,12 +476,12 @@ button {
 .guide-hero {
   padding: 22px 20px;
   overflow: hidden;
-  border: 1px solid rgba(255, 212, 0, 0.18);
+  border: 1px solid var(--accent-line);
   border-radius: 24px;
   background:
-    radial-gradient(circle at 88% 20%, rgba(255, 212, 0, 0.2), transparent 30%),
-    linear-gradient(145deg, rgba(73, 53, 114, 0.95), rgba(36, 26, 68, 0.95));
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+    radial-gradient(circle at 88% 20%, var(--accent-ring), transparent 30%),
+    linear-gradient(145deg, var(--surface), var(--accent-wash));
+  box-shadow: 0 18px 42px var(--shadow-1);
 }
 .guide-hero h1 {
   margin: 2px 0 6px;
@@ -388,7 +490,7 @@ button {
 }
 .guide-hero > p:last-child {
   margin: 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 15px;
   line-height: 1.6;
 }
@@ -405,9 +507,9 @@ button {
   grid-template-columns: 54px minmax(0, 1fr);
   gap: 12px;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--line-soft);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-2);
   content-visibility: auto;
   contain-intrinsic-size: 180px;
 }
@@ -420,8 +522,8 @@ button {
   justify-content: center;
   gap: 1px;
   border-radius: 16px;
-  background: linear-gradient(155deg, rgba(255, 212, 0, 0.2), rgba(255, 159, 28, 0.1));
-  color: var(--accent);
+  background: linear-gradient(155deg, var(--accent-wash-2), var(--accent-wash));
+  color: var(--accent-ink);
 }
 .guide-step-number span {
   font-size: 10px;
@@ -437,7 +539,7 @@ button {
 }
 .guide-step-copy p {
   margin: 0;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--text);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -445,8 +547,8 @@ button {
   display: block;
   margin-top: 9px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  color: #ffe36c;
+  border-top: 1px solid var(--line-faint);
+  color: var(--accent-ink);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -456,7 +558,7 @@ button {
   gap: 12px;
   padding: 16px;
   border-radius: 20px;
-  background: rgba(65, 211, 164, 0.11);
+  background: var(--go-wash);
 }
 .guide-account > span {
   width: 38px;
@@ -465,8 +567,8 @@ button {
   display: grid;
   place-items: center;
   border-radius: 13px;
-  background: rgba(65, 211, 164, 0.18);
-  color: #72e7bf;
+  background: var(--go-wash-2);
+  color: var(--go-ink);
   font-size: 20px;
 }
 .guide-account h2 {
@@ -475,7 +577,7 @@ button {
 }
 .guide-account p {
   margin: 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 13px;
   line-height: 1.55;
 }
@@ -488,10 +590,10 @@ button {
   height: 44px;
   display: grid;
   place-items: center;
-  border: 2px solid rgba(255, 212, 0, 0.45);
+  border: 2px solid var(--accent-line);
   border-radius: 50%;
-  background: linear-gradient(145deg, #493572, #241a44);
-  color: var(--accent);
+  background: linear-gradient(145deg, var(--play-5), var(--play-1));
+  color: var(--text);
   font-size: 18px;
   font-weight: 900;
   object-fit: cover;
@@ -504,7 +606,7 @@ button {
 }
 .app-version {
   margin-top: auto;
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--text-dim);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
@@ -518,10 +620,10 @@ button {
   flex-direction: column;
   gap: 16px;
   padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--line);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.16);
+  background: var(--surface);
+  box-shadow: 0 16px 42px var(--shadow-1);
 }
 .profile-avatar-button {
   align-self: center;
@@ -533,8 +635,8 @@ button {
   justify-content: center;
   gap: 8px;
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.055);
-  color: var(--fg-dim);
+  background: var(--surface-2);
+  color: var(--text-dim);
   font-size: 13px;
   font-weight: 700;
 }
@@ -549,9 +651,9 @@ button {
   align-items: center;
   gap: 10px 14px;
   padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.045);
+  background: var(--surface-2);
 }
 .stage-avatar-copy {
   min-width: 0;
@@ -564,13 +666,13 @@ button {
 .stage-avatar-copy p,
 .stage-avatar-help {
   margin: 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 12px;
   line-height: 1.55;
 }
 .stage-avatar-help {
   grid-column: 1 / -1;
-  color: #ffd96a;
+  color: var(--accent-ink);
 }
 .privacy-switch {
   position: relative;
@@ -578,7 +680,8 @@ button {
   height: 32px;
   flex: 0 0 auto;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1.5px var(--control-line);
   transition: background 160ms ease;
 }
 .privacy-switch > span {
@@ -588,12 +691,12 @@ button {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  background: var(--surface);
+  box-shadow: 0 2px 8px var(--shadow-2);
   transition: transform 160ms ease;
 }
 .privacy-switch.active {
-  background: #41d3a4;
+  background: var(--go);
 }
 .privacy-switch.active > span {
   transform: translateX(22px);
@@ -612,7 +715,7 @@ button {
 }
 .account-card .note {
   margin: 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 14px;
   line-height: 1.65;
   overflow-wrap: anywhere;
@@ -637,14 +740,14 @@ button {
   margin: 0;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(62, 218, 167, 0.14);
-  color: #85f0cc;
+  background: var(--go-wash);
+  color: var(--go-ink);
   font-size: 14px;
   line-height: 1.5;
 }
 
 .mission {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-2);
   border-radius: var(--radius);
   padding: 14px 16px;
   font-size: 16px;
@@ -653,11 +756,11 @@ button {
 }
 .mission-tag {
   display: inline-block;
-  background: var(--accent);
-  color: #241a44;
+  background: var(--accent-fill);
+  color: var(--accent-on);
   font-size: 12px;
   font-weight: 800;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 3px 10px;
   margin-right: 8px;
 }
@@ -667,7 +770,7 @@ button {
   margin: 0 0 10px;
 }
 .empty {
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 15px;
 }
 .work-list {
@@ -686,7 +789,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--surface);
   border-radius: var(--radius);
   padding: 10px;
   text-align: left;
@@ -696,7 +799,7 @@ button {
   /* 키캡 한 줄이 들어가는 가로형 카드 */
   aspect-ratio: 16 / 10;
   border-radius: 14px;
-  background: var(--bg-2);
+  background: var(--surface-solid);
   object-fit: cover;
 }
 .work-title {
@@ -705,7 +808,7 @@ button {
 }
 .work-state {
   font-size: 12px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
 }
 .work-delete {
   position: absolute;
@@ -714,7 +817,7 @@ button {
   width: 32px;
   height: 32px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay);
   font-size: 14px;
 }
 
@@ -732,7 +835,7 @@ button {
 }
 .feed-kicker {
   margin: 0 0 4px;
-  color: var(--accent);
+  color: var(--accent-ink);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.18em;
@@ -744,7 +847,7 @@ button {
 }
 .feed-head div > p:last-child {
   margin: 6px 0 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 14px;
 }
 /* ── 피드 도구 — 검색과 필터 ─────────────────── */
@@ -760,8 +863,8 @@ button {
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
 }
 .feed-search-icon {
   flex: none;
@@ -775,12 +878,12 @@ button {
   min-height: 52px;
   border: 0;
   background: none;
-  color: var(--fg);
+  color: var(--text);
   font: inherit;
   font-size: 16px; /* 16px 미만이면 iOS가 입력할 때 화면을 확대한다 */
 }
 .feed-search input::placeholder {
-  color: var(--fg-dim);
+  color: var(--text-dim);
 }
 /* 검색 타입의 브라우저 기본 ✕는 숨긴다 — 우리 버튼이 더 크고 라벨이 있다. */
 .feed-search input::-webkit-search-cancel-button {
@@ -790,8 +893,8 @@ button {
   flex: none;
   width: 36px;
   height: 36px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-pill);
+  background: var(--fill-press);
   font-size: 14px;
 }
 /*
@@ -824,7 +927,7 @@ button {
 .feed-status {
   margin: 0;
   min-height: 20px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 14px;
 }
 .feed-more {
@@ -837,8 +940,8 @@ button {
   display: grid;
   place-items: center;
   border-radius: 14px;
-  background: rgba(255, 212, 0, 0.14);
-  color: var(--accent);
+  background: var(--accent-wash-2);
+  color: var(--accent-ink);
   font-weight: 900;
 }
 .feed-list {
@@ -848,16 +951,16 @@ button {
 }
 .feed-card {
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--line);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+  background: var(--surface);
+  box-shadow: 0 16px 36px var(--shadow-1);
   content-visibility: auto;
   contain-intrinsic-size: 330px;
 }
 .feed-card.featured {
-  border-color: rgba(255, 212, 0, 0.32);
-  background: linear-gradient(160deg, rgba(255, 212, 0, 0.11), rgba(255, 255, 255, 0.06) 46%);
+  border-color: var(--accent-line);
+  background: linear-gradient(160deg, var(--accent-wash), var(--surface) 46%);
 }
 .feed-cover {
   position: relative;
@@ -870,8 +973,8 @@ button {
   overflow: hidden;
   border-radius: 17px;
   background:
-    radial-gradient(circle at 25% 30%, rgba(255, 212, 0, 0.25), transparent 28%),
-    linear-gradient(135deg, #352867, #1d163b);
+    radial-gradient(circle at 25% 30%, var(--accent-ring), transparent 28%),
+    linear-gradient(135deg, var(--surface-2), var(--fill));
 }
 .feed-thumb img {
   display: block;
@@ -887,22 +990,22 @@ button {
   width: 100%;
   height: 100%;
   font-size: 44px;
-  color: rgba(255, 255, 255, 0.28);
+  color: var(--text-faint);
 }
 .feed-badge,
 .feed-duration {
   position: absolute;
   top: 20px;
   padding: 6px 9px;
-  border-radius: 999px;
-  background: rgba(20, 13, 40, 0.78);
+  border-radius: var(--radius-pill);
+  background: var(--overlay);
   backdrop-filter: blur(8px);
   font-size: 11px;
   font-weight: 800;
 }
 .feed-badge {
   left: 20px;
-  color: #79efc2;
+  color: var(--go-ink);
 }
 .feed-duration {
   right: 20px;
@@ -921,16 +1024,16 @@ button {
 .feed-author {
   margin: 0;
   padding: 2px 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 12px;
   text-align: left;
   text-decoration: underline;
-  text-decoration-color: rgba(255, 255, 255, 0.22);
+  text-decoration-color: var(--line-strong);
   text-underline-offset: 3px;
   transition: color 120ms ease;
 }
 .feed-author:hover {
-  color: var(--fg);
+  color: var(--text);
 }
 .feed-author-row {
   min-width: 0;
@@ -956,7 +1059,7 @@ button {
 .feed-hint {
   overflow: hidden;
   margin: 5px 0 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -966,12 +1069,12 @@ button {
   align-items: center;
   gap: 5px;
   margin: 8px 0 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 12px;
   font-weight: 800;
 }
 .feed-replay-count span {
-  color: var(--accent);
+  color: var(--accent-ink);
   font-size: 10px;
 }
 .feed-replay {
@@ -982,16 +1085,16 @@ button {
   justify-content: center;
   gap: 6px;
   border-radius: 17px;
-  background: var(--accent);
-  color: #261a00;
+  background: var(--accent-fill);
+  color: var(--accent-deep-on);
   font-size: 14px;
   font-weight: 900;
-  box-shadow: 0 5px 0 #a76700;
+  box-shadow: 0 5px 0 var(--accent-edge);
   transition: transform 90ms ease, box-shadow 90ms ease;
 }
 .feed-replay:active {
   transform: translateY(4px);
-  box-shadow: 0 1px 0 #a76700;
+  box-shadow: 0 1px 0 var(--accent-edge);
 }
 .feed-empty {
   min-height: 360px;
@@ -1001,9 +1104,9 @@ button {
   justify-content: center;
   gap: 10px;
   padding: 32px 24px;
-  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border: 1px dashed var(--line-strong);
   border-radius: 28px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-2);
   text-align: center;
 }
 .feed-empty-icon {
@@ -1012,8 +1115,8 @@ button {
   display: grid;
   place-items: center;
   border-radius: 22px;
-  background: rgba(255, 212, 0, 0.12);
-  color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent-ink);
   font-size: 34px;
   transform: rotate(-6deg);
 }
@@ -1024,7 +1127,7 @@ button {
 .feed-empty p {
   max-width: 290px;
   margin: 0 0 10px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -1057,11 +1160,11 @@ button {
   grid-template-columns: repeat(3, 1fr);
   align-items: end;
   padding: 7px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--line);
   border-radius: 26px;
-  background: rgba(24, 16, 48, 0.92);
+  background: var(--nav-bg);
   /* 떠 있는 물체의 그림자는 아래로 진다 — 독일 때의 위쪽 그림자를 뒤집었다. */
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 32px var(--shadow-3);
   backdrop-filter: blur(20px) saturate(1.3);
   transform: translateX(-50%);
 }
@@ -1073,7 +1176,7 @@ button {
   justify-content: center;
   gap: 3px;
   border-radius: 16px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 11px;
   font-weight: 800;
 }
@@ -1083,10 +1186,10 @@ button {
   fill: currentColor;
 }
 .bottom-nav-item.active {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 .bottom-nav-item.create {
-  color: var(--fg);
+  color: var(--text);
 }
 .bottom-nav-create-icon {
   width: 50px;
@@ -1094,11 +1197,11 @@ button {
   display: grid;
   place-items: center;
   margin-top: -25px;
-  border: 4px solid #241a44;
+  border: 4px solid var(--surface-solid);
   border-radius: 18px;
-  background: linear-gradient(180deg, #ffd400, #ff9f1c);
-  color: #2b1a00;
-  box-shadow: 0 7px 18px rgba(255, 159, 28, 0.3);
+  background: linear-gradient(180deg, var(--accent-fill), var(--accent-warm));
+  color: var(--accent-deep-on);
+  box-shadow: 0 7px 18px var(--accent-glow);
   transform: rotate(5deg);
 }
 .bottom-nav-create-icon svg {
@@ -1124,11 +1227,11 @@ button {
   margin-block: auto;
   padding: 13px 11px 11px;
   border-radius: 24px;
-  background: linear-gradient(180deg, #372a63 0%, #221a42 100%);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
   box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.4),
-    0 12px 34px rgba(0, 0, 0, 0.5);
+    inset 0 0 0 2px var(--line),
+    inset 0 -3px 0 var(--line-strong),
+    0 12px 34px var(--shadow-2);
 }
 
 .keycap-grid {
@@ -1153,25 +1256,26 @@ button {
 .loop-toggle {
   min-height: 44px;
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.28);
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.14);
+  background: var(--well);
+  /* 흰 상판 위에서는 --line이 1.05:1로 사라진다 — 이건 장식이 아니라 컨트롤이다. */
+  box-shadow: inset 0 0 0 1.5px var(--control-line);
   display: grid;
   place-items: center;
   font-size: 19px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-dim);
   transition: background 140ms ease, color 140ms ease;
 }
 .loop-toggle.is-on {
-  background: #3dd6a0;
-  color: #0d3b2c;
+  background: var(--go);
+  color: var(--go-on);
   box-shadow:
     inset 0 0 0 1.5px rgba(255, 255, 255, 0.5),
-    0 0 12px rgba(61, 214, 160, 0.6);
+    0 0 12px var(--go-glow);
 }
 /* 켜기를 탭한 순간부터 다음 비트까지 — 이 예고가 없으면 아이는 또 누른다 */
 .loop-toggle.is-pending {
-  background: rgba(61, 214, 160, 0.35);
-  color: #eafff6;
+  background: var(--go-wash-2);
+  color: var(--go-ink);
   animation: loop-wait 380ms ease-in-out infinite alternate;
 }
 .loop-toggle .loop-icon {
@@ -1198,7 +1302,7 @@ button {
   max-width: 34px;
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--line-strong);
   transition: background 120ms ease;
 }
 .bar-dot.on {
@@ -1215,10 +1319,10 @@ button {
   width: 10px;
   height: 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--line-strong);
 }
 .pulse-dot.on {
-  background: #fff;
+  background: var(--accent);
   transform: scale(1.5);
 }
 
@@ -1435,18 +1539,23 @@ button {
   bottom: 0;
   height: 40%;
   border-radius: 8% 8% 11% 11%;
-  /* 어두운 상판 위에서 "투명"으로 읽히려면 흰색을 세게 넣어야 한다 */
+  /*
+   * 투명한 것은 자기 색이 없다 — 뒤에 있는 것보다 진하거나 연하게 보일 뿐이다.
+   * 상판이 어두운 보라였을 때 이 하우징은 흰색을 세게 넣어야 읽혔고,
+   * 상판이 희어진 지금은 정반대다: 옅은 먹빛 유리에 위쪽 하이라이트 한 줄.
+   * 흰 판 위에 흰 하우징을 두면 금색 접점만 공중에 떠 있게 된다(실제로 그랬다).
+   */
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.42) 0%,
-    rgba(255, 255, 255, 0.14) 38%,
-    rgba(255, 255, 255, 0.3) 78%,
-    rgba(255, 255, 255, 0.5) 100%
+    rgba(61, 42, 70, 0.11) 0%,
+    rgba(61, 42, 70, 0.03) 38%,
+    rgba(61, 42, 70, 0.06) 78%,
+    rgba(61, 42, 70, 0.13) 100%
   );
   box-shadow:
-    inset 0 0 0 1.5px rgba(255, 255, 255, 0.72),
-    inset 0 -3px 6px rgba(255, 255, 255, 0.4),
-    0 4px 9px rgba(0, 0, 0, 0.42);
+    inset 0 0 0 1.5px rgba(61, 42, 70, 0.2),
+    inset 0 -3px 6px rgba(255, 255, 255, 0.7),
+    0 4px 9px var(--shadow-2);
 }
 
 /* 하우징 안에 비치는 스위치 내부 */
@@ -1457,15 +1566,15 @@ button {
   top: 14%;
   height: 42%;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.22);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+  background: rgba(61, 42, 70, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(61, 42, 70, 0.18);
 }
 .switch-stem {
   position: absolute;
   inset: 18%;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.9) 0 0) center / 100% 26% no-repeat,
-    linear-gradient(rgba(255, 255, 255, 0.9) 0 0) center / 26% 100% no-repeat;
+    linear-gradient(rgba(61, 42, 70, 0.34) 0 0) center / 100% 26% no-repeat,
+    linear-gradient(rgba(61, 42, 70, 0.34) 0 0) center / 26% 100% no-repeat;
 }
 /* 금색 접점 두 개 — 사진에서 스위치를 "진짜"로 보이게 하는 디테일 */
 .switch-contact {
@@ -1494,10 +1603,10 @@ button {
   border-radius: 0 0 12% 12%;
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.2) 0%,
-    rgba(255, 255, 255, 0.46) 100%
+    rgba(61, 42, 70, 0.05) 0%,
+    rgba(61, 42, 70, 0.13) 100%
   );
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 0 0 1.5px rgba(61, 42, 70, 0.18);
 }
 
 .keycap-badge {
@@ -2095,8 +2204,8 @@ button {
   min-height: 56px;
   padding: 0 16px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.14);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
   font-size: 16px;
   font-weight: 700;
 }
@@ -2107,9 +2216,9 @@ button {
 .secret-entry-count {
   min-width: 30px;
   padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #241a44;
+  border-radius: var(--radius-pill);
+  background: var(--accent-fill);
+  color: var(--accent-on);
   font-size: 14px;
   font-weight: 800;
 }
@@ -2136,8 +2245,8 @@ button {
   min-height: 60px;
   padding: 0 14px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.12);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
   text-align: left;
 }
 
@@ -2165,13 +2274,13 @@ button {
   min-height: 44px;
   padding: 8px 10px;
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.22);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: var(--well-2);
+  box-shadow: inset 0 0 0 1px var(--line-faint);
 }
 
 .secret-seq-empty {
   font-size: 14px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
 }
 
 .secret-seq-step {
@@ -2188,7 +2297,7 @@ button {
   height: 28px;
   border-radius: 9px;
   /* 어떤 키캡 색 위에서도 번호가 읽혀야 한다 — 흰 글자에 어두운 테두리. */
-  color: #fff;
+  color: var(--text);
   font-size: 13px;
   font-weight: 800;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
@@ -2196,7 +2305,7 @@ button {
 }
 
 .secret-seq-arrow {
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 14px;
 }
 
@@ -2212,7 +2321,7 @@ button {
 }
 .secret-row-what {
   font-size: 13px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
 }
 
 /*
@@ -2227,13 +2336,13 @@ button {
   display: grid;
   place-items: center;
   background: var(--danger);
-  color: #fff;
+  color: var(--danger-on);
   font-weight: 900;
 }
 
 .secret-remove {
   flex-shrink: 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
 }
 
 .secret-add {
@@ -2255,10 +2364,10 @@ button {
 .secret-hint {
   margin: 10px 0 0;
   padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(255, 212, 0, 0.12);
-  box-shadow: inset 0 0 0 1.5px rgba(255, 212, 0, 0.45);
-  color: var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--accent-wash);
+  box-shadow: inset 0 0 0 1.5px var(--accent-line);
+  color: var(--accent-ink);
   font-size: 14px;
   font-weight: 700;
 }
@@ -2477,7 +2586,7 @@ button {
   height: 100vh;
   height: 100dvh;
   padding-top: max(8px, env(safe-area-inset-top));
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--scrim);
   display: flex;
   align-items: flex-end;
   z-index: 20;
@@ -2486,7 +2595,7 @@ button {
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  background: var(--bg-2);
+  background: var(--surface-solid);
   border-radius: 26px 26px 0 0;
   padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
   max-height: 92vh;
@@ -2494,7 +2603,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 -12px 40px var(--shadow-3);
 }
 .sheet-head,
 .sheet-tabs,
@@ -2514,7 +2623,7 @@ button {
   width: 44px;
   height: 44px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill-press);
   font-size: 18px;
 }
 
@@ -2525,7 +2634,7 @@ button {
   gap: 4px;
   padding: 5px;
   border-radius: 20px;
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--well-2);
 }
 .sheet-tab {
   display: flex;
@@ -2538,7 +2647,7 @@ button {
   border-radius: 15px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   transition: background 140ms ease, color 140ms ease, transform 140ms ease;
 }
 .sheet-tab span {
@@ -2546,11 +2655,11 @@ button {
   line-height: 1;
 }
 .sheet-tab.on {
-  background: var(--accent);
-  color: #241a44;
+  background: var(--accent-fill);
+  color: var(--accent-on);
   font-weight: 800;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 212, 0, 0.28);
+  box-shadow: 0 4px 12px var(--accent-glow);
 }
 .sheet-body {
   min-height: 0;
@@ -2566,16 +2675,16 @@ button {
 .sheet-done {
   min-height: 64px;
   border-radius: var(--radius);
-  background: linear-gradient(180deg, #4fe7b2, #2fc48f);
-  color: #06301f;
+  background: linear-gradient(180deg, var(--go), var(--go-deep));
+  color: var(--go-on);
   font-size: 19px;
   font-weight: 800;
-  box-shadow: 0 5px 0 #1c8b63;
+  box-shadow: 0 5px 0 var(--go-edge);
   transition: transform 90ms ease, box-shadow 90ms ease;
 }
 .sheet-done:active {
   transform: translateY(4px);
-  box-shadow: 0 1px 0 #1c8b63;
+  box-shadow: 0 1px 0 var(--go-edge);
 }
 
 /* 탭 내용은 "묶음(field)"으로만 쌓인다 — 제목 하나에 선택지 한 줄. */
@@ -2601,7 +2710,7 @@ button {
 }
 .sheet-field + .sheet-field {
   padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-top: 1px solid var(--line-soft);
 }
 .sheet-field-head {
   display: flex;
@@ -2610,7 +2719,7 @@ button {
   margin: 0;
   font-size: 16px;
   font-weight: 800;
-  color: var(--fg);
+  color: var(--text);
 }
 .sheet-field-head span {
   font-size: 18px;
@@ -2624,9 +2733,9 @@ button {
   flex: none;
   width: 26px;
   height: 26px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #241a44;
+  border-radius: var(--radius-pill);
+  background: var(--accent-fill);
+  color: var(--accent-on);
   font-size: 15px;
   font-weight: 800;
 }
@@ -2640,7 +2749,7 @@ button {
   margin: 4px 0 0;
   font-size: 14px;
   font-weight: 700;
-  color: var(--fg-dim);
+  color: var(--text-dim);
 }
 
 /* 직접 그린 스탬프의 그림판 묶음. */
@@ -2682,7 +2791,7 @@ button {
 .cap-swatch.on {
   border-color: var(--accent);
   transform: translateY(-3px) scale(1.06);
-  box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.35), 0 6px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 3px var(--accent-ring), 0 6px 12px rgba(0, 0, 0, 0.4);
 }
 
 /* 확인 창 — 시트를 재사용하되 화면 가운데 뜨는 작은 상자다. */
@@ -2782,7 +2891,7 @@ button {
 .swatch.on {
   border-color: var(--accent);
   transform: scale(1.12);
-  box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 3px var(--accent-ring), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 /* 그리기/지우개는 둘 중 하나다 — 서로 붙은 알약이라 배타 선택이 보인다. */
@@ -2791,23 +2900,23 @@ button {
   flex: 1 1 200px;
   gap: 4px;
   padding: 4px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-pill);
+  background: var(--well);
 }
 .seg-btn {
   flex: 1;
   min-height: 48px;
   padding: 0 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 15px;
   font-weight: 700;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   white-space: nowrap;
   transition: background 130ms ease, color 130ms ease;
 }
 .seg-btn.on {
-  background: var(--accent);
-  color: #241a44;
+  background: var(--accent-fill);
+  color: var(--accent-on);
   font-weight: 800;
 }
 
@@ -2817,8 +2926,8 @@ button {
   flex: none;
   gap: 4px;
   padding: 4px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-pill);
+  background: var(--well);
 }
 .size-btn {
   display: flex;
@@ -2826,16 +2935,16 @@ button {
   justify-content: center;
   width: 48px;
   height: 48px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transition: background 130ms ease;
 }
 .size-btn.on {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--surface);
 }
 .size-dot {
   display: block;
   border-radius: 999px;
-  background: var(--fg);
+  background: var(--text);
 }
 .size-btn.on .size-dot {
   background: var(--accent);
@@ -2847,7 +2956,7 @@ button {
   flex-direction: column;
   gap: 8px;
   padding-top: 10px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.14);
+  border-top: 1px dashed var(--line-strong);
 }
 .draw-pad-busy {
   position: absolute;
@@ -2856,8 +2965,8 @@ button {
   align-items: center;
   justify-content: center;
   border-radius: inherit;
-  background: rgba(0, 0, 0, 0.45);
-  color: #ffffff;
+  background: var(--scrim);
+  color: var(--text);
   font-size: 15px;
   font-weight: 700;
 }
@@ -2867,7 +2976,7 @@ button {
   padding: 12px 14px;
   border-radius: var(--radius);
   border: 2px solid var(--danger);
-  background: rgba(255, 77, 109, 0.12);
+  background: var(--danger-wash);
 }
 .gate-blocked p {
   margin: 6px 0 0;
@@ -2881,12 +2990,12 @@ button {
   padding: 8px 14px;
   font-size: 15px;
   font-weight: 700;
-  color: var(--fg-dim);
-  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-dim);
+  background: var(--surface);
 }
 .chip.ghost.danger {
-  color: #ffb3c0;
-  background: rgba(255, 77, 109, 0.14);
+  color: var(--danger-ink);
+  background: var(--danger-wash);
 }
 
 /* ── 녹음 ──────────────────────────────────────── */
@@ -2898,7 +3007,7 @@ button {
   gap: 10px;
   padding: 12px;
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-2);
 }
 .rec-button {
   display: flex;
@@ -2909,6 +3018,7 @@ button {
   justify-content: center;
   border-radius: var(--radius);
   background: var(--danger);
+  color: var(--danger-on);
   font-size: 19px;
   font-weight: 800;
 }
@@ -2916,7 +3026,7 @@ button {
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--danger-on);
 }
 .rec-count {
   font-size: 72px;
@@ -2943,7 +3053,7 @@ button {
 .rec-size,
 .rec-hint {
   font-size: 14px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   margin: 0;
 }
 
@@ -2971,7 +3081,7 @@ button {
   width: 100%;
   padding: 0 16px;
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--well);
   font-size: 17px;
   font-weight: 700;
 }
@@ -2979,7 +3089,8 @@ button {
   width: 52px;
   height: 30px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--well);
+  box-shadow: inset 0 0 0 1.5px var(--control-line);
   position: relative;
   flex: none;
 }
@@ -2991,11 +3102,11 @@ button {
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   transition: transform 160ms ease;
 }
 .toggle.on .toggle-knob {
-  background: #3dd6a0;
+  background: var(--go);
 }
 .toggle.on .toggle-knob::after {
   transform: translateX(22px);
@@ -3011,19 +3122,20 @@ button {
   min-height: 84px;
   border-radius: var(--radius);
   background: var(--danger);
+  color: var(--danger-on);
   font-size: 22px;
   font-weight: 800;
-  box-shadow: 0 8px 0 #a52a44;
+  box-shadow: 0 8px 0 var(--danger-edge);
 }
 .record-cta:active {
   transform: translateY(6px);
-  box-shadow: 0 2px 0 #a52a44;
+  box-shadow: 0 2px 0 var(--danger-edge);
 }
 .record-dot {
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--danger-on);
 }
 
 .countdown-wrap {
@@ -3041,7 +3153,7 @@ button {
 .countdown-hint {
   font-size: 16px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-ink);
   margin: 0;
 }
 
@@ -3049,14 +3161,14 @@ button {
   text-align: center;
   font-size: 19px;
   font-weight: 800;
-  color: var(--accent);
+  color: var(--accent-ink);
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 .press-count {
   font-size: 14px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-weight: 500;
 }
 
@@ -3095,12 +3207,12 @@ button {
   padding-inline: 12px;
 }
 .performance-pause {
-  background: rgba(255, 212, 0, 0.18);
-  color: #ffe45e;
+  background: var(--accent-wash-2);
+  color: var(--accent-ink);
 }
 .performance-stop {
-  background: rgba(255, 77, 109, 0.16);
-  color: #ff8da2;
+  background: var(--danger-wash);
+  color: var(--danger-ink);
 }
 
 .done-row {
@@ -3124,16 +3236,16 @@ button {
 .field input {
   min-height: 60px;
   border-radius: var(--radius);
-  border: 2px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--fg);
+  border: 2px solid var(--control-line);
+  background: var(--surface-2);
+  color: var(--text);
   padding: 0 16px;
   font-size: 18px;
 }
 .field em {
   align-self: flex-end;
   font-size: 12px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-style: normal;
 }
 
@@ -3143,12 +3255,12 @@ button {
   gap: 10px;
   padding: 14px;
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--surface);
 }
 .share-link {
   word-break: break-all;
   font-size: 14px;
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 /* ── 공유 게이트 ───────────────────────────────── */
@@ -3161,7 +3273,7 @@ button {
   flex-direction: column;
   gap: 8px;
   padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--line-faint);
 }
 .gate-list {
   margin: 0;
@@ -3183,19 +3295,19 @@ button {
   min-height: 60px;
   padding: 10px 14px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--surface);
   box-shadow: inset 0 0 0 2px transparent;
 }
 .gate-option.on {
-  background: rgba(61, 214, 160, 0.18);
-  box-shadow: inset 0 0 0 2px #3dd6a0;
+  background: var(--go-wash-2);
+  box-shadow: inset 0 0 0 2px var(--go);
 }
 .gate-option strong {
   font-size: 16px;
 }
 .gate-option span {
   font-size: 13px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
 }
 .gate-check {
   display: flex;
@@ -3210,7 +3322,7 @@ button {
   height: 26px;
   flex: none;
   margin-top: 2px;
-  accent-color: #3dd6a0;
+  accent-color: var(--go);
 }
 .gate-actions {
   display: flex;
@@ -3232,7 +3344,7 @@ button {
 }
 .view-head .hint {
   font-size: 16px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   margin: 0 0 4px;
 }
 
@@ -3276,18 +3388,18 @@ button {
 }
 .feed-mine-badge {
   padding: 2px 9px;
-  border-radius: 999px;
-  background: rgba(255, 212, 0, 0.14);
-  color: var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--accent-wash-2);
+  color: var(--accent-ink);
   font-size: 11px;
   font-weight: 800;
 }
 /* 리플레이 배지(.feed-badge)와 같은 초록을 쓴다 — "다 들었다"는 뜻으로 이미 익숙한 색. */
 .feed-listened-badge {
   padding: 2px 9px;
-  border-radius: 999px;
-  background: rgba(121, 239, 194, 0.14);
-  color: #79efc2;
+  border-radius: var(--radius-pill);
+  background: var(--go-wash);
+  color: var(--go-ink);
   font-size: 11px;
   font-weight: 800;
 }
@@ -3302,7 +3414,7 @@ button {
 .feed-author-static {
   margin: 0;
   padding: 2px 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 12px;
 }
 
@@ -3337,9 +3449,9 @@ button {
   margin: 0;
   padding: 18px 10px;
   border-radius: var(--radius);
-  border: 2px dashed rgba(255, 212, 0, 0.4);
-  background: rgba(255, 212, 0, 0.08);
-  color: var(--accent);
+  border: 2px dashed var(--accent-line);
+  background: var(--accent-wash-soft);
+  color: var(--accent-ink);
   font-size: 32px;
   font-weight: 900;
   /* 숫자 폭을 고정해 코드가 흔들리지 않게, 글자 사이도 넉넉히 벌려 옮겨 적기 쉽게. */
@@ -3366,9 +3478,9 @@ button {
   margin: 0;
   padding: 6px 10px;
   border-radius: var(--radius);
-  border: 2px dashed rgba(255, 212, 0, 0.4);
-  background: rgba(255, 212, 0, 0.08);
-  color: var(--accent);
+  border: 2px dashed var(--accent-line);
+  background: var(--accent-wash-soft);
+  color: var(--accent-ink);
   font-size: 16px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
@@ -3392,7 +3504,7 @@ button {
   padding: 16px;
   border-radius: var(--radius);
   border: 2px solid var(--danger);
-  background: rgba(255, 77, 109, 0.1);
+  background: var(--danger-wash);
 }
 .group-delete-confirm h2 {
   margin: 0;
@@ -3438,7 +3550,7 @@ button {
 }
 .group-guide-hero p {
   margin: 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 14px;
   line-height: 1.65;
 }
@@ -3453,8 +3565,8 @@ button {
 .group-guide-steps li {
   padding: 12px 14px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-2);
+  border: 1px solid var(--line-faint);
 }
 .group-guide-steps strong {
   display: block;
@@ -3463,7 +3575,7 @@ button {
 }
 .group-guide-steps p {
   margin: 4px 0 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 13.5px;
   line-height: 1.6;
 }
@@ -3483,7 +3595,7 @@ button {
 .group-guide-uses li {
   position: relative;
   padding-left: 18px;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 13.5px;
   line-height: 1.6;
 }
@@ -3491,14 +3603,14 @@ button {
   content: '·';
   position: absolute;
   left: 6px;
-  color: var(--accent);
+  color: var(--accent-ink);
   font-weight: 900;
 }
 .group-guide-privacy {
   padding: 12px 14px;
   border-radius: 18px;
-  border: 1px solid rgba(255, 212, 0, 0.28);
-  background: rgba(255, 212, 0, 0.07);
+  border: 1px solid var(--accent-line);
+  background: var(--accent-wash-soft);
 }
 .group-guide-privacy strong {
   font-size: 14px;
@@ -3508,7 +3620,7 @@ button {
   margin: 4px 0 0;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--fg-dim);
+  color: var(--text-dim);
 }
 .group-guide-actions {
   flex-shrink: 0;
@@ -3550,9 +3662,9 @@ button {
   margin: 0;
   padding: 14px 8px;
   border-radius: var(--radius);
-  border: 2px dashed rgba(255, 212, 0, 0.4);
-  background: rgba(255, 212, 0, 0.08);
-  color: var(--accent);
+  border: 2px dashed var(--accent-line);
+  background: var(--accent-wash-soft);
+  color: var(--accent-ink);
   font-size: 20px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
@@ -3578,6 +3690,171 @@ button {
 /* 그룹 헤더의 정원 줄. 진행률보다 한 단계 조용하게 — 정보이지 알림이 아니다. */
 .group-stage-members {
   margin: 2px 0 0;
-  color: var(--fg-dim);
+  color: var(--text-dim);
   font-size: 13px;
+}
+
+/* ── 그룹 모드 ─────────────────────────────────────
+ *
+ * 그룹은 라우트가 아니라 `/feed?g=` 쿼리다(App.tsx). 그래서 모드도 라우트가
+ * 아니라 **DOM 속성**이다 — 화면 컨테이너 하나에 `data-mode="group"`이 붙고,
+ * 그 안에서만 토큰이 다시 정의된다. 셀렉터는 하나도 다시 쓰지 않는다.
+ *
+ * <html>이 아니라 화면에 붙이는 이유:
+ *   ① 되돌릴 필요가 없다. 컴포넌트가 사라지면 속성도 사라진다.
+ *      전역에 칠하면 "그룹 탭에서 나갔는데 색이 안 돌아온다"가 반드시 생긴다.
+ *   ② 탭 전환이 곧 색 전환이다. searchParams가 바뀌는 같은 렌더에서 끝난다.
+ *   ③ 하단 내비는 이 바깥(App.tsx의 .app-shell)에 있어 안 따라온다 — 의도한 것이다.
+ *      그룹은 "스테이지 탭 안의 한 상태"이지 별개의 앱이 아니고,
+ *      내비가 그대로 있어야 그 사실이 읽힌다.
+ *
+ * 설계는 docs/design-overhaul.html.
+ */
+
+[data-mode='group'] {
+  /* 바탕과 면 — 평면이다. 개인 모드의 파스텔 하늘은 여기 없다. */
+  --ground: #F7F8FA;
+  --ground-2: #F7F8FA;
+  --surface: #FFFFFF;
+  --surface-2: #FBFCFD;
+  --surface-solid: #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --fill: #EDF0F4;
+  --fill-press: #E2E7EE;
+  --well: #E9EDF2;
+  --well-2: #E9EDF2;
+  --scrim: rgba(22, 26, 33, 0.45);
+  --overlay: rgba(22, 26, 33, 0.78);
+
+  --line: #D5DAE2;
+  --line-soft: #E4E8EE;
+  --line-faint: #EEF1F5;
+  --line-strong: #C3CAD5;
+  --control-line: #838B99;
+
+  /* 카드는 1px 선으로만 뜬다. 큰 그림자는 시트에만 남긴다. */
+  --shadow-1: rgba(22, 26, 33, 0.06);
+  --shadow-2: rgba(22, 26, 33, 0.1);
+  --shadow-3: rgba(22, 26, 33, 0.16);
+
+  --text: #161A21;
+  --text-dim: #5A6270;
+  --text-faint: #838B99;
+
+  /* 딥 오렌지. docs/group-stage-design.html이 쓰는 값 그대로라,
+     설계 문서와 화면이 같은 색으로 이어진다. */
+  --accent: #B0561A;
+  --accent-fill: #B0561A;
+  --accent-warm: #97490F;
+  --accent-on: #FFFFFF;
+  --accent-deep-on: #FFFFFF;
+  --accent-ink: #8E4413;
+  --accent-edge: #6F350E;
+  --accent-wash: #F5E6D8;
+  --accent-wash-2: #EED9C4;
+  --accent-wash-soft: #FBF4EC;
+  --accent-line: #DBB48E;
+  --accent-ring: rgba(176, 86, 26, 0.3);
+  --accent-glow: rgba(176, 86, 26, 0.22);
+
+  /*
+   * "들었음"이 초록에서 틸로 넘어온다. 색은 바뀌지만 같은 계열의 초록이
+   * 같은 뜻을 유지하므로 다시 배울 것이 없다 — 공개 피드의 리플레이 배지와
+   * 그룹 스테이지의 "다 들었다"가 이미 같은 초록이었다.
+   */
+  --go: #276560;
+  --go-deep: #1E534F;
+  --go-edge: #14403C;
+  --go-on: #FFFFFF;
+  --go-ink: #276560;
+  --go-wash: #DBE8E6;
+  --go-wash-2: #C4DAD7;
+  --go-glow: rgba(39, 101, 96, 0.35);
+
+  --danger: #A02C22;
+  --danger-edge: #7A1F17;
+  --danger-on: #FFFFFF;
+  --danger-ink: #A02C22;
+  --danger-wash: #F6E0DD;
+
+  /* 둥글수록 장난감, 각질수록 도구. 형태가 색보다 먼저 읽힌다. */
+  --radius: 10px;
+  --radius-pill: 8px;
+}
+
+/*
+ * body의 배경은 .screen보다 바깥이라 위 속성이 닿지 않는다.
+ * 고정 레이어 하나로 화면 뒤를 직접 칠한다 — z-index:-1이라 내용 아래,
+ * body 위에 깔리고, position:fixed라 스크롤해도 따라온다.
+ * (하단 내비는 z-index:15로 이 위에 그대로 뜬다.)
+ */
+[data-mode='group']::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--ground);
+}
+
+/*
+ * 밀도와 굵기. 개인 모드는 한 화면에 카드 하나가 주인공이지만
+ * 그룹 스테이지는 목록이다 — 같은 높이에 사람이 더 들어와야 한다.
+ * 최소 탭 크기(56px)는 건드리지 않는다. 정보를 늘린다고 손가락 목표를 줄이지 않는다.
+ */
+[data-mode='group'].screen {
+  gap: 12px;
+  font-size: 15px;
+}
+[data-mode='group'] .feed-head h1 {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+[data-mode='group'] .feed-card h2 {
+  font-size: 16px;
+}
+[data-mode='group'] .chip {
+  font-weight: 500;
+}
+/* 초대 코드·시간·인원이 세로로 정렬돼야 읽힌다. */
+[data-mode='group'] .feed-duration,
+[data-mode='group'] .feed-replay-count,
+[data-mode='group'] .group-stage-progress,
+[data-mode='group'] .feed-author-static {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 스티커 대 서류. 개인 모드의 단단한 오프셋 그림자(0 8px 0)는
+ * 눌리는 장난감의 두께이고, 그룹에서는 그게 회의실 화면에 튄다.
+ */
+[data-mode='group'] .feed-card,
+[data-mode='group'] .big-cta,
+[data-mode='group'] .feed-replay,
+[data-mode='group'] .sheet-done {
+  box-shadow: none;
+}
+[data-mode='group'] .big-cta:active,
+[data-mode='group'] .feed-replay:active,
+[data-mode='group'] .sheet-done:active {
+  box-shadow: none;
+  transform: translateY(1px);
+}
+/* 회의실에서 화면이 튀지 않게 — 누름은 알아볼 만큼만. */
+[data-mode='group'] .chip:active,
+[data-mode='group'] .seg-btn:active {
+  transform: scale(0.98);
+}
+
+/*
+ * 경계 — 개인 모드 화면 안의 그룹 표시.
+ *
+ * 감상 화면(/w/:id?g=…)은 작품이 주인공이라 개인 모드다. 하지만 돌아갈 곳은
+ * 그룹이고, 그 사실은 색으로 한 번에 읽혀야 한다. 버튼에 data-mode="group"이
+ * 붙어 있으므로 아래 두 토큰은 그룹 값(딥 오렌지)으로 풀린다.
+ */
+.view-back {
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-weight: 700;
 }

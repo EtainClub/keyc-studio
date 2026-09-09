@@ -197,7 +197,13 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
               <h3 className="row-label">{t('gate.whereTitle')}</h3>
               <div className="gate-options">
                 {groups.map((g) => (
-                  <label key={g.id} className={`chip ${selectedGroupIds.includes(g.id) ? 'on' : ''}`}>
+                  // 그룹 칸만 그룹 액센트를 쓴다 — 바로 아래 [공개 스테이지]와
+                  // 색이 달라야 어디에 올리는 것인지가 고르는 순간 읽힌다.
+                  <label
+                    key={g.id}
+                    className={`chip ${selectedGroupIds.includes(g.id) ? 'on' : ''}`}
+                    data-mode="group"
+                  >
                     <input
                       type="checkbox"
                       checked={selectedGroupIds.includes(g.id)}

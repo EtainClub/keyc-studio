@@ -45,7 +45,7 @@ import {
   redeemRecoveryCode,
   setCloudBackupOptIn,
 } from '../storage/recovery';
-import { renderListThumb } from '../storage/thumbnail';
+import { renderListThumb, THUMB_VERSION } from '../storage/thumbnail';
 import { createWork } from '../work-model/defaults';
 import { durationForTempo } from '../work-model/timing';
 import { tempoOf, type KeyDef, type KeyIndex, type TempoPreset, type Work } from '../work-model/types';
@@ -276,6 +276,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         updatedAt: Date.now(),
         published: existing?.published ?? false,
         thumb,
+        thumbV: opts.thumb ? THUMB_VERSION : existing?.thumbV,
       };
       await putWorkRecord(record);
       scheduleWorkBackup(record);

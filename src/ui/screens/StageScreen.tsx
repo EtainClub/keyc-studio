@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { durationForTempo } from '../../work-model/timing';
 import type { AssetRef, KeyIndex, Secret, TempoPreset } from '../../work-model/types';
 import { t } from '../../i18n';
+import { isTossApp } from '../../platform/toss';
 import { KeycapGrid, type GridHandle, type LoopState } from '../components/KeycapGrid';
 import { SecretSheet } from '../components/SecretSheet';
 import {
@@ -85,9 +86,11 @@ export function StageScreen() {
   return (
     <main className="screen stage">
       <header className="bar">
-        <button type="button" className="bar-back" onClick={() => nav('/create')}>
-          {t('stageScreen.backToCreate')}
-        </button>
+        {!isTossApp() && (
+          <button type="button" className="bar-back" onClick={() => nav('/create')}>
+            {t('stageScreen.backToCreate')}
+          </button>
+        )}
         <h1>{t('stageScreen.title')}</h1>
       </header>
 

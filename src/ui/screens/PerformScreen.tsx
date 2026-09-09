@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BEATS_PER_BAR, barMs, beatMs, durationForTempo } from '../../work-model/timing';
 import { t } from '../../i18n';
+import { isTossApp } from '../../platform/toss';
 import type { KeyIndex } from '../../work-model/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { KeycapGrid, type GridHandle, type LoopState } from '../components/KeycapGrid';
@@ -141,14 +142,16 @@ export function PerformScreen() {
   return (
     <main className="screen perform">
       <header className="bar">
-        <button
-          type="button"
-          className="bar-back"
-          onClick={() => nav('/stage')}
-          disabled={phase === 'live' || phase === 'paused' || phase === 'countdown'}
-        >
-          {t('perform.backToStage')}
-        </button>
+        {!isTossApp() && (
+          <button
+            type="button"
+            className="bar-back"
+            onClick={() => nav('/stage')}
+            disabled={phase === 'live' || phase === 'paused' || phase === 'countdown'}
+          >
+            {t('perform.backToStage')}
+          </button>
+        )}
         <h1>{t('perform.title')}</h1>
       </header>
 

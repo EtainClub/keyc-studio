@@ -17,7 +17,7 @@ import {
   putWorkRecord,
   type WorkRecord,
 } from '../../storage/db';
-import { renderListThumb } from '../../storage/thumbnail';
+import { renderListThumb, THUMB_VERSION } from '../../storage/thumbnail';
 import { missionOfDay } from '../../work-model/missions';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { WorkThumbnail } from '../components/WorkThumbnail';
@@ -55,7 +55,8 @@ export function HomeScreen() {
    */
   useEffect(() => {
     let alive = true;
-    const missing = records.filter((r) => !r.thumb);
+    // 판이 다른 썸네일도 '없는 것'으로 친다 — 예전 어두운 배경이 구워진 것들이다.
+    const missing = records.filter((r) => !r.thumb || r.thumbV !== THUMB_VERSION);
     if (missing.length === 0) return;
 
     (async () => {
@@ -65,10 +66,12 @@ export function HomeScreen() {
         // 만드는 사이에 지워졌을 수 있다. 없어진 작품을 되살려 쓰지 않는다.
         const current = await getWorkRecord(record.work.id).catch(() => undefined);
         if (!alive || !current) continue;
-        await putWorkRecord({ ...current, thumb }).catch(() => {});
+        await putWorkRecord({ ...current, thumb, thumbV: THUMB_VERSION }).catch(() => {});
         if (!alive) return;
         setRecords((prev) =>
-          prev.map((r) => (r.work.id === record.work.id ? { ...r, thumb } : r)),
+          prev.map((r) =>
+            r.work.id === record.work.id ? { ...r, thumb, thumbV: THUMB_VERSION } : r,
+          ),
         );
       }
     })();

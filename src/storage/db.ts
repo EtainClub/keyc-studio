@@ -22,6 +22,8 @@ export type WorkRecord = {
   published: boolean;
   /** 홈 목록에 보여줄 썸네일. 로컬에만 둔다. */
   thumb?: Blob;
+  /** 그 썸네일을 그린 판 번호(`THUMB_VERSION`). 다르면 홈이 다시 그린다. */
+  thumbV?: number;
 };
 
 type AssetRow = { key: string; blob: Blob; workId: string; assetId: string };

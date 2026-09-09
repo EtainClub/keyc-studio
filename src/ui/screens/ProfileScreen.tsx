@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { applyLangPreference, langPreference, t, type LangPreference } from '../../i18n';
+import { isTossApp } from '../../platform/toss';
 import { PROFILE_AVATAR_MAX_CHARS, PROFILE_NAME_MAX } from '../../storage/identity';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ProfileAvatar } from '../components/ProfileAvatar';
@@ -123,9 +124,11 @@ export function ProfileScreen() {
   return (
     <main className="screen profile-screen">
       <header className="bar">
-        <button type="button" className="bar-back" onClick={() => nav('/')}>
-          ‹ {t('common.home')}
-        </button>
+        {!isTossApp() && (
+          <button type="button" className="bar-back" onClick={() => nav('/')}>
+            ‹ {t('common.home')}
+          </button>
+        )}
         <h1>{t('profile.title')}</h1>
       </header>
 
@@ -245,7 +248,7 @@ async function resizeAvatar(file: File): Promise<string> {
     canvas.height = size;
     const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error(t('profile.avatar.cannotProcess'));
-    ctx.fillStyle = '#2a1e50';
+    ctx.fillStyle = '#FEF4F8';
     ctx.fillRect(0, 0, size, size);
     const scale = Math.max(size / image.naturalWidth, size / image.naturalHeight);
     const width = image.naturalWidth * scale;

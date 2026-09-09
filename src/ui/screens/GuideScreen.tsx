@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { t } from '../../i18n';
+import { isTossApp } from '../../platform/toss';
 import { markAppGuideSeen } from '../first-guide';
 import { useAppState } from '../state';
 
@@ -55,11 +56,15 @@ export function GuideScreen() {
 
   return (
     <main className="screen guide-screen">
-      <header className="bar guide-bar">
-        <button type="button" className="bar-back" onClick={() => nav('/')}>
-          ‹ {t('common.home')}
-        </button>
-      </header>
+      {/* 토스 안에서는 헤더째 지운다 — 이 줄에는 뒤로가기밖에 없어서, 버튼만
+        * 빼면 빈 띠가 남는다. 뒤로가기는 토스 내비게이션 바가 맡는다. */}
+      {!isTossApp() && (
+        <header className="bar guide-bar">
+          <button type="button" className="bar-back" onClick={() => nav('/')}>
+            ‹ {t('common.home')}
+          </button>
+        </header>
+      )}
 
       <section className="guide-hero">
         <p className="feed-kicker">HOW TO PLAY</p>

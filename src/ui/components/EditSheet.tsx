@@ -656,7 +656,7 @@ function StampField({
 
   return (
     <div className="stamp-field">
-      <DrawCanvas ref={canvasRef} initialUrl={existing} capColor="#241a44" />
+      <DrawCanvas ref={canvasRef} initialUrl={existing} capColor="#FEF4F8" />
       <p className="note">{t('edit.stampHint')}</p>
       {!keyDef.trace.assetId && <p className="note warn">{t('edit.stampNeeded')}</p>}
     </div>
