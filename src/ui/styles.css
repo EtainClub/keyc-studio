@@ -27,7 +27,12 @@
   /* 안으로 파인 것 — 세그먼트·탭의 트랙. 위의 --fill과 반대 방향이다. */
   --well: #FBDFEB;
   --well-2: #FBDFEB;
-  --scrim: rgba(61, 42, 70, 0.45);
+  /*
+   * 시트 뒤를 덮는 막. 어두운 바탕에서 45%는 "뒤가 잠깐 물러났다"였지만,
+   * 파스텔 위에 45% 자주를 덮으면 화면이 탁한 모브가 된다 — 물러난 게 아니라
+   * 때가 낀 것으로 읽힌다. 밝은 바탕에서는 덜 덮고 대신 흐린다.
+   */
+  --scrim: rgba(61, 42, 70, 0.26);
   /*
    * 썸네일과 그림 위에 얹히는 라벨. 밑에 무슨 색이 오든 읽혀야 하므로
    * 바탕이 밝아져도 이것만은 어둡게 남는다.
@@ -148,6 +153,7 @@ body {
   background: radial-gradient(120% 90% at 50% 0%, var(--ground-2) 0%, var(--ground) 60%);
   color: var(--text);
   font-family: 'Pretendard', system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  font-weight: 600;
   overscroll-behavior: none;
   /* 아이가 연타할 때 화면이 확대·스크롤되지 않게 */
   touch-action: manipulation;
@@ -227,6 +233,7 @@ button {
 }
 .bar h1 {
   font-size: 20px;
+  font-weight: 800;
   margin: 0;
 }
 .bar-back {
@@ -790,7 +797,9 @@ button {
   flex-direction: column;
   gap: 6px;
   background: var(--surface);
+  border: 2px solid var(--line);
   border-radius: var(--radius);
+  box-shadow: 0 6px 0 var(--line);
   padding: 10px;
   text-align: left;
 }
@@ -843,6 +852,7 @@ button {
 .feed-head h1 {
   margin: 0;
   font-size: 28px;
+  font-weight: 800;
   line-height: 1.2;
 }
 .feed-head div > p:last-child {
@@ -951,10 +961,15 @@ button {
 }
 .feed-card {
   overflow: hidden;
-  border: 1px solid var(--line);
+  /*
+   * 두께가 있는 카드. 소프트 그림자가 아니라 단단한 오프셋이다 —
+   * 개인 모드의 카드는 눌리는 물건이고, 그 두께가 키캡의 스커트와 이어진다.
+   * 그룹 모드는 이 둘을 다 지운다(아래 [data-mode='group']).
+   */
+  border: 2px solid var(--line);
   border-radius: 24px;
   background: var(--surface);
-  box-shadow: 0 16px 36px var(--shadow-1);
+  box-shadow: 0 6px 0 var(--line);
   content-visibility: auto;
   contain-intrinsic-size: 330px;
 }
@@ -1227,10 +1242,16 @@ button {
   margin-block: auto;
   padding: 13px 11px 11px;
   border-radius: 24px;
-  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+  /*
+   * 상판을 순백으로 두면 안 된다. 재질 8종 가운데 여섯(plastic·ice·metal·
+   * water·cotton·sand)이 밝은 톤이고, 그 값들은 **어두운 상판을 전제로**
+   * 조율돼 있다 — 흰 판 위에서는 흰 키캡의 윗면이 판과 붙어 사라진다.
+   * 재질은 작품 데이터라 못 건드리지만 판은 우리 것이라, 판을 한 단 내린다.
+   */
+  background: linear-gradient(180deg, var(--fill) 0%, var(--well) 100%);
   box-shadow:
-    inset 0 0 0 2px var(--line),
-    inset 0 -3px 0 var(--line-strong),
+    inset 0 0 0 2px var(--line-strong),
+    inset 0 -3px 0 var(--control-line),
     0 12px 34px var(--shadow-2);
 }
 
@@ -1341,7 +1362,12 @@ button {
  * 리플레이 중에는 이 클래스를 붙이지 않는다 — 그때 키캡은 공연 그 자체다.
  */
 .keycap-slot.is-muted .keycap-unit {
-  filter: saturate(0.55) brightness(0.78);
+  /*
+   * 어두운 상판에서는 어둡게 죽이는 것이 곧 "물러남"이었다. 흰 상판에서
+   * 밝기를 낮추면 물러나는 게 아니라 때가 낀 것처럼 보인다 — 밝은 바탕에서
+   * 물러나는 방향은 바탕 쪽, 즉 색을 빼고 비치게 하는 것이다.
+   */
+  filter: saturate(0.35) opacity(0.5);
   transition: filter 200ms ease;
 }
 
@@ -2587,6 +2613,7 @@ button {
   height: 100dvh;
   padding-top: max(8px, env(safe-area-inset-top));
   background: var(--scrim);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: flex-end;
   z-index: 20;
@@ -2965,8 +2992,9 @@ button {
   align-items: center;
   justify-content: center;
   border-radius: inherit;
-  background: var(--scrim);
-  color: var(--text);
+  /* 이건 "물러남"이 아니라 "지금 만지지 마세요"다 — 얇아진 --scrim으로는 부족하다. */
+  background: var(--overlay);
+  color: var(--surface);
   font-size: 15px;
   font-weight: 700;
 }
@@ -3723,7 +3751,7 @@ button {
   --fill-press: #E2E7EE;
   --well: #E9EDF2;
   --well-2: #E9EDF2;
-  --scrim: rgba(22, 26, 33, 0.45);
+  --scrim: rgba(22, 26, 33, 0.34);
   --overlay: rgba(22, 26, 33, 0.78);
 
   --line: #D5DAE2;
@@ -3804,6 +3832,11 @@ button {
 [data-mode='group'].screen {
   gap: 12px;
   font-size: 15px;
+  font-weight: 500;
+}
+[data-mode='group'] .feed-card,
+[data-mode='group'] .work-card {
+  border-width: 1px;
 }
 [data-mode='group'] .feed-head h1 {
   font-size: 19px;

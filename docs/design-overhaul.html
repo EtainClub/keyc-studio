@@ -352,7 +352,7 @@
       </p>
       <div class="meta">
         <span><b>대상</b> keyc-studio · main · v0.8.7</span>
-        <span><b>상태</b> P0–P3 구현 완료 · §13에 실제와의 차이</span>
+        <span><b>상태</b> 구현·배포 완료 · §13에 실제와의 차이</span>
         <span><b>작성</b> 2026-09-09</span>
         <span><b>선행 문서</b> group-stage-design.html</span>
       </div>
@@ -824,11 +824,11 @@
             <tr><th scope="row">모서리 반경</th><td>22px · 칩은 완전 알약</td><td>10px · 칩은 8px</td><td>둥글수록 장난감, 각질수록 도구</td></tr>
             <tr><th scope="row">테두리</th><td>2px 색 있는 선 + 아래 두께</td><td>1px <code>--line</code></td><td>개인 모드의 “두께”가 키캡의 입체와 이어진다</td></tr>
             <tr><th scope="row">그림자</th><td>단단한 오프셋(<code>0 6px 0</code>)</td><td>거의 없음. 시트만</td><td>스티커 대 서류</td></tr>
-            <tr><th scope="row">본문</th><td>16px / 굵기 700</td><td>15px / 굵기 500</td><td>아이는 굵은 글씨, 어른은 많은 정보</td></tr>
+            <tr><th scope="row">본문</th><td>16px / 굵기 <strong>600</strong></td><td>15px / 굵기 500</td><td>아이는 굵은 글씨, 어른은 많은 정보. 700은 <code>--text-dim</code>인 보조 문구까지 강조로 읽혀 위계가 무너진다(§13)</td></tr>
             <tr><th scope="row">제목</th><td>28px / 800 / <code>-0.02em</code></td><td>19px / 700 / <code>-0.015em</code></td><td>개인 모드는 제목이 그림, 그룹은 이정표</td></tr>
             <tr><th scope="row">숫자</th><td>본문과 같은 서체</td><td><code>tabular-nums</code> 고정폭</td><td>초대 코드·시간·인원이 세로로 정렬돼야 읽힌다</td></tr>
             <tr><th scope="row">세로 간격</th><td><code>gap: 16–20px</code> 유지</td><td><code>gap: 10–12px</code></td><td>한 화면에 담기는 항목 수가 다르다</td></tr>
-            <tr class="win"><th scope="row">최소 탭 크기</th><td colspan="2"><strong>둘 다 56px 유지 — 예외 없음</strong></td><td>정보 밀도를 높인다고 손가락 목표를 줄이지 않는다</td></tr>
+            <tr class="win"><th scope="row">최소 탭 크기</th><td colspan="2"><strong>두 모드가 같다 — 모드로 줄이지 않는다</strong></td><td>정보 밀도를 높인다고 손가락 목표를 줄이지 않는다. <strong>지금 값은 <code>.chip</code> 52px·<code>.big-cta</code> 76px·<code>.loop-toggle</code> 44px다</strong> — 이 표의 초판은 "둘 다 56px"이라고 적었지만 코드를 잘못 읽은 것이었다(§13)</td></tr>
             <tr><th scope="row">움직임</th><td><code>:active</code>에 <code>scale(.95)</code> 유지</td><td><code>scale(.98)</code> · 배경만 변화</td><td>회의실에서 화면이 튀지 않게</td></tr>
             <tr><th scope="row">서체</th><td colspan="2">Pretendard 유지 (두 모드 공통)</td><td>웨이트만 다르게 쓴다. 서체를 늘리면 로딩이 늘고 미니앱 용량이 는다</td></tr>
           </tbody>
@@ -1152,6 +1152,9 @@ return (
             대안: 상단 320px에만 그라데이션을 두고 그 아래는 <code>--ground</code> 평면.
             <strong>P1에서 실제 화면으로 판단한다.</strong>
           </p>
+          <p class="a"><strong>→ 유지하기로 했다.</strong> <code>radial-gradient(120% 90% at 50% 0%)</code>라
+            상단에서 시작해 60%에서 끝난다 — 세로 그라데이션이 아니라 위쪽 하늘이라,
+            긴 스크롤에서도 아래쪽이 보라로 눌리지 않는다.</p>
         </div></li>
         <li><div>
           <p class="q">공개 피드([모두] 탭)는 어느 모드인가?</p>
@@ -1161,6 +1164,9 @@ return (
             화면 전체 색이 바뀌는 것이 어떻게 느껴지는지는 P2에서 직접 보고 판단해야 한다.
             튄다면 대안은 “[그룹] 탭 안의 목록 영역만 그룹 토큰”으로 범위를 더 좁히는 것이다.
           </p>
+          <p class="a"><strong>→ 개인 모드로 두기로 했다.</strong> 실제로 탭을 왕복해 보니 화면 전체가
+            바뀌는 것이 튀지 않았다 — 하단 내비가 안 따라오기 때문이다. 내비가 그대로 있으니
+            “다른 앱으로 갔다”가 아니라 “같은 앱의 다른 칸”으로 읽힌다.</p>
         </div></li>
       </ol>
 
@@ -1305,6 +1311,78 @@ return (
             속성이 컴포넌트와 함께 사라지므로 되돌릴 코드가 없다.</li>
         <li><code>npm run typecheck</code> · <code>npm test</code>(203개) · <code>npm run build</code> 통과.</li>
       </ul>
+
+
+      <hr>
+
+      <h3>배포 뒤 두 번째 라운드</h3>
+      <p>
+        위까지가 첫 구현이다. 배포한 뒤 화면 여덟 개를 다시 돌려보고 나온 것들 —
+        <strong>세 건 모두 같은 종류였다.</strong> 어두운 배경을 전제하던 코드가 밝은
+        바탕에서 반대로 작동한다. 앞의 하우징·컨트롤 경계선과 똑같은 패턴이고,
+        이 패턴을 세 번 만났다는 것 자체가 이번 개편의 성격이다:
+        <em>테마를 뒤집는 일의 대부분은 색을 고르는 것이 아니라, 색이 아니라
+        방향으로 쓰이던 코드를 찾아내는 것이다.</em>
+      </p>
+
+      <div class="risk">
+        <span class="label">① 흰 판 위에서 사라지던 키캡</span>
+        <p>
+          감상 화면에서 <code>plastic</code>(흰색)과 <code>metal</code>(은색) 키캡이
+          상판과 붙어 형태가 사라졌다. 재질 8종 가운데 <strong>여섯</strong>
+          (plastic·ice·metal·water·cotton·sand)이 밝은 톤이고, 그 값들은 전부
+          <strong>어두운 상판을 전제로</strong> 조율돼 있다.
+        </p>
+        <p>
+          <code>palette.ts</code>에서 하양을 뺀 것으로는 못 막는다 — 그건 앞으로 고를
+          색만 바꿀 뿐이고, <strong>이미 저장된 작품과 여섯 재질은 그대로</strong>다.
+          재질은 작품 데이터라 손댈 수 없지만 <strong>상판은 우리 것</strong>이라,
+          상판을 순백에서 <code>--fill</code> → <code>--well</code>로 한 단 내렸다.
+          §08이 "판만 바꾸면 된다"고 했던 판이, 이번에는 반대로 문제의 해법이 됐다.
+        </p>
+      </div>
+
+      <div class="risk">
+        <span class="label">② "지금은 눌러도 소용없어요"가 거꾸로</span>
+        <p>
+          <code>.keycap-slot.is-muted</code>는 <code>brightness(0.78)</code>로
+          키캡을 어둡게 죽이고 있었다. 어두운 상판에서 어둡게 죽이는 것은 곧
+          "물러남"이지만, 흰 상판에서는 <strong>때가 낀 것</strong>으로 읽힌다.
+          밝은 바탕에서 물러나는 방향은 바탕 쪽이다 —
+          <code>saturate(0.35) opacity(0.5)</code>로 바꿨다.
+        </p>
+      </div>
+
+      <div class="risk">
+        <span class="label">③ 시트 뒤가 탁해지던 스크림</span>
+        <p>
+          <code>--scrim</code> 45%는 어두운 바탕에서 "뒤가 잠깐 물러났다"였다.
+          파스텔 위에 45% 자주를 덮으면 무디한 모브가 된다. 26%로 낮추고
+          <code>backdrop-filter: blur(3px)</code>를 더했다 — 덜 덮고 대신 흐린다.
+          대신 <strong>정말 가려야 하는 것</strong>(<code>.draw-pad-busy</code>,
+          "지금 만지지 마세요")은 얇아진 스크림에 기대지 않고 <code>--overlay</code>를
+          직접 쓴다.
+        </p>
+      </div>
+
+      <h4>같이 채운 것 — §07의 개인 모드 절반</h4>
+      <p>
+        첫 구현은 그룹 쪽 오버라이드만 넣고 개인 쪽 형태는 기존 값을 그대로 뒀다.
+        그래서 두 모드의 차이가 색·반경·간격뿐이었고, §07이 약속한
+        <em>"스티커 대 서류"</em>가 절반만 서 있었다. 나머지를 채웠다:
+        카드 테두리 2px, 단단한 오프셋 그림자(<code>0 6px 0</code>, 소프트 그림자 대신),
+        본문 600, 제목 800. 그룹 모드는 이 넷을 전부 되돌린다(1px · 그림자 없음 · 500 · 700).
+      </p>
+      <div class="found">
+        <span class="label">표를 고친 두 줄</span>
+        <p>
+          <strong>본문 700 → 600.</strong> 700을 넣어 보니 <code>--text-dim</code>인
+          보조 문구까지 강조로 읽혀 제목과 경쟁했다. 600이면 아이용 굵기는 서면서
+          위계가 남는다. <strong>"최소 탭 56px"은 애초에 사실이 아니었다</strong> —
+          <code>.chip</code>은 52px이다. 표를 쓸 때 코드를 잘못 읽었고, 지금 값을 적었다.
+          지킬 것은 "56px"이라는 숫자가 아니라 <em>모드로는 줄이지 않는다</em>는 규칙이다.
+        </p>
+      </div>
 
       <div class="risk">
         <span class="label">아직 안 본 것</span>
