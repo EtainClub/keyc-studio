@@ -321,7 +321,12 @@ export function tempoOf(preset: TempoPreset): Tempo {
  * 'local'  — 이 기기에만 있다. 서버에 아무것도 올라가 있지 않다.
  * 'link'   — 공유 완료. 링크로 열 수 있다. 원격 discoverable 메타가 true면 피드에도 표시된다.
  */
-export type Visibility = 'local' | 'link';
+/**
+ * `group` 작품은 초대 그룹의 현재 멤버만 열 수 있다. `link`는 기존 공개/미등재
+ * 공유 호환용으로 남긴다 — 두 정책을 같은 값으로 취급하면 회사용 비공개 약속이
+ * 다시 깨진다.
+ */
+export type Visibility = 'local' | 'link' | 'group';
 
 export type Work = {
   /** nanoid 12자 */

@@ -80,6 +80,35 @@ service firebase.storage {
         && request.resource.contentType == 'image/jpeg';
     }
 
+    // 그룹 전용 파일은 Firebase Storage URL을 직접 열지 않는다. callable이 작품의
+    // 현재 groupIds와 멤버십을 확인하고 필요한 바이트만 반환한다.
+    match /groupWorks/{workId}/art/{fileName} {
+      allow read: if false;
+      allow create, update: if request.auth != null
+        && firestore.get(/databases/(default)/documents/works/$(workId)).data.authorUid
+             == request.auth.uid
+        && request.resource.size < 200 * 1024
+        && request.resource.contentType == 'image/png';
+    }
+
+    match /groupWorks/{workId}/sound/{fileName} {
+      allow read: if false;
+      allow create, update: if request.auth != null
+        && firestore.get(/databases/(default)/documents/works/$(workId)).data.authorUid
+             == request.auth.uid
+        && request.resource.size < 150 * 1024
+        && request.resource.contentType == 'audio/wav';
+    }
+
+    match /groupWorks/{workId}/thumb.jpg {
+      allow read: if false;
+      allow create, update: if request.auth != null
+        && firestore.get(/databases/(default)/documents/works/$(workId)).data.authorUid
+             == request.auth.uid
+        && request.resource.size < 200 * 1024
+        && request.resource.contentType == 'image/jpeg';
+    }
+
     // 삭제는 Function(Admin SDK)이 한다. 클라이언트에는 열지 않는다.
     match /{allOther=**} {
       allow read, write: if false;

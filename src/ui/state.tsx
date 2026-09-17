@@ -68,6 +68,8 @@ type AppState = {
    * 공유하지 않은 작품이 기기 밖으로 나가는 것은 사용자가 켜는 일이지 기본값이 아니다.
    */
   cloudBackup: boolean;
+  /** 로컬 저장 실패는 만들기를 막지 않되, 화면에서 복구 행동을 제공해야 한다. */
+  storageStatus: 'saved' | 'saving' | 'error';
   syncRevision: number;
   draft: Work | null;
   startNewDraft: () => Promise<Work>;
@@ -77,6 +79,7 @@ type AppState = {
   setTempo: (preset: TempoPreset) => void;
   /** work를 주면 그것을, 안 주면 현재 draft를 저장한다. */
   saveDraft: (opts?: { thumb?: boolean; work?: Work }) => Promise<void>;
+  retrySaveDraft: () => Promise<void>;
   updateCreatorProfile: (profile: CreatorProfile) => Promise<void>;
   /** 복구 코드를 발급받은 직후. 백업을 켜고 이 기기의 작품을 올린다. */
   enableCloudBackup: () => Promise<void>;
@@ -100,6 +103,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   // Firebase 설정이 없으면 watchUser가 아예 안 불리니 "확인할 것 없음"으로 바로 준비됨 처리한다.
   const [authReady, setAuthReady] = useState(!isFirebaseConfigured);
   const [cloudBackup, setCloudBackup] = useState(() => isCloudBackupOptIn());
+  const [storageStatus, setStorageStatus] = useState<AppState['storageStatus']>('saved');
+  const saveSequence = useRef(0);
   const [syncRevision, setSyncRevision] = useState(0);
   /**
    * 지금 돌고 있는 동기화와 **그게 누구 것인지.**
@@ -225,9 +230,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     const work = createWork({ authorNick: nick });
     setDraft(work);
     registerAssets(work);
-    void putWorkRecord({ work, updatedAt: Date.now(), published: false }).catch((e) =>
-      console.warn('[storage] 작품을 저장하지 못했어요 — 이어서 만들기가 안 될 수 있어요', e),
-    );
+    const sequence = ++saveSequence.current;
+    setStorageStatus('saving');
+    try {
+      await putWorkRecord({ work, updatedAt: Date.now(), published: false });
+      if (sequence === saveSequence.current) setStorageStatus('saved');
+    } catch (e) {
+      console.warn('[storage] 작품을 저장하지 못했어요 — 이어서 만들기가 안 될 수 있어요', e);
+      if (sequence === saveSequence.current) setStorageStatus('error');
+    }
     return work;
   }, [nick]);
 
@@ -266,6 +277,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const saveDraft = useCallback(async (opts: { thumb?: boolean; work?: Work } = {}) => {
     const work = opts.work ?? draftRef.current;
     if (!work) return;
+    const sequence = ++saveSequence.current;
+    setStorageStatus('saving');
     try {
       const existing = await getWorkRecord(work.id);
       const thumb = opts.thumb
@@ -280,6 +293,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       };
       await putWorkRecord(record);
       scheduleWorkBackup(record);
+      if (sequence === saveSequence.current) setStorageStatus('saved');
       /*
        * 여기서 pruneAssets를 부르면 안 된다.
        *
@@ -292,8 +306,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       // 저장 실패가 화면 전환을 막지 않게 한다(위 startNewDraft 주석 참조).
       console.warn('[storage] 저장하지 못했어요', e);
+      if (sequence === saveSequence.current) setStorageStatus('error');
     }
   }, []);
+
+  const retrySaveDraft = useCallback(() => saveDraft({ thumb: true }), [saveDraft]);
 
   const updateCreatorProfile = useCallback(async (nextProfile: CreatorProfile) => {
     const candidate = normalizeProfile({ ...nextProfile, customized: true }, profileRef.current.name);
@@ -402,6 +419,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       account,
       authReady,
       cloudBackup,
+      storageStatus,
       syncRevision,
       draft,
       startNewDraft,
@@ -410,6 +428,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       patchKey,
       setTempo,
       saveDraft,
+      retrySaveDraft,
       updateCreatorProfile,
       enableCloudBackup,
       recoverAccount,
@@ -422,6 +441,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       account,
       authReady,
       cloudBackup,
+      storageStatus,
       syncRevision,
       draft,
       startNewDraft,
@@ -430,6 +450,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       patchKey,
       setTempo,
       saveDraft,
+      retrySaveDraft,
       updateCreatorProfile,
       enableCloudBackup,
       recoverAccount,

@@ -9,6 +9,7 @@ const expected = [
   'shareMeta', 'thumb', 'avatar', 'listPublicFeed', 'recordPlay', 'unshareWork',
   // 그룹 스테이지
   'createGroup', 'getGroupCode', 'joinGroup', 'listGroupStage', 'submitToGroup',
+  'fetchSharedWork', 'fetchGroupWorkFile', 'closeGroupRound', 'startNextGroupRound',
   'withdrawEntry', 'deleteGroup',
   // 익명 계정 복구
   'issueRecoveryCode', 'getRecoveryStatus', 'redeemRecoveryCode',

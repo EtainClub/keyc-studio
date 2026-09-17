@@ -72,6 +72,14 @@ const MAX_GROUPS_PER_WORK = 3;
 /** 한 계정이 만들 수 있는 그룹 수. */
 const GROUPS_PER_OWNER_MAX = 3;
 
+// 모든 callable보다 먼저 선언해야 module 평가 중 TDZ에 걸리지 않는다.
+const ENFORCE_APP_CHECK = process.env.ENFORCE_APP_CHECK === 'true';
+const CALLABLE_OPTIONS = {
+  cors: true,
+  invoker: 'public',
+  enforceAppCheck: ENFORCE_APP_CHECK,
+};
+
 const groupRef = (groupId) => db.doc(`groups/${groupId}`);
 const memberRef = (groupId, uid) => db.doc(`groups/${groupId}/members/${uid}`);
 const entryRef = (groupId, workId) => db.doc(`groups/${groupId}/entries/${workId}`);
@@ -85,12 +93,84 @@ const entryRef = (groupId, workId) => db.doc(`groups/${groupId}/entries/${workId
  * uid와 workId 모두 [A-Za-z0-9_-] 12자라 구분자 __가 두 값 안에 나타날 수 없다.
  * (Firebase uid는 28자 영숫자다 — 역시 언더스코어가 없다.)
  */
-const listenRef = (groupId, workId, uid) =>
-  db.doc(`groups/${groupId}/listens/${workId}__${uid}`);
+const listenRef = (groupId, roundNumber, workId, uid) =>
+  db.doc(`groups/${groupId}/listens/${roundNumber}__${workId}__${uid}`);
 /** users/{uid}/groups 미러. "내 그룹 목록"을 collectionGroup 색인 없이 읽기 위한 사본. */
 const myGroupRef = (uid, groupId) => db.doc(`users/${uid}/groups/${groupId}`);
 const PUBLIC_ORIGIN = (process.env.PUBLIC_ORIGIN || 'https://keyc.studio').replace(/\/+$/, '');
 const UPSTREAM_TIMEOUT_MS = 3_000;
+
+/** group 작품은 문서·그림·소리 모두 같은 판정으로 연다. 하나라도 현재 멤버인
+ * 그룹이 있으면 감상할 수 있고, 작성자는 탈퇴 뒤에도 자기 작품을 관리할 수 있다. */
+async function canReadGroupWork(work, uid) {
+  if (!uid || !work) return false;
+  if (work.authorUid === uid) return true;
+  const groupIds = Array.isArray(work.groupIds) ? work.groupIds.filter((id) => GROUP_ID.test(id)) : [];
+  if (groupIds.length === 0) return false;
+  const members = await db.getAll(...groupIds.map((groupId) => memberRef(groupId, uid)));
+  return members.some((snap) => snap.exists);
+}
+
+function isGroupWork(work) {
+  return work?.visibility === 'group';
+}
+
+/* ── 그룹 전용 작품 읽기 ───────────────────────────── */
+
+/**
+ * Firestore 규칙만으로는 groupIds 배열의 어느 한 그룹에 속하는지 안전하고 싸게
+ * 확인하기 어렵다. 그래서 group 작품은 여기서 멤버십을 확인한 뒤에만 돌려준다.
+ * 기존 link 작품은 공개 링크 호환을 위해 로그인 없이도 같은 callable로 읽을 수 있다.
+ */
+export const fetchSharedWork = onCall(CALLABLE_OPTIONS, async (request) => {
+  const workId = String(request.data?.workId || '');
+  if (!WORK_ID.test(workId)) throw new HttpsError('invalid-argument', '작품 번호가 이상해요');
+  const snap = await db.collection('works').doc(workId).get();
+  if (!snap.exists) throw new HttpsError('not-found', '작품을 찾을 수 없어요');
+  const work = snap.data();
+  if (isExpired(work)) throw new HttpsError('not-found', '작품을 찾을 수 없어요');
+  if (work.visibility === 'link') return { work };
+  if (isGroupWork(work) && await canReadGroupWork(work, request.auth?.uid)) return { work };
+  throw new HttpsError('permission-denied', '이 그룹 작품은 참가자만 볼 수 있어요');
+});
+
+/**
+ * 그룹 전용 자산은 서명 URL을 주지 않는다. URL은 전달되는 순간 멤버십 변경 뒤에도
+ * 남을 수 있기 때문이다. 200KB 이하의 작품 자산만 base64로 돌려주고 클라이언트는
+ * 메모리 Blob으로 재생·표시한다.
+ */
+export const fetchGroupWorkFile = onCall(CALLABLE_OPTIONS, async (request) => {
+  const workId = String(request.data?.workId || '');
+  const assetId = typeof request.data?.assetId === 'string' ? request.data.assetId : '';
+  const kind = request.data?.kind === 'thumb' ? 'thumb' : request.data?.kind === 'sound' ? 'sound' : 'art';
+  if (!WORK_ID.test(workId)) throw new HttpsError('invalid-argument', '작품 번호가 이상해요');
+  const snap = await db.collection('works').doc(workId).get();
+  const work = snap.exists ? snap.data() : null;
+  if (!isGroupWork(work) || !(await canReadGroupWork(work, request.auth?.uid))) {
+    throw new HttpsError('permission-denied', '이 그룹 작품은 참가자만 볼 수 있어요');
+  }
+
+  let path;
+  let mimeType;
+  if (kind === 'thumb') {
+    path = `groupWorks/${workId}/thumb.jpg`;
+    mimeType = 'image/jpeg';
+  } else {
+    const asset = Array.isArray(work.assets)
+      ? work.assets.find((item) => item?.id === assetId && item?.kind === kind)
+      : null;
+    if (!asset || typeof asset.remotePath !== 'string' || !asset.remotePath.startsWith(`groupWorks/${workId}/`)) {
+      throw new HttpsError('not-found', '파일을 찾을 수 없어요');
+    }
+    path = asset.remotePath;
+    mimeType = kind === 'sound' ? 'audio/wav' : 'image/png';
+  }
+  const file = getStorage().bucket().file(path);
+  const [exists] = await file.exists();
+  if (!exists) throw new HttpsError('not-found', '파일을 찾을 수 없어요');
+  const [buf] = await file.download();
+  return { mimeType, data: buf.toString('base64') };
+});
 
 /**
  * App Check 강제 여부.
@@ -109,18 +189,6 @@ const UPSTREAM_TIMEOUT_MS = 3_000;
  * 꺼져 있으면 recordPlay의 표 등록을 브라우저 없이 반복 호출할 수 있다.
  * 지금(v1)은 순위가 없어 동기가 없지만, P2에서 컨테스트를 켜는 작업의 선행 조건이다.
  */
-const ENFORCE_APP_CHECK = process.env.ENFORCE_APP_CHECK === 'true';
-
-/**
- * Callable은 브라우저가 OPTIONS 프리플라이트를 보낼 수 있도록 Cloud Run IAM 호출을 연다.
- * 실제 권한은 각 핸들러의 Firebase Auth 검사와 선택적인 App Check가 계속 담당한다.
- */
-const CALLABLE_OPTIONS = {
-  cors: true,
-  invoker: 'public',
-  enforceAppCheck: ENFORCE_APP_CHECK,
-};
-
 const escapeHtml = (s) =>
   String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -602,11 +670,16 @@ function throttleHit(key, now) {
 async function recordGroupPlay(groupId, workId, uid, { countReplay, completed }) {
   const entry = entryRef(groupId, workId);
   const member = memberRef(groupId, uid);
-  const [entrySnap, memberSnap] = await db.getAll(entry, member);
+  const [entrySnap, memberSnap, groupSnap] = await db.getAll(entry, member, groupRef(groupId));
 
   // 그룹에 올라오지 않은 작품이거나 내린 작품이면 셀 것이 없다.
   if (!entrySnap.exists || entrySnap.data().status !== 'active') {
     return { counted: false, replayCounted: false, reason: 'not-entered' };
+  }
+  // 회차 결과는 closeGroupRound 시점의 스냅샷이다. 마감 뒤 재생이 집계까지
+  // 바꾸면 카드 숫자와 결과가 달라져 "발표 후에도 표가 움직인다"가 된다.
+  if (!groupSnap.exists || groupSnap.data().contest?.phase === 'closed') {
+    return { counted: false, replayCounted: false, reason: 'round-closed' };
   }
 
   /*
@@ -638,8 +711,9 @@ async function recordGroupPlay(groupId, workId, uid, { countReplay, completed })
   // 여기부터는 순위(표)의 영역이다 — 멤버만 들어온다.
   if (!memberSnap.exists) return { counted: false, replayCounted, reason: 'not-member' };
 
+  const roundNumber = Number(entrySnap.data().roundNumber) || 1;
   return db.runTransaction(async (tx) => {
-    const listen = listenRef(groupId, workId, uid);
+    const listen = listenRef(groupId, roundNumber, workId, uid);
     const listenSnap = await tx.get(listen);
 
     // 이미 센 사람이다. 순위는 움직이지 않는다.
@@ -657,7 +731,7 @@ async function recordGroupPlay(groupId, workId, uid, { countReplay, completed })
      */
     if (!completed) return { counted: false, replayCounted, reason: 'incomplete' };
 
-    tx.set(listen, { workId, uid, firstAt: now, lastAt: now, plays: 1 });
+    tx.set(listen, { workId, uid, roundNumber, firstAt: now, lastAt: now, plays: 1 });
     tx.set(entry, { uniqueListeners: FieldValue.increment(1) }, { merge: true });
     // 청취왕 상을 위한 개인 집계. 여기서 같이 올려야 따로 훑지 않아도 된다.
     tx.set(member, { listenedCount: FieldValue.increment(1) }, { merge: true });
@@ -764,7 +838,10 @@ export const unshareWork = onCall(CALLABLE_OPTIONS, async (request) => {
   }
 
   // 파일을 먼저 지운다. 문서만 지우고 파일이 남는 상황을 만들지 않는다.
-  await getStorage().bucket().deleteFiles({ prefix: `works/${workId}/` });
+  await Promise.all([
+    getStorage().bucket().deleteFiles({ prefix: `works/${workId}/` }),
+    getStorage().bucket().deleteFiles({ prefix: `groupWorks/${workId}/` }),
+  ]);
 
   /*
    * 그룹에 올라가 있던 제출은 **지우지 않고 내린다.**
@@ -970,6 +1047,8 @@ export const createGroup = onCall(CALLABLE_OPTIONS, async (request) => {
     submitPolicy: 'members',
     contest: {
       phase: 'open',
+      roundNumber: 1,
+      roundTitle: '',
       submitClosesAt: null,
       stageClosesAt: null,
       rankingMetric: 'uniqueListeners',
@@ -1203,6 +1282,8 @@ export const listGroupStage = onCall(CALLABLE_OPTIONS, async (request) => {
         replayCount: Number(data.replayCount) || 0,
         uniqueListeners: Number(data.uniqueListeners) || 0,
         submittedAt: Number(data.submittedAt) || 0,
+        private: data.private === true,
+        roundNumber: Number(data.roundNumber) || 1,
       });
       if (rows.length >= limit) {
         stoppedMidBatch = true;
@@ -1220,7 +1301,7 @@ export const listGroupStage = onCall(CALLABLE_OPTIONS, async (request) => {
 
   const authorUids = [...new Set(rows.map((row) => row.authorUid).filter(Boolean))];
   const [listenSnaps, profileSnaps] = await Promise.all([
-    rows.length > 0 ? db.getAll(...rows.map((row) => listenRef(groupId, row.id, uid))) : Promise.resolve([]),
+    rows.length > 0 ? db.getAll(...rows.map((row) => listenRef(groupId, row.roundNumber, row.id, uid))) : Promise.resolve([]),
     authorUids.length > 0
       ? db.getAll(...authorUids.map((authorUid) => db.collection('publicProfiles').doc(authorUid)))
       : Promise.resolve([]),
@@ -1230,10 +1311,11 @@ export const listGroupStage = onCall(CALLABLE_OPTIONS, async (request) => {
     profileSnaps.filter((p) => p.exists && p.data()?.enabled === true).map((p) => p.id),
   );
 
-  const items = rows.map(({ authorUid, ...item }) => ({
+  const items = rows.map(({ authorUid, roundNumber, private: isPrivate, ...item }) => ({
     ...item,
-    avatarUrl: authorUid && avatarOwners.has(authorUid) ? `${PUBLIC_ORIGIN}/avatar/${item.id}` : null,
-    listened: listenedIds.has(`${item.id}__${uid}`),
+    avatarUrl: !isPrivate && authorUid && avatarOwners.has(authorUid) ? `${PUBLIC_ORIGIN}/avatar/${item.id}` : null,
+    private: isPrivate,
+    listened: listenedIds.has(`${roundNumber}__${item.id}__${uid}`),
     mine: authorUid === uid,
   }));
 
@@ -1241,6 +1323,7 @@ export const listGroupStage = onCall(CALLABLE_OPTIONS, async (request) => {
   const listenedCountSnap = await db
     .collection(`groups/${groupId}/listens`)
     .where('uid', '==', uid)
+    .where('roundNumber', '==', Number(group.contest?.roundNumber) || 1)
     .count()
     .get();
 
@@ -1253,6 +1336,9 @@ export const listGroupStage = onCall(CALLABLE_OPTIONS, async (request) => {
       entryCount: Number(group.counts?.entries) || 0,
       submitPolicy: group.submitPolicy,
       rankingMetric,
+      phase: group.contest?.phase === 'closed' ? 'closed' : 'open',
+      roundNumber: Number(group.contest?.roundNumber) || 1,
+      roundTitle: typeof group.contest?.roundTitle === 'string' ? group.contest.roundTitle.slice(0, 60) : '',
     },
     items,
     nextCursor: exhausted ? null : cursor,
@@ -1279,7 +1365,8 @@ export const submitToGroup = onCall(CALLABLE_OPTIONS, async (request) => {
     throw new HttpsError('permission-denied', '내 작품이 아니에요');
   }
   const work = workSnap.data();
-  if (work.visibility !== 'link') {
+  const groupOnly = request.data?.groupOnly === true;
+  if (work.visibility !== 'link' && !(groupOnly && work.visibility === 'local')) {
     throw new HttpsError('failed-precondition', '먼저 공유를 완료해 주세요');
   }
 
@@ -1313,6 +1400,10 @@ export const submitToGroup = onCall(CALLABLE_OPTIONS, async (request) => {
       continue;
     }
     const group = groupSnap.data();
+    if (group.contest?.phase === 'closed') {
+      skipped.push({ groupId, reason: 'round-closed' });
+      continue;
+    }
     const role = memberSnap.data().role;
     if (group.submitPolicy === 'admins' && role === 'member') {
       skipped.push({ groupId, reason: 'admins-only' });
@@ -1347,11 +1438,13 @@ export const submitToGroup = onCall(CALLABLE_OPTIONS, async (request) => {
       title: work.title || '',
       hint: work.hint || '',
       durationMs: Number(work.replay?.durationMs) || 0,
+      private: groupOnly,
+      roundNumber: Number(group.contest?.roundNumber) || 1,
       submittedAt: now,
       status: 'active',
       removedAt: null,
     };
-    if (!entrySnap.exists) {
+    if (!entrySnap.exists || entrySnap.data().status !== 'active') {
       entryFields.uniqueListeners = 0;
       entryFields.replayCount = 0;
       entryFields.lastPlayedAt = null;
@@ -1375,10 +1468,88 @@ export const submitToGroup = onCall(CALLABLE_OPTIONS, async (request) => {
     await workRef.update({
       groupIds: FieldValue.arrayUnion(...submitted),
       expiresAt: null,
+      ...(groupOnly ? { visibility: 'group', discoverable: false } : {}),
     });
   }
 
   return { ok: true, submitted, skipped };
+});
+
+/** 회차를 닫고 현재 순위를 스냅샷으로 남긴다. 결과 문서는 다음 회차가 열려도
+ * 덮어쓰지 않으므로, 같은 그룹에서 두 번째 행사를 열어도 첫 결과가 사라지지 않는다. */
+export const closeGroupRound = onCall(CALLABLE_OPTIONS, async (request) => {
+  const uid = request.auth?.uid;
+  const groupId = String(request.data?.groupId || '');
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+  if (!GROUP_ID.test(groupId)) throw new HttpsError('invalid-argument', '그룹 번호가 이상해요');
+  const [groupSnap, memberSnap] = await db.getAll(groupRef(groupId), memberRef(groupId, uid));
+  if (!groupSnap.exists || !memberSnap.exists) throw new HttpsError('permission-denied', '회차를 닫을 권한이 없어요');
+  const role = memberSnap.data().role;
+  if (role !== 'owner' && role !== 'admin') throw new HttpsError('permission-denied', '회차를 닫을 권한이 없어요');
+  const group = groupSnap.data();
+  if (group.contest?.phase === 'closed') return { ok: true, alreadyClosed: true, roundNumber: Number(group.contest?.roundNumber) || 1 };
+  const roundNumber = Number(group.contest?.roundNumber) || 1;
+  const metric = group.contest?.rankingMetric === 'replayCount' ? 'replayCount' : 'uniqueListeners';
+  const entriesSnap = await db.collection(`groups/${groupId}/entries`).where('status', '==', 'active').get();
+  const results = entriesSnap.docs
+    .map((doc) => {
+      const entry = doc.data();
+      return {
+        workId: doc.id,
+        title: String(entry.title || '').slice(0, 20),
+        authorNick: String(entry.authorNick || '친구').slice(0, 30),
+        score: Math.max(0, Number(entry[metric]) || 0),
+        uniqueListeners: Math.max(0, Number(entry.uniqueListeners) || 0),
+        replayCount: Math.max(0, Number(entry.replayCount) || 0),
+      };
+    })
+    .sort((a, b) => b.score - a.score || a.workId.localeCompare(b.workId));
+  const now = Date.now();
+  const batch = db.batch();
+  batch.set(db.doc(`groups/${groupId}/rounds/${roundNumber}`), {
+    roundNumber,
+    title: typeof group.contest?.roundTitle === 'string' ? group.contest.roundTitle.slice(0, 60) : '',
+    rankingMetric: metric,
+    closedAt: now,
+    entryCount: results.length,
+    results,
+  });
+  batch.set(groupRef(groupId), { contest: { ...group.contest, phase: 'closed', stageClosesAt: now } }, { merge: true });
+  await batch.commit();
+  return { ok: true, roundNumber, results: results.slice(0, 3) };
+});
+
+/** 닫힌 회차의 제출을 보관하고, 같은 멤버로 다음 회차를 연다. 열린 회차를 덮어쓰는
+ * 경로가 없으므로 주최자가 실수로 진행 중인 참가작을 초기화할 수 없다. */
+export const startNextGroupRound = onCall(CALLABLE_OPTIONS, async (request) => {
+  const uid = request.auth?.uid;
+  const groupId = String(request.data?.groupId || '');
+  const title = String(request.data?.title || '').trim().slice(0, 60);
+  if (!uid) throw new HttpsError('unauthenticated', '로그인이 필요해요');
+  if (!GROUP_ID.test(groupId)) throw new HttpsError('invalid-argument', '그룹 번호가 이상해요');
+  const [groupSnap, memberSnap] = await db.getAll(groupRef(groupId), memberRef(groupId, uid));
+  if (!groupSnap.exists || !memberSnap.exists) throw new HttpsError('permission-denied', '다음 회차를 열 권한이 없어요');
+  const role = memberSnap.data().role;
+  if (role !== 'owner' && role !== 'admin') throw new HttpsError('permission-denied', '다음 회차를 열 권한이 없어요');
+  const group = groupSnap.data();
+  if (group.contest?.phase !== 'closed') throw new HttpsError('failed-precondition', '먼저 현재 회차를 마감해 주세요');
+  const active = await db.collection(`groups/${groupId}/entries`).where('status', '==', 'active').get();
+  // 그룹 최대 제출 200개라 한 Firestore batch(500 operations)에서 원자적으로 넘길 수 있다.
+  const batch = db.batch();
+  for (const entry of active.docs) batch.set(entry.ref, { status: 'archived', archivedAt: Date.now() }, { merge: true });
+  batch.set(groupRef(groupId), {
+    counts: { entries: 0 },
+    contest: {
+      ...group.contest,
+      phase: 'open',
+      roundNumber: (Number(group.contest?.roundNumber) || 1) + 1,
+      roundTitle: title,
+      submitClosesAt: null,
+      stageClosesAt: null,
+    },
+  }, { merge: true });
+  await batch.commit();
+  return { ok: true, roundNumber: (Number(group.contest?.roundNumber) || 1) + 1 };
 });
 
 /**

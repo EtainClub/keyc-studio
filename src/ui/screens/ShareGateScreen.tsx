@@ -31,8 +31,10 @@ import { useModalShell } from '../hooks';
 
 type Props = {
   work: Work;
-  onDone: (url: string, work: Work) => void;
+  onDone: (url: string, work: Work, submittedGroups?: string[]) => void;
   onCancel: () => void;
+  /** 그룹에서 시작했으면 제출 대상을 미리 고른다. */
+  initialGroupId?: string;
 };
 
 type ExpireChoice = 7 | 30 | null;
@@ -43,7 +45,7 @@ const EXPIRES: { value: ExpireChoice; label: string }[] = [
   { value: null, label: t('gate.expire.forever') },
 ];
 
-export function ShareGate({ work, onDone, onCancel }: Props) {
+export function ShareGate({ work, onDone, onCancel, initialGroupId }: Props) {
   const { profile, account } = useAppState();
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('asIs');
   const [expireDays, setExpireDays] = useState<ExpireChoice>(30);
@@ -58,7 +60,7 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
   const [discoverable, setDiscoverable] = useState(true);
   // 그룹 제출이 일부/전부 실패한 채로 공유는 성공했을 때, 그 사실을 숨기지 않고
   // 한 번 더 보여주기 위한 중간 상태. 여기 값이 있으면 본문 대신 안내만 보여준다.
-  const [pendingDone, setPendingDone] = useState<{ url: string; work: Work; groupError: string } | null>(null);
+  const [pendingDone, setPendingDone] = useState<{ url: string; work: Work; groupError: string; submittedGroups?: string[] } | null>(null);
   const sheetRef = useRef<HTMLElement>(null);
 
   const hasGroups = selectedGroupIds.length > 0;
@@ -68,7 +70,13 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
     // 그룹은 부가 기능이다 — 목록을 못 가져와도 공유 자체는 막지 않고 구역을 조용히 감춘다.
     listMyGroups()
       .then((list) => {
-        if (!cancelled) setGroups(list);
+        if (!cancelled) {
+          setGroups(list);
+          if (initialGroupId && list.some((group) => group.id === initialGroupId)) {
+            setSelectedGroupIds([initialGroupId]);
+            setDiscoverable(false);
+          }
+        }
       })
       .catch(() => {
         if (!cancelled) setGroups([]);
@@ -83,10 +91,12 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
     if (hasGroups) setExpireDays(null);
   }, [hasGroups]);
 
+  const targetMode = hasGroups && discoverable ? 'both' : hasGroups ? 'group' : 'public';
+
   // 대상(공개 스테이지 ↔ 그룹)이 바뀌면 이전 체크는 다른 문구에 대한 동의였던 셈이라 무효다.
   useEffect(() => {
     setGuardianOk(false);
-  }, [hasGroups]);
+  }, [targetMode]);
 
   const artCount = work.assets.filter((a) => a.kind === 'art').length;
   const soundCount = work.assets.filter((a) => a.kind === 'sound').length;
@@ -112,7 +122,7 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
   const hasTarget = discoverable || hasGroups;
 
   const finalize = () => {
-    if (pendingDone) onDone(pendingDone.url, pendingDone.work);
+    if (pendingDone) onDone(pendingDone.url, pendingDone.work, pendingDone.submittedGroups);
   };
   // 공유 자체는 이미 끝난 뒤라 "그만두기"가 아니라 "확인"으로 닫힌다. Esc·배경 클릭도 같은 동작이어야
   // 한다 — 이미 성공한 공유를 취소할 방법은 없다.
@@ -133,9 +143,9 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
       });
       if (result.groupError) {
         // 링크는 이미 열렸다 — 그룹 제출 실패를 숨기지 않고 한 번 더 보여준 뒤에 마무리한다.
-        setPendingDone({ url: result.url, work: result.work, groupError: result.groupError });
+        setPendingDone({ url: result.url, work: result.work, groupError: result.groupError, submittedGroups: result.submittedGroups });
       } else {
-        onDone(result.url, result.work);
+        onDone(result.url, result.work, result.submittedGroups);
       }
     } catch (e) {
       console.warn('[share] 공유 실패', e);
@@ -302,7 +312,7 @@ export function ShareGate({ work, onDone, onCancel }: Props) {
                 onChange={(e) => setGuardianOk(e.target.checked)}
               />
               <span>
-                {hasGroups
+                {targetMode === 'group'
                   ? t('gate.consentGroup')
                   : t('gate.consentPublic')}
               </span>

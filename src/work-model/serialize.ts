@@ -88,7 +88,7 @@ export function parseWork(raw: unknown): Work | null {
     assets: coerceAssets(src.assets),
     replay: coerceReplay(src.replay, tempo),
     secrets: coerceSecrets(src.secrets),
-    visibility: src.visibility === 'link' ? 'link' : 'local',
+    visibility: src.visibility === 'link' || src.visibility === 'group' ? src.visibility : 'local',
   };
 }
 

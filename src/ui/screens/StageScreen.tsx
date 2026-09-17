@@ -12,13 +12,14 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { durationForTempo } from '../../work-model/timing';
 import type { AssetRef, KeyIndex, Secret, TempoPreset } from '../../work-model/types';
 import { t } from '../../i18n';
 import { isTossApp } from '../../platform/toss';
 import { KeycapGrid, type GridHandle, type LoopState } from '../components/KeycapGrid';
 import { SecretSheet } from '../components/SecretSheet';
+import { StorageStatus } from '../components/StorageStatus';
 import {
   SecretRevealLayer,
   secretHandlerFor,
@@ -38,6 +39,8 @@ const TEMPO_LABEL: Record<TempoPreset, string> = {
 
 export function StageScreen() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
+  const groupQuery = params.get('g') ? `?g=${params.get('g')}` : '';
   const { engine, draft, patchKey, patchDraft, setTempo, saveDraft } = useAppState();
   const gridRef = useRef<GridHandle>(null);
   const revealRef = useRef<SecretRevealHandle>(null);
@@ -87,12 +90,13 @@ export function StageScreen() {
     <main className="screen stage">
       <header className="bar">
         {!isTossApp() && (
-          <button type="button" className="bar-back" onClick={() => nav('/create')}>
+          <button type="button" className="bar-back" onClick={() => nav(`/create${groupQuery}`)}>
             {t('stageScreen.backToCreate')}
           </button>
         )}
         <h1>{t('stageScreen.title')}</h1>
       </header>
+      <StorageStatus />
 
       <p className="guide">
         {t('stageScreen.guide')}
@@ -148,7 +152,7 @@ export function StageScreen() {
         onClick={async () => {
           engine.stop();
           await saveDraft();
-          nav('/perform');
+          nav(`/perform${groupQuery}`);
         }}
       >
         {t('stageScreen.toPerform')}

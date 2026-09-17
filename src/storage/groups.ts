@@ -156,11 +156,12 @@ export async function fetchGroupStage(query: GroupStageQuery): Promise<GroupStag
 export async function submitToGroups(
   workId: string,
   groupIds: string[],
+  options: { groupOnly?: boolean } = {},
 ): Promise<{ submitted: string[]; skipped: { groupId: string; reason: string }[] }> {
   await requireUid();
   const callable = httpsCallable(functions(), 'submitToGroup');
   const response = await withTimeout(
-    callable({ workId, groupIds }),
+    callable({ workId, groupIds, groupOnly: options.groupOnly === true }),
     CALL_TIMEOUT_MS,
     t('groups.op.submit'),
   );
@@ -196,6 +197,18 @@ export async function withdrawEntry(groupId: string, workId: string): Promise<vo
   await requireUid();
   const callable = httpsCallable(functions(), 'withdrawEntry');
   await withTimeout(callable({ groupId, workId }), CALL_TIMEOUT_MS, t('groups.op.withdraw'));
+}
+
+export async function closeGroupRound(groupId: string): Promise<void> {
+  await requireUid();
+  const callable = httpsCallable(functions(), 'closeGroupRound');
+  await withTimeout(callable({ groupId }), CALL_TIMEOUT_MS, t('groups.op.closeRound'));
+}
+
+export async function startNextGroupRound(groupId: string, title = ''): Promise<void> {
+  await requireUid();
+  const callable = httpsCallable(functions(), 'startNextGroupRound');
+  await withTimeout(callable({ groupId, title }), CALL_TIMEOUT_MS, t('groups.op.nextRound'));
 }
 
 const GROUP_ROLES: readonly GroupRole[] = ['owner', 'admin', 'member'];

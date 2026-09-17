@@ -14,15 +14,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  closeGroupRound,
   deleteGroup,
   fetchGroupInviteCode,
   fetchGroupStage,
   formatGroupCode,
   GROUP_MEMBER_MAX,
+  startNextGroupRound,
   type GroupStageSort,
 } from '../../storage/groups';
 import type { GroupStageCursor, GroupStageItem, GroupSummary } from '../../storage/group-feed';
 import { PUBLIC_ORIGIN } from '../../storage/firebase';
+import { resolveGroupThumbUrl } from '../../storage/assets';
 import { num, t } from '../../i18n';
 import { useAppState } from '../state';
 import { ProfileAvatar } from '../components/ProfileAvatar';
@@ -43,6 +46,48 @@ const SORTS: { id: GroupStageSort; label: string }[] = [
   { id: 'latest', label: t('feed.sort.latest') },
   { id: 'popular', label: t('feed.sort.popular') },
 ];
+
+/** 그룹 전용 썸네일은 공개 URL을 절대 사용하지 않는다. */
+function GroupThumb({
+  item,
+  broken,
+  onBroken,
+}: {
+  item: GroupStageItem;
+  broken: boolean;
+  onBroken: (id: string) => void;
+}) {
+  const [privateUrl, setPrivateUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!item.private) {
+      setPrivateUrl(null);
+      return;
+    }
+    let active = true;
+    resolveGroupThumbUrl(item.id)
+      .then((url) => {
+        if (active) setPrivateUrl(url);
+      })
+      .catch(() => onBroken(item.id));
+    return () => {
+      active = false;
+    };
+  }, [item.id, item.private, onBroken]);
+
+  const src = item.private ? privateUrl : `${PUBLIC_ORIGIN}/thumb/${item.id}`;
+  if (broken || !src) return <span className="feed-thumb-fallback" aria-hidden="true">♫</span>;
+  return (
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      width={640}
+      height={400}
+      onError={() => onBroken(item.id)}
+    />
+  );
+}
 
 /**
  * 호출하는 쪽(FeedScreen)은 반드시 `key={groupId}`를 함께 넘겨야 한다. groupId만
@@ -72,12 +117,17 @@ export function GroupStageScreen({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [brokenThumbs, setBrokenThumbs] = useState<ReadonlySet<string>>(new Set());
+  const markThumbBroken = useCallback((id: string) => {
+    setBrokenThumbs((prev) => new Set(prev).add(id));
+  }, []);
   // 초대 코드는 주최자만 다시 볼 수 있다 — 서버가 role을 다시 확인하므로 여기 role
   // 체크는 버튼을 아예 안 보이게 하는 용도일 뿐, 보안 경계가 아니다.
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [loadingCode, setLoadingCode] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [codeCopied, setCodeCopied] = useState(false);
+  const [roundBusy, setRoundBusy] = useState<'close' | 'next' | null>(null);
+  const [roundError, setRoundError] = useState('');
 
   /**
    * 삭제는 되돌릴 수 없다. 그래서 버튼 한 번으로는 실행하지 않고, 그룹 이름을
@@ -222,6 +272,21 @@ export function GroupStageScreen({
     // 없어진 화면의 버튼이 잠깐 다시 눌리는 상태를 만들 이유가 없다.
   };
 
+  const changeRound = async (action: 'close' | 'next') => {
+    if (roundBusy) return;
+    setRoundBusy(action);
+    setRoundError('');
+    try {
+      if (action === 'close') await closeGroupRound(groupId);
+      else await startNextGroupRound(groupId);
+      await load({ cursor: null, append: false });
+    } catch (cause) {
+      setRoundError(cause instanceof Error ? cause.message : t('group.roundActionFailed'));
+    } finally {
+      setRoundBusy(null);
+    }
+  };
+
   const filtered = Boolean(search);
   const empty = items?.length === 0;
 
@@ -236,6 +301,12 @@ export function GroupStageScreen({
             {/* 전체가 앞, 들은 수가 뒤다 — "12개 중 7개 들었어요". 순서가 바뀌면 뜻이 뒤집힌다. */}
             {group ? t('group.progress', { total: num(group.entryCount), listened: num(listenedCount) }) : ''}
           </p>
+          {group ? (
+            <p className="group-stage-members">
+              {t('group.round', { n: num(group.roundNumber) })} ·{' '}
+              {group.roundTitle || (group.phase === 'open' ? t('group.roundOpen') : t('group.roundClosed'))}
+            </p>
+          ) : null}
           {/* 정원을 함께 보여준다 — "몇 명까지 부를 수 있나"가 주최자의 첫 질문이고,
               그 답이 화면에 없으면 초대할 인원을 스스로 줄여 잡는다. */}
           {group ? (
@@ -245,6 +316,21 @@ export function GroupStageScreen({
           ) : null}
         </div>
         <div className="group-stage-actions">
+          {group?.phase === 'open' && (
+            <button type="button" className="chip primary" onClick={() => nav(`/create?g=${groupId}`)}>
+              {t('group.createForRound')}
+            </button>
+          )}
+          {group && group.role !== 'member' && group.phase === 'open' && (
+            <button type="button" className="chip" disabled={roundBusy !== null} onClick={() => void changeRound('close')}>
+              {roundBusy === 'close' ? t('group.closingRound') : t('group.closeRound')}
+            </button>
+          )}
+          {group && group.role !== 'member' && group.phase === 'closed' && (
+            <button type="button" className="chip primary" disabled={roundBusy !== null} onClick={() => void changeRound('next')}>
+              {roundBusy === 'next' ? t('group.startingNextRound') : t('group.startNextRound')}
+            </button>
+          )}
           {/* 이미 이 그룹에 들어와 있어도 다른 그룹(코드로 새로 입장할 그룹 포함)으로
               옮겨갈 방법이 있어야 한다 — 이 화면 안에는 그럴 길이 없었다. */}
           <button type="button" className="chip" onClick={onSwitchGroup}>
@@ -294,6 +380,8 @@ export function GroupStageScreen({
           )}
         </div>
       </header>
+
+      {roundError && <p className="warn" role="alert">{roundError}</p>}
 
       {confirmingDelete && (
         <section className="group-delete-confirm" role="alertdialog" aria-label={t('group.deleteConfirmAria')}>
@@ -427,18 +515,11 @@ export function GroupStageScreen({
                     {/* FeedScreen과 같은 이유로 hidden 대신 상태를 쓴다 — [hidden]을
                      * `.feed-thumb img`의 display:block이 이겨서 깨진 이미지 아이콘이
                      * 그대로 남는 게 실제로 있었던 버그다. */}
-                    {brokenThumbs.has(item.id) ? (
-                      <span className="feed-thumb-fallback" aria-hidden="true">♫</span>
-                    ) : (
-                      <img
-                        src={`${PUBLIC_ORIGIN}/thumb/${item.id}`}
-                        alt=""
-                        loading="lazy"
-                        width={640}
-                        height={400}
-                        onError={() => setBrokenThumbs((prev) => new Set(prev).add(item.id))}
-                      />
-                    )}
+                    <GroupThumb
+                      item={item}
+                      broken={brokenThumbs.has(item.id)}
+                      onBroken={markThumbBroken}
+                    />
                   </div>
                   {/* 공개 피드와 구분되는 지점 — 그룹 밖 사람은 이 카드를 볼 수 없다. */}
                     <span className="feed-badge">{t('group.badgeGroupOnly')}</span>

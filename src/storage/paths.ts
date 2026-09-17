@@ -17,6 +17,17 @@ export function thumbPath(workId: string): string {
   return `works/${workId}/thumb.jpg`;
 }
 
+/** 그룹 전용 작품은 공개 `works/`와 경로부터 나눈다. 이 경로의 파일은 Storage에서
+ * 직접 읽지 않고 callable이 그룹 멤버십을 확인한 뒤 바이트로 돌려준다. */
+export function groupAssetPath(workId: string, kind: AssetKind, assetId: string): string {
+  const ext = kind === 'art' ? 'png' : 'wav';
+  return `groupWorks/${workId}/${kind}/${assetId}.${ext}`;
+}
+
+export function groupThumbPath(workId: string): string {
+  return `groupWorks/${workId}/thumb.jpg`;
+}
+
 /** Google 계정 백업은 공개 works 경로와 분리하며 Storage Rules로 소유자만 읽는다. */
 export function backupAssetPath(
   uid: string,

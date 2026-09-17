@@ -16,6 +16,7 @@ const validItem = {
   submittedAt: 1_754_000_000_000,
   listened: false,
   mine: false,
+  private: false,
 };
 
 const validGroup = {
@@ -26,6 +27,9 @@ const validGroup = {
   entryCount: 11,
   submitPolicy: 'members' as const,
   rankingMetric: 'uniqueListeners' as const,
+  phase: 'open' as const,
+  roundNumber: 1,
+  roundTitle: '',
 };
 
 describe('그룹 요약', () => {

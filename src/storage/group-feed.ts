@@ -20,6 +20,7 @@ const RANKING_METRICS = ['uniqueListeners', 'replayCount'] as const;
 
 export type GroupSubmitPolicy = (typeof SUBMIT_POLICIES)[number];
 export type GroupRankingMetric = (typeof RANKING_METRICS)[number];
+export type GroupRoundPhase = 'open' | 'closed';
 
 export type GroupSummary = {
   id: string;
@@ -29,6 +30,9 @@ export type GroupSummary = {
   entryCount: number;
   submitPolicy: GroupSubmitPolicy;
   rankingMetric: GroupRankingMetric;
+  phase: GroupRoundPhase;
+  roundNumber: number;
+  roundTitle: string;
 };
 
 export type GroupStageItem = {
@@ -45,6 +49,8 @@ export type GroupStageItem = {
   listened: boolean;
   /** 내 작품인가. */
   mine: boolean;
+  /** 그룹 전용 작품은 공개 썸네일·아바타 경로를 쓰지 않는다. */
+  private: boolean;
 };
 
 /**
@@ -87,6 +93,12 @@ export function parseGroupSummary(value: unknown): GroupSummary | null {
   ) {
     return null;
   }
+  // Functions 배포 전의 기존 그룹도 새 클라이언트에서 계속 열 수 있다.
+  const phase: GroupRoundPhase = g.phase === 'closed' ? 'closed' : 'open';
+  const roundNumber = typeof g.roundNumber === 'number' && Number.isFinite(g.roundNumber) && g.roundNumber >= 1
+    ? Math.floor(g.roundNumber)
+    : 1;
+  const roundTitle = typeof g.roundTitle === 'string' ? g.roundTitle.slice(0, 60) : '';
   return {
     id: g.id,
     name: g.name.slice(0, 30),
@@ -95,6 +107,9 @@ export function parseGroupSummary(value: unknown): GroupSummary | null {
     entryCount: parseNonNegativeInt(g.entryCount),
     submitPolicy: g.submitPolicy as GroupSubmitPolicy,
     rankingMetric: g.rankingMetric as GroupRankingMetric,
+    phase,
+    roundNumber,
+    roundTitle,
   };
 }
 
@@ -131,6 +146,7 @@ function parseGroupStageItem(value: unknown): GroupStageItem | null {
     submittedAt: Math.round(item.submittedAt),
     listened: item.listened === true,
     mine: item.mine === true,
+    private: item.private === true,
   };
 }
 

@@ -23,7 +23,6 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { WorkThumbnail } from '../components/WorkThumbnail';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { isShareCurrent } from '../draft-state';
-import { hasSeenAppGuide, markAppGuideSeen } from '../first-guide';
 import { useAppState } from '../state';
 
 export function HomeScreen() {
@@ -100,12 +99,9 @@ export function HomeScreen() {
   const create = async () => {
     // 홈의 첫 탭이 오디오 unlock 기회다. 여기서 풀어두면 만들기 화면의 첫 소리가 즉시 난다.
     void engine.unlock();
-    // 처음 만드는 사람은 사용법부터 — 안 보고 곧장 오면 공연이 뭔지 모른 채 무대까지 간다.
-    if (!hasSeenAppGuide()) {
-      markAppGuideSeen();
-      nav('/guide');
-      return;
-    }
+    // 첫 작품 전의 긴 안내는 완료 전에 한 화면을 더 통과하게 만들었다. 기본 키캡은
+    // 이미 연주 가능하고 CreateScreen에 한 줄 안내가 있으므로 바로 만들기로 보낸다.
+    // 자세한 사용법은 프로필 메뉴의 "사용법"에서 언제든 다시 연다.
     await startNewDraft();
     nav('/create');
   };

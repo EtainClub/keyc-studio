@@ -6,17 +6,20 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { t } from '../../i18n';
 import { isTossApp } from '../../platform/toss';
 import { findAsset, type AssetRef, type KeyIndex } from '../../work-model/types';
 import { EditSheet } from '../components/EditSheet';
 import { KeycapGrid, type GridHandle } from '../components/KeycapGrid';
+import { StorageStatus } from '../components/StorageStatus';
 import { useAppState } from '../state';
 import { useResumeOnVisible } from '../hooks';
 
 export function CreateScreen() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
+  const groupQuery = params.get('g') ? `?g=${params.get('g')}` : '';
   const { engine, draft, patchKey, patchDraft, saveDraft } = useAppState();
   const gridRef = useRef<GridHandle>(null);
   const [editing, setEditing] = useState<KeyIndex | null>(null);
@@ -57,6 +60,7 @@ export function CreateScreen() {
       <p className="guide">
         {t('create.guide')}
       </p>
+      <StorageStatus />
 
       <KeycapGrid
         ref={gridRef}
@@ -73,7 +77,7 @@ export function CreateScreen() {
         className="big-cta bottom"
         onClick={async () => {
           await saveDraft({ thumb: true });
-          nav('/stage');
+          nav(`/stage${groupQuery}`);
         }}
       >
         {t('create.toStage')}

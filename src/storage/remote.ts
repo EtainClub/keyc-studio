@@ -15,7 +15,7 @@
  * 미완성 상태가 공유되는 사고가 구조적으로 없다.
  */
 
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore/lite';
+import { doc, setDoc, updateDoc } from 'firebase/firestore/lite';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes } from 'firebase/storage';
 import { applyVoiceMode, type VoiceMode } from '../audio-engine/voice';
@@ -31,7 +31,7 @@ import {
 import { getAssetBlob, getWorkRecord, localKeyOf, putWorkRecord } from './db';
 import { ensureSignedIn, firestore, functions, isAdminUser, isFirebaseConfigured, storage } from './firebase';
 import { acquireUid } from './identity';
-import { assetPath, thumbPath } from './paths';
+import { assetPath, groupAssetPath, groupThumbPath, thumbPath } from './paths';
 import { parsePublicFeedPage, type FeedCursor, type PublicFeedPage } from './public-feed';
 import { shareOrigin } from './share-url';
 import { toPortableWork } from './portable-work';
@@ -209,6 +209,8 @@ function explainGroupSkipReason(reason: string): string {
       return t('remote.group.adminOnly');
     case 'too-many-groups':
       return t('remote.group.limit');
+    case 'round-closed':
+      return t('remote.group.roundClosed');
     default:
       return t('remote.group.failed');
   }
@@ -264,6 +266,7 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
   const uploaded: AssetRef[] = [];
   const dropped = new Set<string>();
 
+  const groupOnly = Boolean(options.groupIds?.length) && options.discoverable === false;
   for (const asset of work.assets) {
     onProgress?.(asset.kind === 'art' ? t('remote.step.uploadArt') : t('remote.step.uploadSound'));
     const blob = await getAssetBlob(asset.localKey ?? localKeyOf(work.id, asset.id));
@@ -282,7 +285,9 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
       continue;
     }
 
-    const path = assetPath(work.id, asset.kind, asset.id);
+    const path = groupOnly
+      ? groupAssetPath(work.id, asset.kind, asset.id)
+      : assetPath(work.id, asset.kind, asset.id);
     await uploadPath(path, outgoing, asset.kind === 'art' ? MAX_ART_BYTES : MAX_SOUND_BYTES);
     uploaded.push({ ...asset, size: outgoing.size, remotePath: path });
   }
@@ -292,7 +297,7 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
   // 4. 썸네일
   onProgress?.(t('remote.step.thumb'));
   const thumb = await renderShareThumb(work);
-  await uploadPath(thumbPath(work.id), thumb, MAX_ART_BYTES);
+  await uploadPath(groupOnly ? groupThumbPath(work.id) : thumbPath(work.id), thumb, MAX_ART_BYTES);
 
   // 5. 이제서야 링크가 열린다.
   onProgress?.(t('remote.step.finishing'));
@@ -308,7 +313,7 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
     : options.expireDays
       ? Date.now() + options.expireDays * 86_400_000
       : null;
-  const published: Work = { ...work, visibility: 'link' };
+  const published: Work = { ...work, visibility: groupOnly ? 'group' : 'link' };
   const portablePublished = toPortableWork(published);
   await withTimeout(
     updateDoc(doc(firestore(), 'works', work.id), {
@@ -320,7 +325,9 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
        * 빼먹으면 원격 문서에만 열리지 않는 비밀이 남는다.
        */
       secrets: portablePublished.secrets,
-      visibility: 'link',
+       // group 전용은 여기까지 local로 둔다. submitToGroup Function이 멤버십과
+       // 제출 상태를 확인한 뒤에만 group으로 승격한다.
+       visibility: groupOnly ? 'local' : 'link',
       // 공개 피드에 노출할지는 게이트 화면에서 고른 대로다. 그룹 전용으로
       // 올린 작품까지 무조건 공개 스테이지에 뜨던 게 이 필드를 하드코딩했던 문제였다.
       discoverable: options.discoverable,
@@ -329,14 +336,6 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
     WRITE_TIMEOUT_MS,
     t('remote.op.openLink'),
   );
-
-  const record = await getWorkRecord(work.id);
-  await putWorkRecord({
-    work: published,
-    updatedAt: Date.now(),
-    published: true,
-    thumb: record?.thumb,
-  });
 
   const result: PublishResult = { url: shareUrl(work.id), work: published };
 
@@ -348,9 +347,12 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
   if (groupIds.length) {
     onProgress?.(t('remote.step.group'));
     try {
-      const { submitted, skipped } = await submitToGroups(work.id, groupIds);
-      result.submittedGroups = submitted;
-      if (submitted.length === 0 && skipped.length > 0) {
+       const { submitted, skipped } = await submitToGroups(work.id, groupIds, { groupOnly });
+       result.submittedGroups = submitted;
+       if (groupOnly && submitted.length === 0) {
+         throw new Error(skipped.length ? explainGroupSkipReason(skipped[0].reason) : t('remote.group.failed'));
+       }
+       if (skipped.some((s) => s.reason !== 'already-submitted')) {
         // 전부 skip됐을 때만 이유를 보여준다. already-submitted는 에러가 아니라서
         // 다른 이유가 하나라도 있을 때만 그걸 대표로 보여준다.
         const meaningful = skipped.filter((s) => s.reason !== 'already-submitted');
@@ -363,6 +365,20 @@ export async function publishWork(input: Work, options: ShareOptions): Promise<P
       result.groupError = explainFirebaseError(e);
     }
   }
+
+  // 그룹 전용에는 공개 링크라는 성공 경로가 없다. 제출이 하나도 안 됐는데
+  // 로컬을 published/group으로 바꾸면 재시도할 원본을 잃은 것처럼 보인다.
+  if (groupOnly && (!result.submittedGroups || result.submittedGroups.length === 0)) {
+    throw new Error(result.groupError || t('remote.group.failed'));
+  }
+
+  const record = await getWorkRecord(work.id);
+  await putWorkRecord({
+    work: published,
+    updatedAt: Date.now(),
+    published: true,
+    thumb: record?.thumb,
+  });
 
   return result;
 }
@@ -421,16 +437,12 @@ export async function fetchWork(id: string): Promise<Work | null> {
   const local = await getWorkRecord(id);
   if (!isFirebaseConfigured) return local?.work ?? null;
   try {
-    // 감상 화면도 마찬가지 — 무한 대기 대신 로컬 폴백을 택한다.
-    const snap = await withTimeout(
-      getDoc(doc(firestore(), 'works', id)),
-      WRITE_TIMEOUT_MS,
-    t('remote.op.fetchWork'),
-    );
-    if (snap.exists()) {
-      const remote = parseWork(snap.data());
-      if (remote) return remote;
-    }
+    // link와 group을 한 callable로 읽는다. group은 서버가 현재 멤버십을 확인하고,
+    // link는 기존처럼 로그인 없이 읽어 공유 링크 호환을 유지한다.
+    const callable = httpsCallable(functions(), 'fetchSharedWork');
+    const response = await withTimeout(callable({ workId: id }), WRITE_TIMEOUT_MS, t('remote.op.fetchWork'));
+    const remote = parseWork((response.data as { work?: unknown } | null)?.work);
+    if (remote) return remote;
   } catch (error) {
     if (!local) throw error;
   }

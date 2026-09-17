@@ -14,6 +14,7 @@ import { isTossApp } from '../../platform/toss';
 import { HINT_MAX, TITLE_MAX } from '../../work-model/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { KeycapGrid, type GridHandle } from '../components/KeycapGrid';
+import { StorageStatus } from '../components/StorageStatus';
 import { useAppState } from '../state';
 import { ShareGate } from './ShareGateScreen';
 
@@ -24,6 +25,7 @@ export function WorkCardScreen() {
   const gridRef = useRef<GridHandle>(null);
   const [gateOpen, setGateOpen] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
+  const [submittedGroupId, setSubmittedGroupId] = useState<string | null>(null);
   const [bytes, setBytes] = useState<number | null>(null);
   const [replaying, setReplaying] = useState(false);
   const [confirmStop, setConfirmStop] = useState(false);
@@ -100,12 +102,13 @@ export function WorkCardScreen() {
     <main className="screen card">
       <header className="bar">
         {!isTossApp() && (
-          <button type="button" className="bar-back" onClick={() => nav('/perform')}>
+          <button type="button" className="bar-back" onClick={() => nav(`/perform${params.get('g') ? `?g=${params.get('g')}` : ''}`)}>
             {t('card.backToPerform')}
           </button>
         )}
         <h1>{t('card.title')}</h1>
       </header>
+      <StorageStatus />
 
       {/* 이 화면의 키캡은 볼거리다. "작품 다시 보기"로 재생하는 동안에만 밝아진다. */}
       <KeycapGrid ref={gridRef} keys={draft.keys} disabled muted={!replaying} />
@@ -193,6 +196,20 @@ export function WorkCardScreen() {
         </section>
       )}
 
+      {draft.visibility === 'group' && (
+        <section className="share-done">
+          <p className="done-msg">{t('card.groupShared')}</p>
+          {submittedGroupId && (
+            <button type="button" className="chip primary wide" onClick={() => nav(`/feed?g=${submittedGroupId}`)}>
+              {t('card.goGroup')}
+            </button>
+          )}
+          <button type="button" className="chip wide" onClick={() => setConfirmStop(true)}>
+            {t('card.stopShare')}
+          </button>
+        </section>
+      )}
+
       {/* 결과는 화면 안에서 알린다. 스크린리더도 읽도록 live 영역으로 둔다. */}
       <p className="note" role="status" aria-live="polite">
         {notice}
@@ -216,10 +233,12 @@ export function WorkCardScreen() {
       {gateOpen && (
         <ShareGate
           work={draft}
+          initialGroupId={params.get('g') || undefined}
           onCancel={() => setGateOpen(false)}
-          onDone={(link, published) => {
+          onDone={(link, published, submittedGroups) => {
             setGateOpen(false);
-            setUrl(link);
+            setUrl(published.visibility === 'link' ? link : null);
+            setSubmittedGroupId(published.visibility === 'group' ? submittedGroups?.[0] ?? params.get('g') : null);
             patchDraft({
               visibility: published.visibility,
               assets: published.assets,

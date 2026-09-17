@@ -12,13 +12,14 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { BEATS_PER_BAR, barMs, beatMs, durationForTempo } from '../../work-model/timing';
 import { t } from '../../i18n';
 import { isTossApp } from '../../platform/toss';
 import type { KeyIndex } from '../../work-model/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { KeycapGrid, type GridHandle, type LoopState } from '../components/KeycapGrid';
+import { StorageStatus } from '../components/StorageStatus';
 import { useResumeOnVisible } from '../hooks';
 import { useAppState } from '../state';
 
@@ -26,6 +27,8 @@ type Phase = 'ready' | 'countdown' | 'live' | 'paused' | 'done';
 
 export function PerformScreen() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
+  const groupQuery = params.get('g') ? `?g=${params.get('g')}` : '';
   const { engine, draft, patchDraft, saveDraft } = useAppState();
   const gridRef = useRef<GridHandle>(null);
   const [phase, setPhase] = useState<Phase>('ready');
@@ -146,7 +149,7 @@ export function PerformScreen() {
           <button
             type="button"
             className="bar-back"
-            onClick={() => nav('/stage')}
+          onClick={() => nav(`/stage${groupQuery}`)}
             disabled={phase === 'live' || phase === 'paused' || phase === 'countdown'}
           >
             {t('perform.backToStage')}
@@ -154,6 +157,7 @@ export function PerformScreen() {
         )}
         <h1>{t('perform.title')}</h1>
       </header>
+      <StorageStatus />
 
       {/* 마디 진행 표시 */}
       <div className="bars" aria-hidden>
@@ -237,14 +241,14 @@ export function PerformScreen() {
         <div className="done-row">
           <p className="done-msg">{t('perform.done', { presses })}</p>
           {check && <p className="warn">{check}</p>}
-          <button type="button" className="chip" onClick={() => nav('/card?replay=1')}>
+          <button type="button" className="chip" onClick={() => nav(`/card?replay=1${groupQuery ? `&${groupQuery.slice(1)}` : ''}`)}>
             {t('perform.watchAgain')}
           </button>
           {/* 15초 한 번에 만족스러운 결과가 나올 확률은 낮다. 재시도 비용을 0으로. */}
           <button type="button" className="chip" onClick={retry}>
             {t('perform.again')}
           </button>
-          <button type="button" className="big-cta" onClick={() => nav('/card')}>
+          <button type="button" className="big-cta" onClick={() => nav(`/card${groupQuery}`)}>
             {t('perform.finish')}
           </button>
         </div>
